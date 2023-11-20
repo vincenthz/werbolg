@@ -1,0 +1,20 @@
+[package]
+name = "werbolg"
+version = "0.1.0"
+edition = "2021"
+description = "a multi language high level dynamic platform to execute in a safe environment with traps to rust defined function"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+s-expr = "0.1"
+thiserror = "1"
+num-bigint = "0.4"
+num-traits = "0.2"
+bigdecimal = "0.4"
+hex = "0.4"
+strum = { version = "0.25", features = ["derive"] }
+
+[[bin]]
+name = "testexec"
+required-features = []
