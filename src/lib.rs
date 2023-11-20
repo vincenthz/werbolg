@@ -9,8 +9,11 @@ pub mod lang;
 
 pub use em::{ExecutionError, ExecutionMachine, Value};
 
-pub fn parse(file: &Path) -> std::io::Result<Result<ast::Module, lang::ParseError>> {
-    lang::parse(lang::Lang::Scheme, file)
+pub fn parse(
+    lang: lang::Lang,
+    file: &Path,
+) -> std::io::Result<Result<ast::Module, lang::ParseError>> {
+    lang::parse(lang, file)
 }
 
 pub fn exec(em: &mut em::ExecutionMachine, ast: ast::Module) -> Result<Value, ExecutionError> {

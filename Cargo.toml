@@ -14,6 +14,8 @@ num-traits = "0.2"
 bigdecimal = "0.4"
 hex = "0.4"
 strum = { version = "0.25", features = ["derive"] }
+ariadne = "0.3"
+chumsky = { version = "0.9", features = [] }
 
 [[bin]]
 name = "testexec"

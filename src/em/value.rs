@@ -10,6 +10,7 @@ use strum::EnumDiscriminants;
 pub enum Value {
     Unit,
     // Simple values
+    Bool(bool),
     Number(ast::Number),
     String(String),
     Decimal(ast::Decimal),
@@ -33,6 +34,26 @@ impl<'a> From<&'a Literal> for Value {
 }
 
 impl Value {
+    pub fn unit(&self) -> Result<(), ExecutionError> {
+        match self {
+            Value::Unit => Ok(()),
+            _ => Err(ExecutionError::ValueKindUnexpected {
+                value_expected: ValueKind::Unit,
+                value_got: self.into(),
+            }),
+        }
+    }
+
+    pub fn bool(&self) -> Result<bool, ExecutionError> {
+        match self {
+            Value::Bool(v) => Ok(*v),
+            _ => Err(ExecutionError::ValueKindUnexpected {
+                value_expected: ValueKind::Bool,
+                value_got: self.into(),
+            }),
+        }
+    }
+
     pub fn number(&self) -> Result<&ast::Number, ExecutionError> {
         match self {
             Value::Number(v) => Ok(v),

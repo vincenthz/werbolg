@@ -1,4 +1,5 @@
 pub mod common;
+pub mod rusty;
 pub mod scheme;
 
 use common::{ast, FileUnit};
@@ -9,11 +10,13 @@ pub use common::ParseError;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
     Scheme,
+    Rusty,
 }
 
 pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ast::Module, ParseError> {
     match lang {
         Lang::Scheme => scheme::module(unit),
+        Lang::Rusty => rusty::module(unit),
     }
 }
 

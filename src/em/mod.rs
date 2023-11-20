@@ -95,6 +95,32 @@ pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, Exec
             Ok(Value::List(r))
         }
         ast::Expr::Ident(ident) => em.get_binding(ident),
+        ast::Expr::Let(ident, bind_expr, then_expr) => {
+            let value = exec_expr(em, bind_expr)?;
+            em.add_binding(ident.clone(), value);
+            exec_expr(em, then_expr)
+        }
+        ast::Expr::Then(first_expr, second_expr) => {
+            let value1 = exec_expr(em, first_expr)?;
+            value1.unit()?;
+            let value2 = exec_expr(em, second_expr)?;
+            Ok(value2)
+        }
+        ast::Expr::If {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            let cond_val = exec_expr(em, cond)?;
+            let cond_bool = cond_val.bool()?;
+
+            let ret = if cond_bool {
+                exec_expr(em, then_expr)
+            } else {
+                exec_expr(em, else_expr)
+            }?;
+            Ok(ret)
+        }
         ast::Expr::Call(c) => {
             let resolved = c
                 .iter()
@@ -118,6 +144,7 @@ pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, Exec
                         Ok(res)
                     }
                     Value::List(_)
+                    | Value::Bool(_)
                     | Value::Number(_)
                     | Value::String(_)
                     | Value::Decimal(_)
@@ -125,6 +152,7 @@ pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, Exec
                     | Value::Unit => Err(ExecutionError::CallingNotFunc { value_is: k }),
                 }
             } else {
+                //panic!("empty call");
                 Ok(Value::Unit)
             }
         }

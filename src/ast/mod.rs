@@ -28,8 +28,15 @@ pub enum Statement {
 pub enum Expr {
     Literal(Literal),
     List(Vec<Expr>),
+    Let(Ident, Box<Expr>, Box<Expr>),
+    Then(Box<Expr>, Box<Expr>),
     Ident(Ident),
     Call(Vec<Expr>),
+    If {
+        cond: Box<Expr>,
+        then_expr: Box<Expr>,
+        else_expr: Box<Expr>,
+    },
 }
 
 #[derive(Clone, Debug)]
