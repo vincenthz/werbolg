@@ -1,11 +1,11 @@
 use std::path::PathBuf;
-use werbolg::{ast::Ident, exec, parse, ExecutionError, ExecutionMachine, Value};
+use werbolg::{ast::Ident, ast::Number, exec, parse, ExecutionError, ExecutionMachine, Value};
 
 fn plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = n1 + n2;
+    let ret = Number(&n1.0 + &n2.0);
 
     Ok(Value::Number(ret))
 }
@@ -14,7 +14,7 @@ fn sub(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErr
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = n1 - n2;
+    let ret = Number(&n1.0 - &n2.0);
 
     Ok(Value::Number(ret))
 }
@@ -23,7 +23,7 @@ fn mul(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErr
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = n1 * n2;
+    let ret = Number(&n1.0 * &n2.0);
 
     Ok(Value::Number(ret))
 }
@@ -32,15 +32,36 @@ fn eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErro
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = n1 == n2;
+    let ret = n1.0 == n2.0;
 
     Ok(Value::Bool(ret))
 }
 
-fn main() {
+fn main() -> Result<(), ()> {
     let args = std::env::args().into_iter().collect::<Vec<_>>();
+
+    if args.len() < 2 {
+        println!("usage: {} <FILE>", args[0]);
+        return Err(());
+    }
+
     let path = PathBuf::from(&args[1]);
-    let module = parse(werbolg::lang::Lang::Rusty, &path)
+
+    let default = werbolg::lang::Lang::Rusty;
+    let lang = match path.extension() {
+        None => default,
+        Some(os_str) => match os_str.to_str() {
+            None => default,
+            Some("rs") => werbolg::lang::Lang::Rusty,
+            Some("scheme") => werbolg::lang::Lang::Schemy,
+            Some(s) => {
+                println!("error: unknown extension {}", s);
+                return Err(());
+            }
+        },
+    };
+
+    let module = parse(lang, &path)
         .expect("file can be read")
         .expect("no parse error");
 
@@ -52,5 +73,6 @@ fn main() {
 
     let val = exec(&mut em, module).expect("no execution error");
 
-    println!("{:?}", val)
+    println!("{:?}", val);
+    Ok(())
 }

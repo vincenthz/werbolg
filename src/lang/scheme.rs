@@ -18,10 +18,8 @@
 //! LITERAL = STRING | INT | DECIMAL | BYTES
 
 use super::common::{ast, FileUnit, ParseError, ParseErrorKind};
-use num_traits::Num;
 use s_expr::{Atom, GroupKind, Position, Span, TokenizerConfig};
 use std::rc::Rc;
-use std::str::FromStr;
 
 pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
     let tokenizer_config = TokenizerConfig::default();

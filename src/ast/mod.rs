@@ -47,5 +47,48 @@ pub enum Literal {
     Bytes(Box<[u8]>),
 }
 
-pub type Number = num_bigint::BigInt;
-pub type Decimal = bigdecimal::BigDecimal;
+#[cfg(feature = "backend-bignum")]
+use num_traits::Num;
+
+#[cfg(feature = "backend-bignum")]
+use std::str::FromStr;
+
+#[cfg(feature = "backend-bignum")]
+pub type NumberInner = num_bigint::BigInt;
+
+#[cfg(feature = "backend-smallnum")]
+pub type NumberInner = u64;
+
+#[derive(Clone, Debug)]
+pub struct Number(pub NumberInner);
+
+impl Number {
+    pub fn from_str_radix(s: &str, n: u32) -> Result<Self, ()> {
+        NumberInner::from_str_radix(s, n)
+            .map(|n| Self(n))
+            .map_err(|_| ())
+    }
+}
+
+#[cfg(feature = "backend-bignum")]
+pub type DecimalInner = bigdecimal::BigDecimal;
+
+#[cfg(feature = "backend-smallnum")]
+pub type DecimalInner = f64;
+
+#[derive(Clone, Debug)]
+pub struct Decimal(pub DecimalInner);
+
+impl Decimal {
+    pub fn from_str(s: &str) -> Result<Self, ()> {
+        #[cfg(feature = "backend-bignum")]
+        {
+            DecimalInner::from_str(s).map(|n| Self(n)).map_err(|_| ())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            use std::str::FromStr;
+            DecimalInner::from_str(s).map(|n| Self(n)).map_err(|_| ())
+        }
+    }
+}
