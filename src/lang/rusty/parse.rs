@@ -1,12 +1,13 @@
 // this is chumsky nanorust example without the evaluation
 
+use alloc::{boxed::Box, format, string::String, string::ToString, vec::Vec};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{prelude::*, stream::Stream};
-use std::fmt;
+use core::fmt;
 
 use crate::ast::{Literal, Number};
 
-pub type Span = std::ops::Range<usize>;
+pub type Span = core::ops::Range<usize>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Token {
