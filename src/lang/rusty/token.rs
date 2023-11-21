@@ -3,7 +3,7 @@ use logos::Logos;
 #[derive(Debug, Logos)]
 #[logos(skip r"[ \t\r\n\f]+")]
 #[logos(skip r"//.*")]
-enum Token {
+pub enum Token {
     #[token("false", |_| false)]
     #[token("true", |_| true)]
     Bool(bool),
