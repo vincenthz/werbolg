@@ -5,6 +5,7 @@ use crate::ast;
 mod bindings;
 mod value;
 
+use alloc::vec::Vec;
 use bindings::BindingsStack;
 pub use value::{Value, ValueKind};
 

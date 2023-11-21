@@ -1,5 +1,7 @@
 use std::path::PathBuf;
-use werbolg::{ast::Ident, ast::Number, exec, parse, ExecutionError, ExecutionMachine, Value};
+use werbolg::{
+    ast::Ident, ast::Number, exec, parse, ExecutionError, ExecutionMachine, FileUnit, Value,
+};
 
 fn plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
@@ -40,30 +42,40 @@ fn eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErro
 fn main() -> Result<(), ()> {
     let args = std::env::args().into_iter().collect::<Vec<_>>();
 
-    if args.len() < 2 {
-        println!("usage: {} <FILE>", args[0]);
-        return Err(());
-    }
+    #[cfg(std)]
+    let (fileunit, lang) = {
+        if args.len() < 2 {
+            println!("usage: {} <FILE>", args[0]);
+            return Err(());
+        }
 
-    let path = PathBuf::from(&args[1]);
+        let path = PathBuf::from(&args[1]);
 
-    let default = werbolg::lang::Lang::Rusty;
-    let lang = match path.extension() {
-        None => default,
-        Some(os_str) => match os_str.to_str() {
+        let default = werbolg::lang::Lang::Rusty;
+        let lang = match path.extension() {
             None => default,
-            Some("rs") => werbolg::lang::Lang::Rusty,
-            Some("scheme") => werbolg::lang::Lang::Schemy,
-            Some(s) => {
-                println!("error: unknown extension {}", s);
-                return Err(());
-            }
-        },
+            Some(os_str) => match os_str.to_str() {
+                None => default,
+                Some("rs") => werbolg::lang::Lang::Rusty,
+                Some("scheme") => werbolg::lang::Lang::Schemy,
+                Some(s) => {
+                    println!("error: unknown extension {}", s);
+                    return Err(());
+                }
+            },
+        };
+
+        let fileunit = FileUnit::from_file(path).expect("file read");
+        (fileunit, lang)
+    };
+    #[cfg(not(std))]
+    let (fileunit, lang) = {
+        let test_snippet = include_str!("../../test.scheme");
+        let fileunit = FileUnit::from_string("test.scheme".to_string(), test_snippet.to_string());
+        (fileunit, werbolg::lang::Lang::Schemy)
     };
 
-    let module = parse(lang, &path)
-        .expect("file can be read")
-        .expect("no parse error");
+    let module = parse(lang, &fileunit).expect("no parse error");
 
     let mut em = ExecutionMachine::new();
     em.add_binding(Ident::from("+"), Value::NativeFun(plus));

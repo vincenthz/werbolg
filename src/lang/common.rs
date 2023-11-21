@@ -1,20 +1,25 @@
 use s_expr::Span;
 
 pub use crate::ast;
-use std::path::PathBuf;
+use alloc::{format, string::String};
 
 pub struct FileUnit {
-    pub filename: PathBuf,
+    pub filename: String,
     pub content: String,
 }
 
 impl FileUnit {
+    #[cfg(std)]
     pub fn from_file(path: &std::path::Path) -> std::io::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         Ok(Self {
             filename: path.into(),
             content: content,
         })
+    }
+
+    pub fn from_string(filename: String, content: String) -> Self {
+        Self { filename, content }
     }
 
     pub fn resolve_error(&self, err: &ParseError) -> String {

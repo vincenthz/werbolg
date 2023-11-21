@@ -1,5 +1,6 @@
 use crate::ast::Ident;
-use std::collections::HashMap;
+use alloc::{vec, vec::Vec};
+use hashbrown::HashMap;
 
 pub struct BindingsStack<T> {
     stack: Vec<HashMap<BindingName, T>>,

@@ -1,3 +1,4 @@
+use alloc::{borrow::ToOwned, string::String};
 use logos::Logos;
 
 #[derive(Debug, Logos)]

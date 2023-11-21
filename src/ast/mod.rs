@@ -10,7 +10,7 @@ pub struct Ident(pub String);
 
 impl From<&str> for Ident {
     fn from(s: &str) -> Self {
-        Self(s.to_string())
+        Self(String::from(s))
     }
 }
 
@@ -89,7 +89,7 @@ impl Decimal {
         }
         #[cfg(feature = "backend-smallnum")]
         {
-            use std::str::FromStr;
+            use core::str::FromStr;
             DecimalInner::from_str(s).map(|n| Self(n)).map_err(|_| ())
         }
     }

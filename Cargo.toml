@@ -17,6 +17,7 @@ backend-bignum = ["num-bigint", "num-traits", "bigdecimal"]
 panic = 'abort'
 
 [dependencies]
+hashbrown = "0.14"
 thiserror = "1"
 hex = "0.4"
 strum = { version = "0.25", features = ["derive"] }

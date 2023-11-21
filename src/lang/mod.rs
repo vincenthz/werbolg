@@ -7,7 +7,6 @@ pub mod rusty;
 pub mod scheme;
 
 use common::{ast, FileUnit};
-use std::path::Path;
 
 pub use common::ParseError;
 
@@ -43,7 +42,6 @@ pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ast::Module, ParseError
     }
 }
 
-pub fn parse(lang: Lang, file: &Path) -> std::io::Result<Result<ast::Module, ParseError>> {
-    let fileunit = FileUnit::from_file(file)?;
-    Ok(parse_unit(lang, &fileunit))
+pub fn parse(lang: Lang, file: &FileUnit) -> Result<ast::Module, ParseError> {
+    parse_unit(lang, file)
 }

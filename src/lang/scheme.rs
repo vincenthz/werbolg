@@ -18,8 +18,9 @@
 //! LITERAL = STRING | INT | DECIMAL | BYTES
 
 use super::common::{ast, FileUnit, ParseError, ParseErrorKind};
+use alloc::format;
+use alloc::{rc::Rc, vec::Vec};
 use s_expr::{Atom, GroupKind, Position, Span, TokenizerConfig};
-use std::rc::Rc;
 
 pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
     let tokenizer_config = TokenizerConfig::default();
@@ -97,7 +98,7 @@ fn expr<'a, 'b>(parser: &mut Parser<'a, 'b>) -> Result<ast::Expr, ParseError> {
                 hex::decode(b.0).unwrap().into(),
             ))),
             Atom::String(s) => Ok(ast::Expr::Literal(ast::Literal::String(s.to_string()))),
-            Atom::Ident(ident) => Ok(ast::Expr::Ident(ast::Ident(ident.to_string()))),
+            Atom::Ident(ident) => Ok(ast::Expr::Ident(ast::Ident::from(*ident))),
         },
         Element::Group(kind, element) => match kind {
             GroupKind::Paren => {
@@ -274,7 +275,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
                 Atom::Ident(ident) => {
                     self.pos += 1;
-                    return Ok(ast::Ident(ident.to_string()));
+                    return Ok(ast::Ident::from(*ident));
                 }
             },
         }
@@ -343,12 +344,10 @@ fn transform_dec(dec: &s_expr::ADecimal) -> ast::Decimal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::string::String;
 
     fn snippet_to_fileunit(snippet: &str) -> FileUnit {
-        FileUnit {
-            filename: std::path::PathBuf::from("test"),
-            content: snippet.to_string(),
-        }
+        FileUnit::from_string(String::from("test"), String::from(snippet))
     }
 
     #[test]
@@ -367,7 +366,8 @@ mod tests {
             }
             Ok(res) => {
                 for stmt in res.statements {
-                    println!("{:?}", stmt)
+                    //println!("{:?}", stmt)
+                    ()
                 }
             }
         }
