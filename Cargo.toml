@@ -8,7 +8,7 @@ description = "a multi language high level dynamic platform to execute in a safe
 
 [features]
 default = ["lang-rusty", "lang-schemy", "backend-bignum"]
-lang-rusty = ["ariadne", "chumsky"]
+lang-rusty = ["ariadne", "chumsky", "logos"]
 lang-schemy = []
 backend-smallnum = []
 backend-bignum = ["num-bigint", "num-traits", "bigdecimal"]
@@ -22,6 +22,7 @@ hex = "0.4"
 strum = { version = "0.25", features = ["derive"] }
 
 s-expr = { version = "0.1", optional = false }
+logos = { version = "0.13", optional = true }
 num-bigint = { version = "0.4", optional = true }
 num-traits = { version = "0.2", optional = true }
 bigdecimal = { version = "0.4", optional = true }

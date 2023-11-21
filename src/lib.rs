@@ -1,6 +1,8 @@
 //! Werbolg is a library to help create dynamic interpreted environment
 //!
 
+extern crate alloc;
+
 use std::path::Path;
 
 pub mod ast;

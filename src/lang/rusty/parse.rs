@@ -5,7 +5,6 @@ use chumsky::{prelude::*, stream::Stream};
 use std::fmt;
 
 use crate::ast::{Literal, Number};
-use num_traits::Num;
 
 pub type Span = std::ops::Range<usize>;
 

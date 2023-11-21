@@ -1,3 +1,5 @@
+use alloc::{boxed::Box, string::String, vec::Vec};
+
 #[derive(Clone, Debug)]
 pub struct Module {
     pub statements: Vec<Statement>,
@@ -51,7 +53,7 @@ pub enum Literal {
 use num_traits::Num;
 
 #[cfg(feature = "backend-bignum")]
-use std::str::FromStr;
+use core::str::FromStr;
 
 #[cfg(feature = "backend-bignum")]
 pub type NumberInner = num_bigint::BigInt;
