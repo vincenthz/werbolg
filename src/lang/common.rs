@@ -1,7 +1,7 @@
 use s_expr::Span;
 
 pub use crate::ast;
-use alloc::{format, string::String};
+use alloc::{format, string::String, vec::Vec};
 
 pub struct FileUnit {
     pub filename: String,
@@ -52,4 +52,12 @@ impl ParseError {
 pub enum ParseErrorKind {
     Unknown,
     Str(String),
+}
+
+pub fn hex_decode(s: &str) -> Vec<u8> {
+    let mut v = Vec::with_capacity(s.bytes().len() / 2);
+    for i in (0..s.len()).step_by(2) {
+        v[i / 2] = u8::from_str_radix(&s[i..i + 2], 16).unwrap()
+    }
+    v
 }

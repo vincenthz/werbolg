@@ -17,7 +17,7 @@
 //!
 //! LITERAL = STRING | INT | DECIMAL | BYTES
 
-use super::common::{ast, FileUnit, ParseError, ParseErrorKind};
+use super::common::{ast, hex_decode, FileUnit, ParseError, ParseErrorKind};
 use alloc::format;
 use alloc::{rc::Rc, vec::Vec};
 use s_expr::{Atom, GroupKind, Position, Span, TokenizerConfig};
@@ -95,7 +95,7 @@ fn expr<'a, 'b>(parser: &mut Parser<'a, 'b>) -> Result<ast::Expr, ParseError> {
             Atom::Integral(i) => Ok(ast::Expr::Literal(ast::Literal::Number(transform_num(i)))),
             Atom::Decimal(d) => Ok(ast::Expr::Literal(ast::Literal::Decimal(transform_dec(d)))),
             Atom::Bytes(b) => Ok(ast::Expr::Literal(ast::Literal::Bytes(
-                hex::decode(b.0).unwrap().into(),
+                hex_decode(b.0).into(),
             ))),
             Atom::String(s) => Ok(ast::Expr::Literal(ast::Literal::String(s.to_string()))),
             Atom::Ident(ident) => Ok(ast::Expr::Ident(ast::Ident::from(*ident))),
@@ -242,7 +242,7 @@ impl<'a, 'b> Parser<'a, 'b> {
                 let lit = match atom {
                     Atom::Integral(i) => ast::Literal::Number(transform_num(i)),
                     Atom::Decimal(d) => ast::Literal::Decimal(transform_dec(d)),
-                    Atom::Bytes(b) => ast::Literal::Bytes(hex::decode(b.0).unwrap().into()),
+                    Atom::Bytes(b) => ast::Literal::Bytes(hex_decode(b.0).into()),
                     Atom::String(s) => ast::Literal::String(s.to_string()),
                     Atom::Ident(_ident) => {
                         return Err(ParseError {
