@@ -6,6 +6,9 @@ pub mod rusty;
 #[cfg(feature = "lang-schemy")]
 pub mod scheme;
 
+#[cfg(feature = "lang-lispy")]
+pub mod lispy;
+
 use common::{ast, FileUnit};
 
 pub use common::ParseError;
