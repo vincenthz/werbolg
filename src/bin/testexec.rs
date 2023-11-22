@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use werbolg::{
     ast::Ident, ast::Number, exec, parse, ExecutionError, ExecutionMachine, FileUnit, Value,
 };
@@ -40,10 +39,10 @@ fn eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErro
 }
 
 fn main() -> Result<(), ()> {
-    let args = std::env::args().into_iter().collect::<Vec<_>>();
-
     #[cfg(std)]
     let (fileunit, lang) = {
+        let args = std::env::args().into_iter().collect::<Vec<_>>();
+
         if args.len() < 2 {
             println!("usage: {} <FILE>", args[0]);
             return Err(());
