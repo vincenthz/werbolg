@@ -2,7 +2,7 @@
 
 use super::{ExecutionError, ExecutionMachine};
 use crate::ast::{self, Ident, Literal, Statement};
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use strum::EnumDiscriminants;
 
 /// Execution Machine Value
@@ -16,11 +16,21 @@ pub enum Value {
     String(String),
     Decimal(ast::Decimal),
     Bytes(Box<[u8]>),
+    Opaque(Opaque),
     // Composite
     List(Vec<Value>),
     // Functions
-    NativeFun(fn(&mut ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>),
+    NativeFun(fn(&ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>),
     Fun(Vec<Ident>, Vec<Statement>),
+}
+
+#[derive(Clone)]
+pub struct Opaque(u64);
+
+impl core::fmt::Debug for Opaque {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Opaque").finish()
+    }
 }
 
 impl<'a> From<&'a Literal> for Value {

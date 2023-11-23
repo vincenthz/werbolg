@@ -5,39 +5,44 @@ use crate::ast;
 mod bindings;
 mod value;
 
-use alloc::vec::Vec;
+use alloc::{rc::Rc, vec::Vec};
 use bindings::BindingsStack;
+use core::{borrow::BorrowMut, cell::RefCell};
 pub use value::{Value, ValueKind};
 
 pub struct ExecutionMachine {
-    pub _bindings: BindingsStack<BindingValue>,
+    pub _bindings: RefCell<BindingsStack<BindingValue>>,
 }
 
 impl ExecutionMachine {
     pub fn new() -> Self {
         Self {
-            _bindings: BindingsStack::new(),
+            _bindings: RefCell::new(BindingsStack::new()),
         }
     }
 
-    pub fn add_binding(&mut self, ident: ast::Ident, value: Value) {
-        self._bindings.add(ident, value)
+    pub fn add_binding(&self, ident: ast::Ident, value: Value) {
+        let mut bindings = self._bindings.borrow_mut();
+        bindings.add(ident, value)
     }
 
-    pub fn get_binding(&mut self, ident: &ast::Ident) -> Result<Value, ExecutionError> {
-        let bind = self._bindings.get(ident);
+    pub fn get_binding(&self, ident: &ast::Ident) -> Result<Value, ExecutionError> {
+        let bindings = self._bindings.borrow_mut();
+        let bind = bindings.get(ident);
         match bind {
             None => Err(ExecutionError::MissingBinding(ident.clone())),
             Some(val) => Ok(val.clone()),
         }
     }
 
-    pub fn scope_enter(&mut self) {
-        self._bindings.scope_enter()
+    pub fn scope_enter(&self) {
+        let mut bindings = self._bindings.borrow_mut();
+        bindings.scope_enter()
     }
 
-    pub fn scope_leave(&mut self) {
-        self._bindings.scope_leave()
+    pub fn scope_leave(&self) {
+        let mut bindings = self._bindings.borrow_mut();
+        bindings.scope_leave()
     }
 }
 
@@ -59,12 +64,12 @@ pub enum ExecutionError {
     },
 }
 
-pub fn exec(em: &mut ExecutionMachine, module: ast::Module) -> Result<Value, ExecutionError> {
+pub fn exec(em: &ExecutionMachine, module: ast::Module) -> Result<Value, ExecutionError> {
     exec_stmts(em, &module.statements)
 }
 
 pub fn exec_stmts(
-    em: &mut ExecutionMachine,
+    em: &ExecutionMachine,
     stmts: &[ast::Statement],
 ) -> Result<Value, ExecutionError> {
     let mut last_value = None;
@@ -85,7 +90,7 @@ pub fn exec_stmts(
     }
 }
 
-pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, ExecutionError> {
+pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, ExecutionError> {
     match e {
         ast::Expr::Literal(lit) => Ok(Value::from(lit)),
         ast::Expr::List(list_exprs) => {
@@ -150,6 +155,7 @@ pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, Exec
                     | Value::String(_)
                     | Value::Decimal(_)
                     | Value::Bytes(_)
+                    | Value::Opaque(_)
                     | Value::Unit => Err(ExecutionError::CallingNotFunc { value_is: k }),
                 }
             } else {

@@ -2,7 +2,7 @@ use werbolg::{
     ast::Ident, ast::Number, exec, parse, ExecutionError, ExecutionMachine, FileUnit, Value,
 };
 
-fn plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -11,7 +11,7 @@ fn plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionEr
     Ok(Value::Number(ret))
 }
 
-fn sub(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn sub(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -20,7 +20,7 @@ fn sub(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErr
     Ok(Value::Number(ret))
 }
 
-fn mul(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn mul(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -29,7 +29,7 @@ fn mul(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErr
     Ok(Value::Number(ret))
 }
 
-fn eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
