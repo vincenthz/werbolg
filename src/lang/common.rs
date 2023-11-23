@@ -22,6 +22,13 @@ impl FileUnit {
         Self { filename, content }
     }
 
+    pub fn from_str(filename: &str, content: &str) -> Self {
+        Self {
+            filename: String::from(filename),
+            content: String::from(content),
+        }
+    }
+
     pub fn resolve_error(&self, err: &ParseError) -> String {
         let lines = self.content.lines();
         let start = lines.skip(err.location.start.line - 1);

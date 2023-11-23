@@ -56,7 +56,7 @@ fn main() -> Result<(), ()> {
             Some(os_str) => match os_str.to_str() {
                 None => default,
                 Some("rs") => werbolg::lang::Lang::Rusty,
-                Some("scheme") => werbolg::lang::Lang::Schemy,
+                Some("scheme") => werbolg::lang::Lang::Lispy,
                 Some(s) => {
                     println!("error: unknown extension {}", s);
                     return Err(());
@@ -71,7 +71,7 @@ fn main() -> Result<(), ()> {
     let (fileunit, lang) = {
         let test_snippet = include_str!("../../test.scheme");
         let fileunit = FileUnit::from_string("test.scheme".to_string(), test_snippet.to_string());
-        (fileunit, werbolg::lang::Lang::Schemy)
+        (fileunit, werbolg::lang::Lang::Lispy)
     };
 
     let module = parse(lang, &fileunit).expect("no parse error");

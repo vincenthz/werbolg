@@ -7,11 +7,10 @@ description = "a multi language high level dynamic platform to execute in a safe
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["lang-lispy", "lang-rusty", "lang-schemy", "backend-bignum"]
+default = ["lang-lispy", "lang-rusty", "backend-bignum"]
 std = []
 lang-lispy = []
 lang-rusty = ["ariadne", "chumsky", "logos"]
-lang-schemy = []
 backend-smallnum = []
 backend-bignum = ["num-bigint", "num-traits", "bigdecimal"]
 

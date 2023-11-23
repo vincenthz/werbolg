@@ -1,11 +1,13 @@
-(define sum3
-	(a b c)
+(define (sum3 a b c)
 	(+ (+ a b) c)
 )
 
-(define sum4
-	(a b c d)
+(define (sum4 a b c d)
 	(+ (+ a b) (+ c d))
 )
 
-(sum3 10 20 (sum4 20 10 5 5))
+(define (mul4 a b c d)
+    (* (* a b) (* c d))
+)
+
+(sum3 10 20 (sum4 20 10 5 (mul4 1 2 3 4)))

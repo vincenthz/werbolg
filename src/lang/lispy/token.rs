@@ -3,26 +3,18 @@ use logos::Logos;
 
 #[derive(Debug, Logos)]
 #[logos(skip r"[ \t\r\n\f]+")]
-#[logos(skip r"//.*")]
+#[logos(skip r";.*")]
 pub enum Token {
-    #[token("{")]
-    BraceOpen,
-    #[token("}")]
-    BraceClose,
-    #[token("[")]
-    BracketOpen,
-    #[token("]")]
-    BracketClose,
     #[token("(")]
     ParenOpen,
     #[token(")")]
     ParenClose,
-    #[regex(r"-?(?:0|[1-9]\d*)?", |lex| lex.slice().parse::<u64>().unwrap())]
-    Number(u64),
+    #[regex(r"-?(?:0|[1-9]\d*)?", |lex| lex.slice().to_owned())]
+    Number(String),
+    #[regex(r#"#[a-fA-F0-9]{2}*#"#, |lex| lex.slice().to_owned())]
+    Bytes(String),
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#, |lex| lex.slice().to_owned())]
     String(String),
-    #[regex(r#"[_a-zA-Z][a-zA-Z0-9]*"#, |lex| lex.slice().to_owned())]
+    #[regex(r#"[-_a-zA-Z!@#$%^&*+/][-_a-zA-Z0-9!@#$%^&*+/]*"#, |lex| lex.slice().to_owned())]
     Ident(String),
-    #[regex(r#"[-!@#$%^&*+=|<>?.]+"#, |lex| lex.slice().to_owned())]
-    Operator(String),
 }

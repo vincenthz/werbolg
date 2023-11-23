@@ -20,6 +20,12 @@ impl From<String> for Ident {
     }
 }
 
+impl Ident {
+    pub fn matches(&self, s: &str) -> bool {
+        self.0 == s
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Statement {
     Function(Ident, Vec<Ident>, Vec<Statement>),
