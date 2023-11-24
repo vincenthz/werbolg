@@ -338,7 +338,7 @@ fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + C
     })
 }
 
-fn funcs_parser() -> impl Parser<Token, Vec<(String, Func)>, Error = Simple<Token>> + Clone {
+fn funcs_parser() -> impl Parser<Token, Vec<(String, Span, Func)>, Error = Simple<Token>> + Clone {
     let ident = filter_map(|span, tok| match tok {
         Token::Ident(ident) => Ok(ident.clone()),
         _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
@@ -380,7 +380,7 @@ fn funcs_parser() -> impl Parser<Token, Vec<(String, Func)>, Error = Simple<Toke
         .try_map(|fs, _| {
             let mut funcs = Vec::new();
             for ((name, _name_span), f) in fs {
-                funcs.push((name.clone(), f))
+                funcs.push((name.clone(), _name_span, f))
             }
             Ok(funcs)
         })
@@ -394,7 +394,7 @@ struct Error {
 }
 */
 
-pub fn module(src: &str) -> Result<Vec<(String, Func)>, ()> {
+pub fn module(src: &str) -> Result<Vec<(String, Span, Func)>, ()> {
     let (tokens, errs) = lexer().parse_recovery(src);
 
     let parse_errs = if let Some(tokens) = tokens {

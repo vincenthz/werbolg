@@ -2,7 +2,7 @@
 
 use super::{ExecutionError, ExecutionMachine};
 use crate::ast::{self, Ident, Literal, Statement};
-use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use strum::EnumDiscriminants;
 
 /// Execution Machine Value

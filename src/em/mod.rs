@@ -5,9 +5,9 @@ use crate::ast;
 mod bindings;
 mod value;
 
-use alloc::{rc::Rc, vec::Vec};
+use alloc::vec::Vec;
 use bindings::BindingsStack;
-use core::{borrow::BorrowMut, cell::RefCell};
+use core::cell::RefCell;
 pub use value::{Value, ValueKind};
 
 pub struct ExecutionMachine {
@@ -75,7 +75,7 @@ pub fn exec_stmts(
     let mut last_value = None;
     for statement in stmts {
         match statement {
-            ast::Statement::Function(name, params, stmts) => {
+            ast::Statement::Function(_, name, params, stmts) => {
                 em.add_binding(name.clone(), Value::Fun(params.clone(), stmts.clone()));
             }
             ast::Statement::Expr(e) => {
@@ -92,15 +92,15 @@ pub fn exec_stmts(
 
 pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, ExecutionError> {
     match e {
-        ast::Expr::Literal(lit) => Ok(Value::from(lit)),
-        ast::Expr::List(list_exprs) => {
+        ast::Expr::Literal(_, lit) => Ok(Value::from(lit)),
+        ast::Expr::List(_, list_exprs) => {
             let r = list_exprs
                 .iter()
                 .map(|l| exec_expr(em, l))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Value::List(r))
         }
-        ast::Expr::Ident(ident) => em.get_binding(ident),
+        ast::Expr::Ident(_, ident) => em.get_binding(ident),
         ast::Expr::Let(ident, bind_expr, then_expr) => {
             let value = exec_expr(em, bind_expr)?;
             em.add_binding(ident.clone(), value);
@@ -113,6 +113,7 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
             Ok(value2)
         }
         ast::Expr::If {
+            span: _,
             cond,
             then_expr,
             else_expr,
@@ -127,7 +128,7 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
             }?;
             Ok(ret)
         }
-        ast::Expr::Call(c) => {
+        ast::Expr::Call(_, c) => {
             let resolved = c
                 .iter()
                 .map(|e| exec_expr(em, e))

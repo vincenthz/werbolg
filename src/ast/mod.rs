@@ -28,19 +28,22 @@ impl Ident {
 
 #[derive(Clone, Debug)]
 pub enum Statement {
-    Function(Ident, Vec<Ident>, Vec<Statement>),
+    Function(Span, Ident, Vec<Ident>, Vec<Statement>),
     Expr(Expr),
 }
 
+pub type Span = core::ops::Range<usize>;
+
 #[derive(Clone, Debug)]
 pub enum Expr {
-    Literal(Literal),
-    List(Vec<Expr>),
+    Literal(Span, Literal),
+    List(Span, Vec<Expr>),
     Let(Ident, Box<Expr>, Box<Expr>),
     Then(Box<Expr>, Box<Expr>),
-    Ident(Ident),
-    Call(Vec<Expr>),
+    Ident(Span, Ident),
+    Call(Span, Vec<Expr>),
     If {
+        span: Span,
         cond: Box<Expr>,
         then_expr: Box<Expr>,
         else_expr: Box<Expr>,

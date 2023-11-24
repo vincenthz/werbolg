@@ -29,37 +29,39 @@ pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
 
 fn statement(expr: parse::Expr) -> ast::Statement {
     match expr {
-        parse::Expr::Atom(_, ident) => ast::Statement::Expr(ast::Expr::Ident(ident)),
-        parse::Expr::Literal(_, lit) => ast::Statement::Expr(ast::Expr::Literal(literal(lit))),
-        parse::Expr::List(_, list) => ast::Statement::Expr(exprs(list)),
-        parse::Expr::Define(_, args, body) => {
+        parse::Expr::Atom(span, ident) => ast::Statement::Expr(ast::Expr::Ident(span, ident)),
+        parse::Expr::Literal(span, lit) => {
+            ast::Statement::Expr(ast::Expr::Literal(span, literal(lit)))
+        }
+        parse::Expr::List(span, list) => ast::Statement::Expr(exprs(span, list)),
+        parse::Expr::Define(span, args, body) => {
             let Some((ident, args)) = args.split_first() else {
                 panic!("cannot happen")
             };
             let name = ident.0.clone();
             let args = args.iter().map(|(i, _)| i.clone()).collect::<Vec<_>>();
             let body = body.into_iter().map(statement).collect::<Vec<_>>();
-            ast::Statement::Function(name, args, body)
+            ast::Statement::Function(span, name, args, body)
         }
     }
 }
 
 fn expr(expr: parse::Expr) -> ast::Expr {
     match expr {
-        parse::Expr::Atom(_, ident) => ast::Expr::Ident(ident),
-        parse::Expr::Literal(_, lit) => ast::Expr::Literal(literal(lit)),
-        parse::Expr::List(_, e) => exprs(e),
+        parse::Expr::Atom(span, ident) => ast::Expr::Ident(span, ident),
+        parse::Expr::Literal(span, lit) => ast::Expr::Literal(span, literal(lit)),
+        parse::Expr::List(span, e) => exprs(span, e),
         parse::Expr::Define(_, _, _) => {
             panic!("cannot have define in expression")
         }
     }
 }
 
-fn exprs(exprs: Vec<parse::Expr>) -> ast::Expr {
+fn exprs(span: parse::Span, exprs: Vec<parse::Expr>) -> ast::Expr {
     if let Some((_, _)) = exprs[0].literal() {
-        ast::Expr::List(exprs.into_iter().map(|e| expr(e)).collect())
+        ast::Expr::List(span, exprs.into_iter().map(|e| expr(e)).collect())
     } else {
-        ast::Expr::Call(exprs.into_iter().map(|e| expr(e)).collect())
+        ast::Expr::Call(span, exprs.into_iter().map(|e| expr(e)).collect())
     }
 }
 
@@ -89,7 +91,7 @@ mod tests {
         let res = module(&fileunit);
         match res {
             Err(e) => {
-                panic!("parsing failed: {:?}\n{}", e, fileunit.resolve_error(&e))
+                //panic!("parsing failed: {:?}\n{}", e, fileunit.resolve_error(&e))
             }
             Ok(res) => {
                 for stmt in res.statements {

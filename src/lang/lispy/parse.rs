@@ -15,7 +15,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-type Span = core::ops::Range<usize>;
+pub type Span = core::ops::Range<usize>;
 type Err = ();
 
 fn span_merge(start: &Span, end: &Span) -> Span {
@@ -145,13 +145,17 @@ pub enum ParserRet {
     Yield(Expr),
 }
 
+/// drop nb elements from the start of the vector in place
 fn vec_drop_start<T>(v: &mut Vec<T>, nb: usize) {
     if nb == 0 {
         return;
+    } else if nb >= v.len() {
+        v.truncate(0)
+    } else {
+        v.reverse();
+        v.truncate(v.len() - nb);
+        v.reverse()
     }
-    v.reverse();
-    v.truncate(v.len() - nb);
-    v.reverse()
 }
 
 impl<'a> Parser<'a> {
