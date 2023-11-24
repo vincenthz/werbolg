@@ -15,15 +15,16 @@ pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
     let mut statements = m
         .into_iter()
         .map(|(n, span, fun)| {
-            let expr = rewrite_stmt(&fun.body);
+            //let expr = rewrite_stmt(&fun.body);
+            let body = rewrite_expr(&fun.body);
             Statement::Function(
                 span,
                 ast::Ident::from(n),
                 fun.args
                     .into_iter()
-                    .map(|s| ast::Ident::from(s))
+                    .map(|(s, span)| (ast::Ident::from(s), span))
                     .collect::<Vec<_>>(),
-                expr,
+                body,
             )
         })
         .collect::<Vec<_>>();

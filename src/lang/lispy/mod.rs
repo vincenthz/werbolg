@@ -4,7 +4,7 @@ mod token;
 
 use super::common::{FileUnit, ParseError};
 use crate::ast;
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec, vec::Vec};
 
 pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
     let lex = parse::Lexer::new(&fileunit.content);
@@ -27,6 +27,83 @@ pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
     Ok(ast::Module { statements })
 }
 
+fn exprs_into_let(exprs: &Vec<parse::Expr>) -> ast::Expr {
+    enum State {
+        None,
+        PExpr(parse::Expr),
+        AExpr(
+            Vec<(
+                ast::Ident,
+                ast::Span,
+                Vec<(ast::Ident, ast::Span)>,
+                ast::Expr,
+            )>,
+        ),
+    }
+    if exprs.len() == 1 {
+        expr(exprs[0].clone())
+    } else {
+        let mut acc = State::None;
+        for exp in &exprs[0..exprs.len() - 1] {
+            match acc {
+                State::None => acc = State::PExpr(exp.clone()),
+                State::PExpr(prev_expr) => {
+                    match prev_expr {
+                        parse::Expr::Define(span, args, body) => {
+                            let (_, name, span_args, args) = define_to_ident_args(args);
+                            let body = exprs_into_let(&body);
+                            acc = State::AExpr(vec![(name, span_args, args, body)]);
+                        }
+                        _ => {
+                            panic!("trying to have a non function in let")
+                        }
+                    }
+                    //let x = toto; let y = tata; final_expr
+                }
+                State::AExpr(acc) => {
+                    todo!()
+                } // ast::Expr::Let(ident, Box::new(bind), Box::new(body)),
+            }
+        }
+        match acc {
+            State::AExpr(acc) => {
+                let last_expr = exprs[exprs.len() - 1].clone();
+                let body = expr(last_expr);
+
+                acc.into_iter()
+                    .rev()
+                    .fold(body, |acc, (ident, span_args, args, body)| {
+                        ast::Expr::Let(
+                            ident,
+                            Box::new(ast::Expr::Lambda(span_args, args, Box::new(body))),
+                            Box::new(acc),
+                        )
+                    })
+            }
+            _ => panic!("invalid state for exprs_into_let"),
+        }
+    }
+}
+
+fn define_to_ident_args(
+    args: Vec<(ast::Ident, ast::Span)>,
+) -> (
+    ast::Span,
+    ast::Ident,
+    ast::Span,
+    Vec<(ast::Ident, ast::Span)>,
+) {
+    let Some(((ident, span), args)) = args.split_first() else {
+        panic!("cannot happen")
+    };
+    let args = args
+        .iter()
+        .map(|(i, s)| (i.clone(), s.clone()))
+        .collect::<Vec<_>>();
+    // TODO 2 span need to be the span of all arguments
+    (span.clone(), ident.clone(), span.clone(), args)
+}
+
 fn statement(expr: parse::Expr) -> ast::Statement {
     match expr {
         parse::Expr::Atom(span, ident) => ast::Statement::Expr(ast::Expr::Ident(span, ident)),
@@ -35,12 +112,8 @@ fn statement(expr: parse::Expr) -> ast::Statement {
         }
         parse::Expr::List(span, list) => ast::Statement::Expr(exprs(span, list)),
         parse::Expr::Define(span, args, body) => {
-            let Some((ident, args)) = args.split_first() else {
-                panic!("cannot happen")
-            };
-            let name = ident.0.clone();
-            let args = args.iter().map(|(i, _)| i.clone()).collect::<Vec<_>>();
-            let body = body.into_iter().map(statement).collect::<Vec<_>>();
+            let (_, name, span_args, args) = define_to_ident_args(args);
+            let body = exprs_into_let(&body);
             ast::Statement::Function(span, name, args, body)
         }
     }

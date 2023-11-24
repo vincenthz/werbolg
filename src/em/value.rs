@@ -1,7 +1,7 @@
 //! Execution machine value - define the Value type
 
 use super::{ExecutionError, ExecutionMachine, Location};
-use crate::ast::{self, Ident, Literal, Statement};
+use crate::ast::{self, Ident, Literal};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use strum::EnumDiscriminants;
 
@@ -20,9 +20,12 @@ pub enum Value {
     // Composite
     List(Vec<Value>),
     // Functions
-    NativeFun(fn(&ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>),
-    Fun(Location, Vec<Ident>, Vec<Statement>),
+    NativeFun(&'static str, NIF),
+    Fun(Location, Vec<Ident>, ast::Expr),
 }
+
+/// Native Implemented Function
+pub type NIF = fn(&ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>;
 
 #[derive(Clone)]
 pub struct Opaque(u64);

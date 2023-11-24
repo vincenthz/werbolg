@@ -7,7 +7,7 @@ description = "a multi language high level dynamic platform to execute in a safe
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["lang-lispy", "lang-rusty", "backend-bignum"]
+default = ["std", "lang-lispy", "lang-rusty", "backend-bignum"]
 std = []
 lang-lispy = []
 lang-rusty = ["ariadne", "chumsky", "logos"]
@@ -19,7 +19,6 @@ panic = 'abort'
 
 [dependencies]
 hashbrown = "0.14"
-thiserror = "1"
 strum = { version = "0.25", default-features = false, features = ["derive"] }
 
 logos = { version = "0.13", optional = true }

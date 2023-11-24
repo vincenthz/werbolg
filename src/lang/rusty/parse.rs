@@ -137,7 +137,7 @@ pub enum Expr {
 // A function node in the AST.
 #[derive(Debug)]
 pub struct Func {
-    pub args: Vec<String>,
+    pub args: Vec<(String, Span)>,
     pub body: Spanned<Expr>,
 }
 
@@ -373,7 +373,15 @@ fn funcs_parser() -> impl Parser<Token, Vec<(String, Span, Func)>, Error = Simpl
                     |span| (Expr::Error, span),
                 )),
         )
-        .map(|((name, args), body)| (name, Func { args, body }))
+        .map(|((name, args), body)| {
+            (
+                name.clone(),
+                Func {
+                    args: args.into_iter().map(|a| (a, name.1.clone())).collect(),
+                    body,
+                },
+            )
+        })
         .labelled("function");
 
     func.repeated()

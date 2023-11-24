@@ -28,7 +28,7 @@ impl Ident {
 
 #[derive(Clone, Debug)]
 pub enum Statement {
-    Function(Span, Ident, Vec<Ident>, Vec<Statement>),
+    Function(Span, Ident, Vec<(Ident, Span)>, Expr),
     Expr(Expr),
 }
 
@@ -41,6 +41,7 @@ pub enum Expr {
     Let(Ident, Box<Expr>, Box<Expr>),
     Then(Box<Expr>, Box<Expr>),
     Ident(Span, Ident),
+    Lambda(Span, Vec<(Ident, Span)>, Box<Expr>),
     Call(Span, Vec<Expr>),
     If {
         span: Span,

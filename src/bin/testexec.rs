@@ -1,8 +1,6 @@
-use werbolg::{
-    ast::Ident, ast::Number, exec, parse, ExecutionError, ExecutionMachine, FileUnit, Value,
-};
+use werbolg::{ast::Number, exec, parse, ExecutionError, ExecutionMachine, FileUnit, Value};
 
-fn plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -11,7 +9,7 @@ fn plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError>
     Ok(Value::Number(ret))
 }
 
-fn sub(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_sub(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -20,7 +18,7 @@ fn sub(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> 
     Ok(Value::Number(ret))
 }
 
-fn mul(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_mul(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -29,7 +27,7 @@ fn mul(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> 
     Ok(Value::Number(ret))
 }
 
-fn eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -77,10 +75,10 @@ fn main() -> Result<(), ()> {
     let module = parse(lang, &fileunit).expect("no parse error");
 
     let mut em = ExecutionMachine::new();
-    em.add_binding(Ident::from("+"), Value::NativeFun(plus));
-    em.add_binding(Ident::from("-"), Value::NativeFun(sub));
-    em.add_binding(Ident::from("*"), Value::NativeFun(mul));
-    em.add_binding(Ident::from("=="), Value::NativeFun(eq));
+    em.add_native_fun("+", nif_plus);
+    em.add_native_fun("-", nif_sub);
+    em.add_native_fun("*", nif_mul);
+    em.add_native_fun("==", nif_eq);
 
     let val = exec(&mut em, module).expect("no execution error");
 

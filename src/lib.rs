@@ -5,8 +5,8 @@
 
 extern crate alloc;
 
-#[cfg(any(std, test))]
-#[macro_use]
+//#[cfg(any(std, test))]
+//#[macro_use]
 extern crate std;
 
 pub mod ast;
@@ -20,6 +20,6 @@ pub fn parse(lang: lang::Lang, file: &FileUnit) -> Result<ast::Module, lang::Par
     lang::parse(lang, file)
 }
 
-pub fn exec(em: &ExecutionMachine, ast: ast::Module) -> Result<Value, ExecutionError> {
+pub fn exec(em: &mut ExecutionMachine, ast: ast::Module) -> Result<Value, ExecutionError> {
     em::exec(em, ast)
 }
