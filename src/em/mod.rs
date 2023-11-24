@@ -30,6 +30,22 @@ impl ExecutionMachine {
         bindings.add(ident, value)
     }
 
+    pub fn with_added_binding<A, F>(&self, ident: ast::Ident, value: Value, f: F) -> A
+    where
+        F: Fn() -> A,
+    {
+        {
+            let mut bindings = self._bindings.borrow_mut();
+            bindings.add(ident.clone(), value);
+        };
+        let r = f();
+        {
+            let mut bindings = self._bindings.borrow_mut();
+            bindings.remove(ident);
+        };
+        r
+    }
+
     pub fn get_binding(&self, ident: &ast::Ident) -> Result<Value, ExecutionError> {
         let bindings = self._bindings.borrow_mut();
         let bind = bindings.get(ident);
@@ -64,12 +80,14 @@ pub enum ExecutionError {
     },
     MissingBinding(ast::Ident),
     CallingNotFunc {
+        location: Location,
         value_is: ValueKind,
     },
     ValueKindUnexpected {
         value_expected: ValueKind,
         value_got: ValueKind,
     },
+    Abort,
 }
 
 pub fn exec(em: &ExecutionMachine, module: ast::Module) -> Result<Value, ExecutionError> {
@@ -101,9 +119,15 @@ pub fn exec_stmts(
     }
 }
 
+pub struct ExecutionStack {
+    pub values: Vec<Value>,
+    pub constr: Vec<()>,
+}
+
 pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, ExecutionError> {
     match e {
         ast::Expr::Literal(_, lit) => Ok(Value::from(lit)),
+        ast::Expr::Ident(_, ident) => em.get_binding(ident),
         ast::Expr::List(_, list_exprs) => {
             let r = list_exprs
                 .iter()
@@ -111,11 +135,10 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Value::List(r))
         }
-        ast::Expr::Ident(_, ident) => em.get_binding(ident),
         ast::Expr::Let(ident, bind_expr, then_expr) => {
             let value = exec_expr(em, bind_expr)?;
-            em.add_binding(ident.clone(), value);
-            exec_expr(em, then_expr)
+            let ret = em.with_added_binding(ident.clone(), value, || exec_expr(em, then_expr));
+            ret
         }
         ast::Expr::Then(first_expr, second_expr) => {
             let value1 = exec_expr(em, first_expr)?;
@@ -171,7 +194,10 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
                     | Value::Decimal(_)
                     | Value::Bytes(_)
                     | Value::Opaque(_)
-                    | Value::Unit => Err(ExecutionError::CallingNotFunc { value_is: k }),
+                    | Value::Unit => Err(ExecutionError::CallingNotFunc {
+                        location: Location::from_span(span),
+                        value_is: k,
+                    }),
                 }
             } else {
                 //panic!("empty call");

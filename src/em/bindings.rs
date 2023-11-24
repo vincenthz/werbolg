@@ -32,6 +32,15 @@ impl<T> BindingsStack<T> {
         }
     }
 
+    pub fn remove(&mut self, name: BindingName) {
+        match self.stack.last_mut() {
+            None => panic!("cannot add to empty"),
+            Some(hashm) => {
+                hashm.remove(&name);
+            }
+        }
+    }
+
     pub fn get(&self, name: &BindingName) -> Option<&T> {
         for h in self.stack.iter().rev() {
             if let Some(v) = h.get(name) {
