@@ -3,21 +3,25 @@
 use crate::ast;
 
 mod bindings;
+mod location;
 mod value;
 
 use alloc::vec::Vec;
 use bindings::BindingsStack;
 use core::cell::RefCell;
+pub use location::Location;
 pub use value::{Value, ValueKind};
 
 pub struct ExecutionMachine {
     pub _bindings: RefCell<BindingsStack<BindingValue>>,
+    pub stacktrace: RefCell<Vec<Location>>,
 }
 
 impl ExecutionMachine {
     pub fn new() -> Self {
         Self {
             _bindings: RefCell::new(BindingsStack::new()),
+            stacktrace: RefCell::new(Vec::new()),
         }
     }
 
@@ -35,14 +39,18 @@ impl ExecutionMachine {
         }
     }
 
-    pub fn scope_enter(&self) {
+    pub fn scope_enter(&self, location: &Location) {
         let mut bindings = self._bindings.borrow_mut();
-        bindings.scope_enter()
+        bindings.scope_enter();
+        let mut stacktrace = self.stacktrace.borrow_mut();
+        stacktrace.push(location.clone())
     }
 
     pub fn scope_leave(&self) {
         let mut bindings = self._bindings.borrow_mut();
-        bindings.scope_leave()
+        bindings.scope_leave();
+        let mut stacktrace = self.stacktrace.borrow_mut();
+        stacktrace.pop();
     }
 }
 
@@ -75,8 +83,11 @@ pub fn exec_stmts(
     let mut last_value = None;
     for statement in stmts {
         match statement {
-            ast::Statement::Function(_, name, params, stmts) => {
-                em.add_binding(name.clone(), Value::Fun(params.clone(), stmts.clone()));
+            ast::Statement::Function(span, name, params, stmts) => {
+                em.add_binding(
+                    name.clone(),
+                    Value::Fun(Location::from_span(span), params.clone(), stmts.clone()),
+                );
             }
             ast::Statement::Expr(e) => {
                 let v = exec_expr(em, &e)?;
@@ -128,7 +139,7 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
             }?;
             Ok(ret)
         }
-        ast::Expr::Call(_, c) => {
+        ast::Expr::Call(span, c) => {
             let resolved = c
                 .iter()
                 .map(|e| exec_expr(em, e))
@@ -136,8 +147,8 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
             if let Some((first, args)) = resolved.split_first() {
                 let k = first.into();
                 match first {
-                    Value::Fun(bind_names, fun_stmts) => {
-                        em.scope_enter();
+                    Value::Fun(location, bind_names, fun_stmts) => {
+                        em.scope_enter(location);
                         check_arity(bind_names.len(), args.len())?;
                         for (bind_name, arg_value) in bind_names.iter().zip(args.iter()) {
                             em.add_binding(bind_name.clone(), arg_value.clone())
@@ -147,7 +158,10 @@ pub fn exec_expr(em: &ExecutionMachine, e: &ast::Expr) -> Result<Value, Executio
                         Ok(value)
                     }
                     Value::NativeFun(f) => {
+                        let call_location = Location::from_span(span);
+                        em.scope_enter(&call_location);
                         let res = f(em, args)?;
+                        em.scope_leave();
                         Ok(res)
                     }
                     Value::List(_)
