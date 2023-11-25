@@ -103,11 +103,7 @@ pub fn exec_stmts(
             ast::Statement::Function(span, name, params, stmts) => {
                 em.add_module_binding(
                     name.clone(),
-                    Value::Fun(
-                        Location::from_span(span),
-                        params.iter().map(|(i, _)| i.clone()).collect(),
-                        stmts.clone(),
-                    ),
+                    Value::Fun(Location::from_span(span), params.clone(), stmts.clone()),
                 );
             }
             ast::Statement::Expr(e) => {
@@ -176,7 +172,7 @@ impl ExecutionStack {
         self.values.push(value)
     }
 
-    pub fn next_work(&mut self, em: &mut ExecutionMachine) -> ExprNext {
+    pub fn next_work(&mut self) -> ExprNext {
         fn pop_end_rev<T>(v: &mut Vec<T>, mut nb: usize) -> Vec<T> {
             if nb > v.len() {
                 panic!(
@@ -239,14 +235,15 @@ fn work(
         ast::Expr::Lambda(span, args, body) => {
             let val = Value::Fun(
                 Location::from_span(span),
-                args.iter().map(|(i, _)| i.clone()).collect(),
+                args.clone(),
                 body.as_ref().clone(),
             );
             stack.push_value(val)
         }
-        ast::Expr::Let(ident, e1, e2) => {
-            stack.push_work1(ExecutionAtom::Let(ident.clone(), e2.as_ref().clone()), e1)
-        }
+        ast::Expr::Let(ident, e1, e2) => stack.push_work1(
+            ExecutionAtom::Let(ident.clone().unspan(), e2.as_ref().clone()),
+            e1,
+        ),
         ast::Expr::Then(e1, e2) => stack.push_work1(ExecutionAtom::Then(e2.as_ref().clone()), e1),
         ast::Expr::Call(span, v) => {
             stack.push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v)
@@ -283,7 +280,7 @@ fn eval(
                     em.scope_enter(location);
                     check_arity(bind_names.len(), args.len())?;
                     for (bind_name, arg_value) in bind_names.iter().zip(args.iter()) {
-                        em.add_local_binding(bind_name.clone(), arg_value.clone())
+                        em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
                     }
                     stack.push_work1(ExecutionAtom::PopScope, fun_stmts);
                     Ok(None)
@@ -363,7 +360,7 @@ pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, Exec
         if em.aborted() {
             return Err(ExecutionError::Abort);
         }
-        match stack.next_work(em) {
+        match stack.next_work() {
             ExprNext::Finish(v) => return Ok(v),
             ExprNext::Shift(e) => work(em, &mut stack, &e)?,
             ExprNext::Reduce(ea, args) => {

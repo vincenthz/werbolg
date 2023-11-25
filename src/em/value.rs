@@ -1,7 +1,7 @@
 //! Execution machine value - define the Value type
 
 use super::{ExecutionError, ExecutionMachine, Location};
-use crate::ast::{self, Ident, Literal};
+use crate::ast::{self, Literal, Variable};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use strum::EnumDiscriminants;
 
@@ -21,7 +21,7 @@ pub enum Value {
     List(Vec<Value>),
     // Functions
     NativeFun(&'static str, NIF),
-    Fun(Location, Vec<Ident>, ast::Expr),
+    Fun(Location, Vec<Variable>, ast::Expr),
 }
 
 /// Native Implemented Function

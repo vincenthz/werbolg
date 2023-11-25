@@ -2,7 +2,7 @@
 mod parse;
 mod token;
 
-use crate::ast::Statement;
+use crate::ast::{Spanned, Statement};
 use alloc::{boxed::Box, vec, vec::Vec};
 
 use super::common::{ast, FileUnit, ParseError};
@@ -17,15 +17,7 @@ pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
         .map(|(n, span, fun)| {
             //let expr = rewrite_stmt(&fun.body);
             let body = rewrite_expr(&fun.body);
-            Statement::Function(
-                span,
-                ast::Ident::from(n),
-                fun.args
-                    .into_iter()
-                    .map(|(s, span)| (ast::Ident::from(s), span))
-                    .collect::<Vec<_>>(),
-                body,
-            )
+            Statement::Function(span, ast::Ident::from(n), fun.args, body)
         })
         .collect::<Vec<_>>();
 
@@ -40,10 +32,6 @@ pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
     Ok(ast::Module { statements })
 }
 
-fn rewrite_stmt(span_expr: &(parse::Expr, parse::Span)) -> Vec<ast::Statement> {
-    vec![ast::Statement::Expr(rewrite_expr(span_expr))]
-}
-
 fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ast::Expr {
     match &span_expr.0 {
         parse::Expr::Error => todo!(),
@@ -53,7 +41,7 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ast::Expr {
             ast::Expr::Ident(span_expr.1.clone(), ast::Ident::from(l.as_str()))
         }
         parse::Expr::Let(name, bind, then) => ast::Expr::Let(
-            ast::Ident::from(name.as_str()),
+            Spanned::new(span_expr.1.clone(), ast::Ident::from(name.as_str())),
             Box::new(rewrite_expr(bind)),
             Box::new(rewrite_expr(then)),
         ),

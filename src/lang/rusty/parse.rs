@@ -5,7 +5,7 @@ use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{prelude::*, stream::Stream};
 use core::fmt;
 
-use crate::ast::{Literal, Number};
+use crate::ast::{self, Literal, Number, Variable};
 
 pub type Span = core::ops::Range<usize>;
 
@@ -137,7 +137,7 @@ pub enum Expr {
 // A function node in the AST.
 #[derive(Debug)]
 pub struct Func {
-    pub args: Vec<(String, Span)>,
+    pub args: Vec<Variable>,
     pub body: Spanned<Expr>,
 }
 
@@ -377,7 +377,10 @@ fn funcs_parser() -> impl Parser<Token, Vec<(String, Span, Func)>, Error = Simpl
             (
                 name.clone(),
                 Func {
-                    args: args.into_iter().map(|a| (a, name.1.clone())).collect(),
+                    args: args
+                        .into_iter()
+                        .map(|a| Variable(ast::Spanned::new(name.1.clone(), ast::Ident(a))))
+                        .collect(),
                     body,
                 },
             )

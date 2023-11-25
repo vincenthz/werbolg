@@ -2,7 +2,7 @@
 
 use super::super::common::hex_decode;
 use super::token::Token;
-use crate::ast::Ident;
+use crate::ast::{span_merge, Ident, Span, Spanned, Variable};
 use alloc::{string::String, vec, vec::Vec};
 use logos::Logos;
 
@@ -15,23 +15,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub type Span = core::ops::Range<usize>;
 type Err = ();
-
-fn span_merge(start: &Span, end: &Span) -> Span {
-    assert!(
-        start.end < end.start,
-        "merging span failed start={:?} end={:?}",
-        start,
-        end
-    );
-    Span {
-        start: start.start,
-        end: end.end,
-    }
-}
-
-pub type Spanned<T> = (T, Span);
 
 impl<'a> Iterator for Lexer<'a> {
     type Item = Spanned<Result<Token, Err>>;
@@ -41,7 +25,7 @@ impl<'a> Iterator for Lexer<'a> {
             None => None,
             Some(token) => {
                 let span = self.0.span();
-                Some((token, span))
+                Some(Spanned::new(span, token))
             }
         }
     }
@@ -56,7 +40,7 @@ pub enum Expr {
     /// List of expression '(a b c)'
     List(Span, ListExpr),
     // (define (id args) expr
-    Define(Span, Vec<Spanned<Ident>>, Vec<Expr>),
+    Define(Span, Spanned<Ident>, Vec<Variable>, Vec<Expr>),
 }
 
 impl Expr {
@@ -95,7 +79,7 @@ impl Expr {
             Expr::Atom(span, _) => span.clone(),
             Expr::Literal(span, _) => span.clone(),
             Expr::List(span, _) => span.clone(),
-            Expr::Define(span, _, _) => span.clone(),
+            Expr::Define(span, _, _, _) => span.clone(),
         }
     }
 }
@@ -170,32 +154,46 @@ impl<'a> Parser<'a> {
         fn parse_define(list_span: Span, mut exprs: Vec<Expr>) -> Result<Expr, ParseError> {
             // (define (name args*) body)
             // (define name body)
-            let idents = match &exprs[1] {
+            let (ident, args) = match &exprs[1] {
                 Expr::List(span_args, id_args) => {
                     // on empty list, raise an error
-                    if id_args.len() == 0 {
+                    let Some((first_expr, args_exprs)) = id_args.split_first() else {
                         return Err(ParseError::DefineEmptyName {
                             define_span: list_span,
                             args_span: span_args.clone(),
                         });
-                    }
+                    };
 
-                    let mut idents = Vec::new();
-                    for id_arg in id_args {
-                        match id_arg.atom() {
-                            None => {
-                                return Err(ParseError::DefineArgumentNotAtom {
-                                    define_span: list_span,
-                                    args_span: span_args.clone(),
-                                    arg_invalid_span: id_arg.span(),
-                                })
+                    let Some(ident) = first_expr.atom() else {
+                        return Err(ParseError::DefineArgumentNotAtom {
+                            define_span: list_span,
+                            args_span: span_args.clone(),
+                            arg_invalid_span: first_expr.span(),
+                        });
+                    };
+                    let ident = Spanned::new(ident.1.clone(), ident.0.clone());
+
+                    let args = args_exprs
+                        .into_iter()
+                        .map(|arg_expr| match arg_expr.atom() {
+                            None => Err(ParseError::DefineArgumentNotAtom {
+                                define_span: list_span.clone(),
+                                args_span: span_args.clone(),
+                                arg_invalid_span: arg_expr.span(),
+                            }),
+                            Some(sident) => {
+                                Ok(Variable(Spanned::new(sident.1.clone(), sident.0.clone())))
                             }
-                            Some(sident) => idents.push((sident.0.clone(), sident.1.clone())),
-                        }
-                    }
-                    idents
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    (ident, args)
                 }
-                Expr::Atom(span_id, id) => vec![(id.clone(), span_id.clone())],
+                Expr::Atom(span_id, id) => {
+                    let ident = (id.clone(), span_id.clone());
+                    let ident = Spanned::new(ident.1, ident.0);
+                    (ident, vec![])
+                }
                 _ => {
                     return Err(ParseError::DefineArgumentNotList {
                         define_span: list_span,
@@ -206,7 +204,7 @@ impl<'a> Parser<'a> {
 
             // drop 'define' atom and first name or list of name+args
             vec_drop_start(&mut exprs, 2);
-            Ok(Expr::Define(list_span, idents, exprs))
+            Ok(Expr::Define(list_span, ident, args, exprs))
         }
 
         match exprs.first() {
@@ -272,14 +270,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn push_token(&mut self, span: Span, tok: Token) -> Result<ParserRet, ParseError> {
-        match tok {
-            Token::ParenOpen => self.push_list(span),
-            Token::ParenClose => self.pop_list(span),
-            Token::Number(n) => self.push_literal(span, Literal::Number(n)),
-            Token::Bytes(b) => self.push_literal(span, Literal::Bytes(hex_decode(&b))),
-            Token::String(s) => self.push_literal(span, Literal::String(s)),
-            Token::Ident(a) => self.push_ident(span, Ident::from(a)),
+    fn push_token(&mut self, stok: Spanned<Token>) -> Result<ParserRet, ParseError> {
+        match stok.inner {
+            Token::ParenOpen => self.push_list(stok.span),
+            Token::ParenClose => self.pop_list(stok.span),
+            Token::Number(n) => self.push_literal(stok.span, Literal::Number(n)),
+            Token::Bytes(b) => self.push_literal(stok.span, Literal::Bytes(hex_decode(&b))),
+            Token::String(s) => self.push_literal(stok.span, Literal::String(s)),
+            Token::Ident(a) => self.push_ident(stok.span, Ident::from(a)),
         }
     }
 
@@ -308,15 +306,15 @@ impl<'a> Iterator for Parser<'a> {
                 }
             };
 
-            let span = next.1;
-            let tok = match next.0 {
+            let Spanned { span, inner } = next;
+            let stok = match inner {
                 Err(_) => {
                     return Some(self.ret_error(ParseError::LexingError()));
                 }
-                Ok(n) => n,
+                Ok(n) => Spanned::new(span, n),
             };
 
-            match self.push_token(span.clone(), tok) {
+            match self.push_token(stok) {
                 Err(e) => {
                     return Some(self.ret_error(e));
                 }
@@ -330,14 +328,16 @@ impl<'a> Iterator for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::Spanned;
 
     fn match_expr(e1: &Expr, e2: &Expr) -> bool {
         match (e1, e2) {
             (Expr::Atom(_, i1), Expr::Atom(_, i2)) => i1 == i2,
             (Expr::Literal(_, l1), Expr::Literal(_, l2)) => l1 == l2,
             (Expr::List(_, l1), Expr::List(_, l2)) => match_exprs(l1, l2),
-            (Expr::Define(_, a1, b1), Expr::Define(_, a2, b2)) => {
-                a1.len() == a2.len()
+            (Expr::Define(_, i1, a1, b1), Expr::Define(_, i2, a2, b2)) => {
+                i1 == i2
+                    && a1.len() == a2.len()
                     && a1.iter().zip(a2.iter()).all(|(a1, a2)| a1.0 == a2.0)
                     && match_exprs(b1, b2)
             }
@@ -365,7 +365,8 @@ mod tests {
         let mk_atom = |s: &str| Expr::Atom(fs(), Ident::from(s));
         let mk_num = |s: &str| Expr::Literal(fs(), Literal::Number(String::from(s)));
         let mk_list = |v: Vec<Expr>| Expr::List(fs(), v);
-        let mk_var = |s: &str| (Ident::from(s), fs());
+        let mk_sident = |s: &str| Spanned::new(fs(), Ident::from(s));
+        let mk_var = |s: &str| Variable(mk_sident(s));
 
         match parser.next() {
             None => panic!("parser terminated early"),
@@ -376,7 +377,8 @@ mod tests {
                         &d,
                         &Expr::Define(
                             fs(),
-                            vec![mk_var("add3"), mk_var("a"), mk_var("b"), mk_var("c")],
+                            mk_sident("add3"),
+                            vec![mk_var("a"), mk_var("b"), mk_var("c")],
                             vec![mk_list(vec![
                                 mk_atom("+"),
                                 mk_list(vec![mk_atom("+"), mk_atom("a"), mk_atom("b")]),
