@@ -1,7 +1,7 @@
 //! Execution machine value - define the Value type
 
 use super::{ExecutionError, ExecutionMachine, Location};
-use crate::ast::{self, Literal, Variable};
+use crate::ir::{self, Literal, Variable};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use strum::EnumDiscriminants;
 
@@ -12,16 +12,16 @@ pub enum Value {
     Unit,
     // Simple values
     Bool(bool),
-    Number(ast::Number),
+    Number(ir::Number),
     String(String),
-    Decimal(ast::Decimal),
+    Decimal(ir::Decimal),
     Bytes(Box<[u8]>),
     Opaque(Opaque),
     // Composite
     List(Vec<Value>),
     // Functions
     NativeFun(&'static str, NIF),
-    Fun(Location, Vec<Variable>, ast::Expr),
+    Fun(Location, Vec<Variable>, ir::Expr),
 }
 
 /// Native Implemented Function
@@ -68,7 +68,7 @@ impl Value {
         }
     }
 
-    pub fn number(&self) -> Result<&ast::Number, ExecutionError> {
+    pub fn number(&self) -> Result<&ir::Number, ExecutionError> {
         match self {
             Value::Number(v) => Ok(v),
             _ => Err(ExecutionError::ValueKindUnexpected {
@@ -78,7 +78,7 @@ impl Value {
         }
     }
 
-    pub fn decimal(&self) -> Result<&ast::Decimal, ExecutionError> {
+    pub fn decimal(&self) -> Result<&ir::Decimal, ExecutionError> {
         match self {
             Value::Decimal(v) => Ok(v),
             _ => Err(ExecutionError::ValueKindUnexpected {

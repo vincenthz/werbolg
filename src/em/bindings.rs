@@ -1,4 +1,4 @@
-use crate::ast::Ident;
+use crate::ir::Ident;
 use alloc::{vec, vec::Vec};
 use hashbrown::HashMap;
 

@@ -6,7 +6,7 @@ pub mod rusty;
 #[cfg(feature = "lang-lispy")]
 pub mod lispy;
 
-use common::{ast, FileUnit};
+use common::{ir, FileUnit};
 
 pub use common::ParseError;
 
@@ -16,7 +16,7 @@ pub enum Lang {
     Rusty,
 }
 
-pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ast::Module, ParseError> {
+pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ir::Module, ParseError> {
     match lang {
         Lang::Lispy => {
             #[cfg(feature = "lang-lispy")]
@@ -42,6 +42,6 @@ pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ast::Module, ParseError
     }
 }
 
-pub fn parse(lang: Lang, file: &FileUnit) -> Result<ast::Module, ParseError> {
+pub fn parse(lang: Lang, file: &FileUnit) -> Result<ir::Module, ParseError> {
     parse_unit(lang, file)
 }

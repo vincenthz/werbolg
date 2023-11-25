@@ -1,6 +1,6 @@
 //! Werbolg Execution machine
 
-use crate::ast;
+use crate::ir;
 
 mod bindings;
 mod location;
@@ -32,21 +32,21 @@ impl ExecutionMachine {
         false
     }
 
-    pub fn add_module_binding(&mut self, ident: ast::Ident, value: Value) {
+    pub fn add_module_binding(&mut self, ident: ir::Ident, value: Value) {
         self.module.add(ident, value)
     }
 
-    pub fn add_local_binding(&mut self, ident: ast::Ident, value: Value) {
+    pub fn add_local_binding(&mut self, ident: ir::Ident, value: Value) {
         self.local.add(ident, value)
     }
 
     pub fn add_native_fun(&mut self, ident: &'static str, f: NIF) {
         let value = Value::NativeFun(ident, f);
-        let ident = ast::Ident::from(ident);
+        let ident = ir::Ident::from(ident);
         self.root.add(ident, value)
     }
 
-    pub fn get_binding(&self, ident: &ast::Ident) -> Result<Value, ExecutionError> {
+    pub fn get_binding(&self, ident: &ir::Ident) -> Result<Value, ExecutionError> {
         let bind = self
             .local
             .get(ident)
@@ -77,7 +77,7 @@ pub enum ExecutionError {
         expected: usize,
         got: usize,
     },
-    MissingBinding(ast::Ident),
+    MissingBinding(ir::Ident),
     CallingNotFunc {
         location: Location,
         value_is: ValueKind,
@@ -89,24 +89,24 @@ pub enum ExecutionError {
     Abort,
 }
 
-pub fn exec(em: &mut ExecutionMachine, module: ast::Module) -> Result<Value, ExecutionError> {
+pub fn exec(em: &mut ExecutionMachine, module: ir::Module) -> Result<Value, ExecutionError> {
     exec_stmts(em, &module.statements)
 }
 
 pub fn exec_stmts(
     em: &mut ExecutionMachine,
-    stmts: &[ast::Statement],
+    stmts: &[ir::Statement],
 ) -> Result<Value, ExecutionError> {
     let mut last_value = None;
     for statement in stmts {
         match statement {
-            ast::Statement::Function(span, name, params, stmts) => {
+            ir::Statement::Function(span, name, params, stmts) => {
                 em.add_module_binding(
                     name.clone(),
                     Value::Fun(Location::from_span(span), params.clone(), stmts.clone()),
                 );
             }
-            ast::Statement::Expr(e) => {
+            ir::Statement::Expr(e) => {
                 let v = exec_expr(em, &e)?;
                 last_value = Some(v)
             }
@@ -120,10 +120,10 @@ pub fn exec_stmts(
 
 pub enum ExecutionAtom {
     List(usize),
-    ThenElse(ast::Expr, ast::Expr),
+    ThenElse(ir::Expr, ir::Expr),
     Call(usize, Location),
-    Then(ast::Expr),
-    Let(ast::Ident, ast::Expr),
+    Then(ir::Expr),
+    Let(ir::Ident, ir::Expr),
     PopScope,
 }
 
@@ -146,7 +146,7 @@ pub struct ExecutionStack {
     pub constr: Vec<ExecutionAtom>,
 }
 
-pub struct Work(Vec<ast::Expr>);
+pub struct Work(Vec<ir::Expr>);
 
 impl ExecutionStack {
     pub fn new() -> Self {
@@ -157,12 +157,12 @@ impl ExecutionStack {
         }
     }
 
-    pub fn push_work1(&mut self, constr: ExecutionAtom, expr: &ast::Expr) {
+    pub fn push_work1(&mut self, constr: ExecutionAtom, expr: &ir::Expr) {
         self.work.push(Work(vec![expr.clone()]));
         self.constr.push(constr);
     }
 
-    pub fn push_work(&mut self, constr: ExecutionAtom, exprs: &Vec<ast::Expr>) {
+    pub fn push_work(&mut self, constr: ExecutionAtom, exprs: &Vec<ir::Expr>) {
         assert!(!exprs.is_empty());
         self.work.push(Work(exprs.clone()));
         self.constr.push(constr);
@@ -212,7 +212,7 @@ impl ExecutionStack {
 }
 
 pub enum ExprNext {
-    Shift(ast::Expr),
+    Shift(ir::Expr),
     Reduce(ExecutionAtom, Vec<Value>),
     Finish(Value),
 }
@@ -226,13 +226,13 @@ pub enum ExprNext {
 fn work(
     em: &mut ExecutionMachine,
     stack: &mut ExecutionStack,
-    e: &ast::Expr,
+    e: &ir::Expr,
 ) -> Result<(), ExecutionError> {
     match e {
-        ast::Expr::Literal(_, lit) => stack.push_value(Value::from(lit)),
-        ast::Expr::Ident(_, ident) => stack.push_value(em.get_binding(ident)?),
-        ast::Expr::List(_, l) => stack.push_work(ExecutionAtom::List(l.len()), l),
-        ast::Expr::Lambda(span, args, body) => {
+        ir::Expr::Literal(_, lit) => stack.push_value(Value::from(lit)),
+        ir::Expr::Ident(_, ident) => stack.push_value(em.get_binding(ident)?),
+        ir::Expr::List(_, l) => stack.push_work(ExecutionAtom::List(l.len()), l),
+        ir::Expr::Lambda(span, args, body) => {
             let val = Value::Fun(
                 Location::from_span(span),
                 args.clone(),
@@ -240,15 +240,15 @@ fn work(
             );
             stack.push_value(val)
         }
-        ast::Expr::Let(ident, e1, e2) => stack.push_work1(
+        ir::Expr::Let(ident, e1, e2) => stack.push_work1(
             ExecutionAtom::Let(ident.clone().unspan(), e2.as_ref().clone()),
             e1,
         ),
-        ast::Expr::Then(e1, e2) => stack.push_work1(ExecutionAtom::Then(e2.as_ref().clone()), e1),
-        ast::Expr::Call(span, v) => {
+        ir::Expr::Then(e1, e2) => stack.push_work1(ExecutionAtom::Then(e2.as_ref().clone()), e1),
+        ir::Expr::Call(span, v) => {
             stack.push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v)
         }
-        ast::Expr::If {
+        ir::Expr::If {
             span: _,
             cond,
             then_expr,
@@ -352,7 +352,7 @@ fn eval(
     }
 }
 
-pub fn exec_expr(em: &mut ExecutionMachine, e: &ast::Expr) -> Result<Value, ExecutionError> {
+pub fn exec_expr(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<Value, ExecutionError> {
     let mut stack = ExecutionStack::new();
     work(em, &mut stack, e)?;
 

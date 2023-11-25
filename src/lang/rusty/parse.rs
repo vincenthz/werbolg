@@ -5,7 +5,7 @@ use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{prelude::*, stream::Stream};
 use core::fmt;
 
-use crate::ast::{self, Literal, Number, Variable};
+use crate::ir::{self, Literal, Number, Variable};
 
 pub type Span = core::ops::Range<usize>;
 
@@ -379,7 +379,7 @@ fn funcs_parser() -> impl Parser<Token, Vec<(String, Span, Func)>, Error = Simpl
                 Func {
                     args: args
                         .into_iter()
-                        .map(|a| Variable(ast::Spanned::new(name.1.clone(), ast::Ident(a))))
+                        .map(|a| Variable(ir::Spanned::new(name.1.clone(), ir::Ident(a))))
                         .collect(),
                     body,
                 },

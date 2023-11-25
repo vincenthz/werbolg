@@ -2,7 +2,7 @@
 
 use super::super::common::hex_decode;
 use super::token::Token;
-use crate::ast::{span_merge, Ident, Span, Spanned, Variable};
+use crate::ir::{span_merge, Ident, Span, Spanned, Variable};
 use alloc::{string::String, vec, vec::Vec};
 use logos::Logos;
 
@@ -328,7 +328,7 @@ impl<'a> Iterator for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Spanned;
+    use crate::ir::Spanned;
 
     fn match_expr(e1: &Expr, e2: &Expr) -> bool {
         match (e1, e2) {

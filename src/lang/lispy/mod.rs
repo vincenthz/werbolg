@@ -3,11 +3,11 @@ mod parse;
 mod token;
 
 use super::common::{FileUnit, ParseError};
-use crate::ast;
-use crate::ast::{spans_merge, Span};
+use crate::ir;
+use crate::ir::{spans_merge, Span};
 use alloc::{boxed::Box, vec::Vec};
 
-pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
+pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     let lex = parse::Lexer::new(&fileunit.content);
     let mut parser = parse::Parser::new(lex);
 
@@ -25,12 +25,12 @@ pub fn module(fileunit: &FileUnit) -> Result<ast::Module, ParseError> {
         }
     }
 
-    Ok(ast::Module { statements })
+    Ok(ir::Module { statements })
 }
 
 /// Turn a vector of lisp parse expression into a ast::Expr of the form `let ID1 = LAMBDA1; let ID2 = LAMBDA2; ...; LAST_EXPR`
 ///
-fn exprs_into_let(exprs: Vec<parse::Expr>) -> ast::Expr {
+fn exprs_into_let(exprs: Vec<parse::Expr>) -> ir::Expr {
     let mut exprs = exprs.into_iter().rev();
 
     let mut accumulator = expr(
@@ -44,9 +44,9 @@ fn exprs_into_let(exprs: Vec<parse::Expr>) -> ast::Expr {
             parse::Expr::Define(_span, name, args, body) => {
                 let body = exprs_into_let(body);
                 let span_args = spans_merge(&mut args.iter().map(|sargs| &sargs.0.span));
-                accumulator = ast::Expr::Let(
+                accumulator = ir::Expr::Let(
                     name,
-                    Box::new(ast::Expr::Lambda(span_args, args, Box::new(body))),
+                    Box::new(ir::Expr::Lambda(span_args, args, Box::new(body))),
                     Box::new(accumulator),
                 )
             }
@@ -59,24 +59,24 @@ fn exprs_into_let(exprs: Vec<parse::Expr>) -> ast::Expr {
     accumulator
 }
 
-fn statement(expr: parse::Expr) -> ast::Statement {
+fn statement(expr: parse::Expr) -> ir::Statement {
     match expr {
-        parse::Expr::Atom(span, ident) => ast::Statement::Expr(ast::Expr::Ident(span, ident)),
+        parse::Expr::Atom(span, ident) => ir::Statement::Expr(ir::Expr::Ident(span, ident)),
         parse::Expr::Literal(span, lit) => {
-            ast::Statement::Expr(ast::Expr::Literal(span, literal(lit)))
+            ir::Statement::Expr(ir::Expr::Literal(span, literal(lit)))
         }
-        parse::Expr::List(span, list) => ast::Statement::Expr(exprs(span, list)),
+        parse::Expr::List(span, list) => ir::Statement::Expr(exprs(span, list)),
         parse::Expr::Define(span, name, args, body) => {
             let body = exprs_into_let(body);
-            ast::Statement::Function(span, name.unspan(), args, body)
+            ir::Statement::Function(span, name.unspan(), args, body)
         }
     }
 }
 
-fn expr(expr: parse::Expr) -> ast::Expr {
+fn expr(expr: parse::Expr) -> ir::Expr {
     match expr {
-        parse::Expr::Atom(span, ident) => ast::Expr::Ident(span, ident),
-        parse::Expr::Literal(span, lit) => ast::Expr::Literal(span, literal(lit)),
+        parse::Expr::Atom(span, ident) => ir::Expr::Ident(span, ident),
+        parse::Expr::Literal(span, lit) => ir::Expr::Literal(span, literal(lit)),
         parse::Expr::List(span, e) => exprs(span, e),
         parse::Expr::Define(_, _, _, _) => {
             panic!("cannot have define in expression")
@@ -84,21 +84,21 @@ fn expr(expr: parse::Expr) -> ast::Expr {
     }
 }
 
-fn exprs(span: Span, exprs: Vec<parse::Expr>) -> ast::Expr {
+fn exprs(span: Span, exprs: Vec<parse::Expr>) -> ir::Expr {
     if let Some((_, _)) = exprs[0].literal() {
-        ast::Expr::List(span, exprs.into_iter().map(|e| expr(e)).collect())
+        ir::Expr::List(span, exprs.into_iter().map(|e| expr(e)).collect())
     } else {
-        ast::Expr::Call(span, exprs.into_iter().map(|e| expr(e)).collect())
+        ir::Expr::Call(span, exprs.into_iter().map(|e| expr(e)).collect())
     }
 }
 
-fn literal(lit: parse::Literal) -> ast::Literal {
+fn literal(lit: parse::Literal) -> ir::Literal {
     match lit {
-        parse::Literal::Bytes(b) => ast::Literal::Bytes(b.into()),
+        parse::Literal::Bytes(b) => ir::Literal::Bytes(b.into()),
         parse::Literal::Number(n) => {
-            ast::Literal::Number(ast::Number::from_str_radix(&n, 10).unwrap())
+            ir::Literal::Number(ir::Number::from_str_radix(&n, 10).unwrap())
         }
-        parse::Literal::String(s) => ast::Literal::String(s),
+        parse::Literal::String(s) => ir::Literal::String(s),
     }
 }
 

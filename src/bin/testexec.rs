@@ -1,4 +1,4 @@
-use werbolg::{ast::Number, exec, parse, ExecutionError, ExecutionMachine, FileUnit, Value};
+use werbolg::{exec, ir::Number, parse, ExecutionError, ExecutionMachine, FileUnit, Value};
 
 fn nif_plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
