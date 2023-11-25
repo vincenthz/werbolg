@@ -15,7 +15,6 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     let mut statements = m
         .into_iter()
         .map(|(n, span, fun)| {
-            //let expr = rewrite_stmt(&fun.body);
             let body = rewrite_expr(&fun.body);
             Statement::Function(span, ir::Ident::from(n), fun.args, body)
         })
