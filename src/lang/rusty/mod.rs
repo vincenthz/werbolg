@@ -2,7 +2,7 @@
 mod parse;
 mod token;
 
-use crate::ir::{Spanned, Statement};
+use crate::ir::{Spanned, SpannedBox, Statement};
 use alloc::{boxed::Box, vec, vec::Vec};
 
 use super::common::{ir, FileUnit, ParseError};
@@ -36,6 +36,12 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     }
 
     Ok(ir::Module { statements })
+}
+
+fn rewrite_expr_spanbox(span_expr: &(parse::Expr, parse::Span)) -> SpannedBox<ir::Expr> {
+    let span = span_expr.1.clone();
+    let expr = rewrite_expr(span_expr);
+    SpannedBox::new(span, expr)
 }
 
 fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
@@ -73,9 +79,9 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
         }
         parse::Expr::If(cond, then_expr, else_expr) => ir::Expr::If {
             span: span_expr.1.clone(),
-            cond: Box::new(rewrite_expr(cond)),
-            then_expr: Box::new(rewrite_expr(then_expr)),
-            else_expr: Box::new(rewrite_expr(else_expr)),
+            cond: rewrite_expr_spanbox(cond),
+            then_expr: rewrite_expr_spanbox(then_expr),
+            else_expr: rewrite_expr_spanbox(else_expr),
         },
     }
 }

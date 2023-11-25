@@ -3,7 +3,7 @@
 use super::super::common::hex_decode;
 use super::ast::{Ast, Literal};
 use super::token::{Token, UnknownToken};
-use crate::ir::{span_merge, Ident, Span, Spanned, Variable};
+use crate::ir::{span_merge, Ident, Span, Spanned, SpannedBox, Variable};
 use alloc::{vec, vec::Vec};
 use logos::Logos;
 
@@ -46,6 +46,9 @@ pub enum ParseError {
     NotStartedList(Span),
     UnterminatedList(Span),
     LexingError(Span), //
+    IfArityFailed {
+        if_span: Span,
+    },
     DefineEmptyName {
         define_span: Span,
         args_span: Span,
@@ -88,67 +91,13 @@ impl<'a> Parser<'a> {
         }
     }
     fn process_list(&mut self, list_span: Span, exprs: Vec<Ast>) -> Result<Ast, ParseError> {
-        fn parse_define(list_span: Span, mut exprs: Vec<Ast>) -> Result<Ast, ParseError> {
-            // (define (name args*) body)
-            // (define name body)
-            let (ident, args) = match &exprs[1] {
-                Ast::List(span_args, id_args) => {
-                    // on empty list, raise an error
-                    let Some((first_expr, args_exprs)) = id_args.split_first() else {
-                        return Err(ParseError::DefineEmptyName {
-                            define_span: list_span,
-                            args_span: span_args.clone(),
-                        });
-                    };
-
-                    let Some(ident) = first_expr.atom() else {
-                        return Err(ParseError::DefineArgumentNotAtom {
-                            define_span: list_span,
-                            args_span: span_args.clone(),
-                            arg_invalid_span: first_expr.span(),
-                        });
-                    };
-                    let ident = Spanned::new(ident.1.clone(), ident.0.clone());
-
-                    let args = args_exprs
-                        .into_iter()
-                        .map(|arg_expr| match arg_expr.atom() {
-                            None => Err(ParseError::DefineArgumentNotAtom {
-                                define_span: list_span.clone(),
-                                args_span: span_args.clone(),
-                                arg_invalid_span: arg_expr.span(),
-                            }),
-                            Some(sident) => {
-                                Ok(Variable(Spanned::new(sident.1.clone(), sident.0.clone())))
-                            }
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-
-                    (ident, args)
-                }
-                Ast::Atom(span_id, id) => {
-                    let ident = (id.clone(), span_id.clone());
-                    let ident = Spanned::new(ident.1, ident.0);
-                    (ident, vec![])
-                }
-                _ => {
-                    return Err(ParseError::DefineArgumentNotList {
-                        define_span: list_span,
-                        args_span: exprs[1].span(),
-                    });
-                }
-            };
-
-            // drop 'define' atom and first name or list of name+args
-            vec_drop_start(&mut exprs, 2);
-            Ok(Ast::Define(list_span, ident, args, exprs))
-        }
-
         match exprs.first() {
             None => Ok(Ast::List(list_span, exprs)),
             Some(first_elem) => {
                 if first_elem.atom_eq("define") {
                     parse_define(list_span, exprs)
+                } else if first_elem.atom_eq("if") {
+                    parse_if(list_span, exprs)
                 } else {
                     Ok(Ast::List(list_span, exprs))
                 }
@@ -222,6 +171,76 @@ impl<'a> Parser<'a> {
         self.errored = true;
         Err(error)
     }
+}
+
+fn parse_if(list_span: Span, exprs: Vec<Ast>) -> Result<Ast, ParseError> {
+    if exprs.len() != 3 {
+        return Err(ParseError::IfArityFailed { if_span: list_span });
+    }
+    let mut e = exprs.into_iter();
+    let cond_expr = e.next().unwrap();
+    let then_expr = e.next().unwrap();
+    let else_expr = e.next().unwrap();
+    Ok(Ast::If(
+        list_span,
+        SpannedBox::new(cond_expr.span(), cond_expr),
+        SpannedBox::new(then_expr.span(), then_expr),
+        SpannedBox::new(else_expr.span(), else_expr),
+    ))
+}
+
+fn parse_define(list_span: Span, mut exprs: Vec<Ast>) -> Result<Ast, ParseError> {
+    // (define (name args*) body)
+    // (define name body)
+    let (ident, args) = match &exprs[1] {
+        Ast::List(span_args, id_args) => {
+            // on empty list, raise an error
+            let Some((first_expr, args_exprs)) = id_args.split_first() else {
+                return Err(ParseError::DefineEmptyName {
+                    define_span: list_span,
+                    args_span: span_args.clone(),
+                });
+            };
+
+            let Some(ident) = first_expr.atom() else {
+                return Err(ParseError::DefineArgumentNotAtom {
+                    define_span: list_span,
+                    args_span: span_args.clone(),
+                    arg_invalid_span: first_expr.span(),
+                });
+            };
+            let ident = Spanned::new(ident.1.clone(), ident.0.clone());
+
+            let args = args_exprs
+                .into_iter()
+                .map(|arg_expr| match arg_expr.atom() {
+                    None => Err(ParseError::DefineArgumentNotAtom {
+                        define_span: list_span.clone(),
+                        args_span: span_args.clone(),
+                        arg_invalid_span: arg_expr.span(),
+                    }),
+                    Some(sident) => Ok(Variable(Spanned::new(sident.1.clone(), sident.0.clone()))),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            (ident, args)
+        }
+        Ast::Atom(span_id, id) => {
+            let ident = (id.clone(), span_id.clone());
+            let ident = Spanned::new(ident.1, ident.0);
+            (ident, vec![])
+        }
+        _ => {
+            return Err(ParseError::DefineArgumentNotList {
+                define_span: list_span,
+                args_span: exprs[1].span(),
+            });
+        }
+    };
+
+    // drop 'define' atom and first name or list of name+args
+    vec_drop_start(&mut exprs, 2);
+    Ok(Ast::Define(list_span, ident, args, exprs))
 }
 
 impl<'a> Iterator for Parser<'a> {

@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 /// Span as a range of bytes in a file
 pub type Span = core::ops::Range<usize>;
 
@@ -59,5 +61,60 @@ impl<T> Spanned<T> {
     }
     pub fn unspan(self) -> T {
         self.inner
+    }
+}
+
+/// A type T with an attached Span
+#[derive(Clone, Debug, Hash)]
+pub struct SpannedBox<T> {
+    pub span: Span,
+    pub inner: Box<T>,
+}
+
+impl<T: PartialEq> PartialEq for SpannedBox<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<T: Eq> Eq for SpannedBox<T> {}
+
+impl<T: Eq> SpannedBox<T> {
+    pub fn span_eq(&self, other: &Self) -> bool {
+        self.span == other.span && self.inner == other.inner
+    }
+}
+
+impl<T: Clone> SpannedBox<T> {
+    pub fn new(span: Span, inner: T) -> Self {
+        Self {
+            span,
+            inner: Box::new(inner),
+        }
+    }
+
+    pub fn unspan(&self) -> &T {
+        self.inner.as_ref()
+    }
+
+    pub fn map<F, U>(self, f: F) -> SpannedBox<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        SpannedBox {
+            span: self.span.clone(),
+            inner: Box::new(f(self.inner.as_ref().clone())),
+        }
+    }
+
+    pub fn map_result<E, F, U>(self, f: F) -> Result<SpannedBox<U>, E>
+    where
+        F: Fn(T) -> Result<U, E>,
+    {
+        let u = f(self.inner.as_ref().clone())?;
+        Ok(SpannedBox {
+            span: self.span.clone(),
+            inner: Box::new(u),
+        })
     }
 }

@@ -1,4 +1,4 @@
-use crate::ir::{Ident, Span, Spanned, Variable};
+use crate::ir::{Ident, Span, Spanned, SpannedBox, Variable};
 use alloc::{string::String, vec::Vec};
 
 #[derive(Clone)]
@@ -11,6 +11,8 @@ pub enum Ast {
     List(Span, ListExpr),
     // (define (id args) expr
     Define(Span, Spanned<Ident>, Vec<Variable>, Vec<Ast>),
+    // (if cond then_expr else_expre
+    If(Span, SpannedBox<Ast>, SpannedBox<Ast>, SpannedBox<Ast>),
 }
 
 impl Ast {
@@ -48,6 +50,7 @@ impl Ast {
             Ast::Literal(span, _) => span.clone(),
             Ast::List(span, _) => span.clone(),
             Ast::Define(span, _, _, _) => span.clone(),
+            Ast::If(span, _, _, _) => span.clone(),
         }
     }
 }

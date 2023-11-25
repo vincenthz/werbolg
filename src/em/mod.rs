@@ -254,8 +254,8 @@ fn work(
             then_expr,
             else_expr,
         } => stack.push_work1(
-            ExecutionAtom::ThenElse(then_expr.as_ref().clone(), else_expr.as_ref().clone()),
-            cond,
+            ExecutionAtom::ThenElse(then_expr.unspan().clone(), else_expr.unspan().clone()),
+            cond.unspan(),
         ),
     };
     Ok(())

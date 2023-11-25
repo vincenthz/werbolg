@@ -42,6 +42,10 @@ fn remap_err(e: parse::ParseError) -> ParseError {
             location: define_span,
             kind: ParseErrorKind::Str(String::from("define with empty name")),
         },
+        parse::ParseError::IfArityFailed { if_span } => ParseError {
+            location: if_span,
+            kind: ParseErrorKind::Str(String::from("if expect 3 parameters")),
+        },
         parse::ParseError::DefineArgumentNotList {
             define_span,
             args_span: _,
@@ -96,11 +100,17 @@ fn exprs_into_let(exprs: Vec<Ast>) -> Result<ir::Expr, ParseError> {
     Ok(accumulator)
 }
 
-fn statement(expr: Ast) -> Result<ir::Statement, ParseError> {
-    match expr {
+fn statement(ast: Ast) -> Result<ir::Statement, ParseError> {
+    match ast {
         Ast::Atom(span, ident) => Ok(ir::Statement::Expr(ir::Expr::Ident(span, ident))),
         Ast::Literal(span, lit) => Ok(ir::Statement::Expr(ir::Expr::Literal(span, literal(lit)))),
         Ast::List(span, list) => Ok(ir::Statement::Expr(exprs(span, list)?)),
+        Ast::If(span, cond_expr, then_expr, else_expr) => Ok(ir::Statement::Expr(ir::Expr::If {
+            span,
+            cond: cond_expr.map_result(expr)?,
+            then_expr: then_expr.map_result(expr)?,
+            else_expr: else_expr.map_result(expr)?,
+        })),
         Ast::Define(span, name, args, body) => {
             let body = exprs_into_let(body)?;
             Ok(ir::Statement::Function(
@@ -115,11 +125,17 @@ fn statement(expr: Ast) -> Result<ir::Statement, ParseError> {
     }
 }
 
-fn expr(expr: Ast) -> Result<ir::Expr, ParseError> {
-    match expr {
+fn expr(ast: Ast) -> Result<ir::Expr, ParseError> {
+    match ast {
         Ast::Atom(span, ident) => Ok(ir::Expr::Ident(span, ident)),
         Ast::Literal(span, lit) => Ok(ir::Expr::Literal(span, literal(lit))),
         Ast::List(span, e) => exprs(span, e),
+        Ast::If(span, cond_expr, then_expr, else_expr) => Ok(ir::Expr::If {
+            span,
+            cond: cond_expr.map_result(expr)?,
+            then_expr: then_expr.map_result(expr)?,
+            else_expr: else_expr.map_result(expr)?,
+        }),
         Ast::Define(_, _, _, _) => Err(ParseError {
             location: Span { start: 0, end: 0 },
             kind: ParseErrorKind::Str(format!("cannot have define in expression")),
