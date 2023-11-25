@@ -13,8 +13,15 @@ pub struct Module {
 
 #[derive(Clone, Debug)]
 pub enum Statement {
-    Function(Span, Ident, Vec<Variable>, Expr),
+    Function(Span, FunDef),
     Expr(Expr),
+}
+
+#[derive(Clone, Debug)]
+pub struct FunDef {
+    pub name: Ident,
+    pub vars: Vec<Variable>,
+    pub body: Expr,
 }
 
 #[derive(Clone, Debug)]

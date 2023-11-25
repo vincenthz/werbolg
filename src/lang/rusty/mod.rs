@@ -16,7 +16,14 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
         .into_iter()
         .map(|(n, span, fun)| {
             let body = rewrite_expr(&fun.body);
-            Statement::Function(span, ir::Ident::from(n), fun.args, body)
+            Statement::Function(
+                span,
+                ir::FunDef {
+                    name: ir::Ident::from(n),
+                    vars: fun.args,
+                    body,
+                },
+            )
         })
         .collect::<Vec<_>>();
 

@@ -1,9 +1,10 @@
 //! an unfinished lang frontend for replacing the scheme lang by a more efficient one
 
 use super::super::common::hex_decode;
+use super::ast::{Ast, Literal};
 use super::token::{Token, UnknownToken};
 use crate::ir::{span_merge, Ident, Span, Spanned, Variable};
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use logos::Logos;
 
 pub struct Lexer<'a>(logos::Lexer<'a, Token>);
@@ -29,71 +30,9 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
-#[derive(Clone)]
-pub enum Expr {
-    /// Atom is just some ident like 'foo' or '+'
-    Atom(Span, Ident),
-    /// Literal value a number '123', string '"foo"', or bytes '#ABCD#'
-    Literal(Span, Literal),
-    /// List of expression '(a b c)'
-    List(Span, ListExpr),
-    // (define (id args) expr
-    Define(Span, Spanned<Ident>, Vec<Variable>, Vec<Expr>),
-}
-
-impl Expr {
-    pub fn literal(&self) -> Option<(&Literal, &Span)> {
-        match &self {
-            Expr::Literal(span, lit) => Some((lit, span)),
-            _ => None,
-        }
-    }
-    pub fn atom(&self) -> Option<(&Ident, &Span)> {
-        match &self {
-            Expr::Atom(span, atom) => Some((atom, span)),
-            _ => None,
-        }
-    }
-
-    pub fn atom_eq(&self, s: &str) -> bool {
-        match &self {
-            Expr::Atom(_, ident) => ident.matches(s),
-            _ => false,
-        }
-    }
-
-    #[allow(unused)]
-    pub fn list(&self) -> Option<(&ListExpr, &Span)> {
-        match &self {
-            Expr::List(span, si) => Some((&si, &span)),
-            _ => None,
-        }
-    }
-}
-
-impl Expr {
-    pub fn span(&self) -> Span {
-        match self {
-            Expr::Atom(span, _) => span.clone(),
-            Expr::Literal(span, _) => span.clone(),
-            Expr::List(span, _) => span.clone(),
-            Expr::Define(span, _, _, _) => span.clone(),
-        }
-    }
-}
-
-type ListExpr = Vec<Expr>;
-
-#[derive(Clone, PartialEq, Eq)]
-pub enum Literal {
-    Bytes(Vec<u8>),
-    Number(String),
-    String(String),
-}
-
 pub struct ListCreate {
     start: Span,
-    exprs: Vec<Expr>,
+    exprs: Vec<Ast>,
 }
 
 pub struct Parser<'a> {
@@ -124,7 +63,7 @@ pub enum ParseError {
 
 pub enum ParserRet {
     Continue,
-    Yield(Expr),
+    Yield(Ast),
 }
 
 /// drop nb elements from the start of the vector in place
@@ -148,12 +87,12 @@ impl<'a> Parser<'a> {
             context: Vec::new(),
         }
     }
-    fn process_list(&mut self, list_span: Span, exprs: Vec<Expr>) -> Result<Expr, ParseError> {
-        fn parse_define(list_span: Span, mut exprs: Vec<Expr>) -> Result<Expr, ParseError> {
+    fn process_list(&mut self, list_span: Span, exprs: Vec<Ast>) -> Result<Ast, ParseError> {
+        fn parse_define(list_span: Span, mut exprs: Vec<Ast>) -> Result<Ast, ParseError> {
             // (define (name args*) body)
             // (define name body)
             let (ident, args) = match &exprs[1] {
-                Expr::List(span_args, id_args) => {
+                Ast::List(span_args, id_args) => {
                     // on empty list, raise an error
                     let Some((first_expr, args_exprs)) = id_args.split_first() else {
                         return Err(ParseError::DefineEmptyName {
@@ -187,7 +126,7 @@ impl<'a> Parser<'a> {
 
                     (ident, args)
                 }
-                Expr::Atom(span_id, id) => {
+                Ast::Atom(span_id, id) => {
                     let ident = (id.clone(), span_id.clone());
                     let ident = Spanned::new(ident.1, ident.0);
                     (ident, vec![])
@@ -202,16 +141,16 @@ impl<'a> Parser<'a> {
 
             // drop 'define' atom and first name or list of name+args
             vec_drop_start(&mut exprs, 2);
-            Ok(Expr::Define(list_span, ident, args, exprs))
+            Ok(Ast::Define(list_span, ident, args, exprs))
         }
 
         match exprs.first() {
-            None => Ok(Expr::List(list_span, exprs)),
+            None => Ok(Ast::List(list_span, exprs)),
             Some(first_elem) => {
                 if first_elem.atom_eq("define") {
                     parse_define(list_span, exprs)
                 } else {
-                    Ok(Expr::List(list_span, exprs))
+                    Ok(Ast::List(list_span, exprs))
                 }
             }
         }
@@ -245,11 +184,11 @@ impl<'a> Parser<'a> {
     fn push_literal(&mut self, span: Span, literal: Literal) -> Result<ParserRet, ParseError> {
         match self.context.last_mut() {
             None => {
-                let ret = Expr::Literal(span, literal);
+                let ret = Ast::Literal(span, literal);
                 Ok(ParserRet::Yield(ret))
             }
             Some(ctx) => {
-                ctx.exprs.push(Expr::Literal(span, literal));
+                ctx.exprs.push(Ast::Literal(span, literal));
                 Ok(ParserRet::Continue)
             }
         }
@@ -258,11 +197,11 @@ impl<'a> Parser<'a> {
     fn push_ident(&mut self, span: Span, ident: Ident) -> Result<ParserRet, ParseError> {
         match self.context.last_mut() {
             None => {
-                let ret = Expr::Atom(span, ident);
+                let ret = Ast::Atom(span, ident);
                 Ok(ParserRet::Yield(ret))
             }
             Some(ctx) => {
-                ctx.exprs.push(Expr::Atom(span, ident));
+                ctx.exprs.push(Ast::Atom(span, ident));
                 Ok(ParserRet::Continue)
             }
         }
@@ -279,14 +218,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn ret_error(&mut self, error: ParseError) -> Result<Expr, ParseError> {
+    fn ret_error(&mut self, error: ParseError) -> Result<Ast, ParseError> {
         self.errored = true;
         Err(error)
     }
 }
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Expr, ParseError>;
+    type Item = Result<Ast, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.errored {
@@ -327,13 +266,14 @@ impl<'a> Iterator for Parser<'a> {
 mod tests {
     use super::*;
     use crate::ir::Spanned;
+    use alloc::string::String;
 
-    fn match_expr(e1: &Expr, e2: &Expr) -> bool {
+    fn match_expr(e1: &Ast, e2: &Ast) -> bool {
         match (e1, e2) {
-            (Expr::Atom(_, i1), Expr::Atom(_, i2)) => i1 == i2,
-            (Expr::Literal(_, l1), Expr::Literal(_, l2)) => l1 == l2,
-            (Expr::List(_, l1), Expr::List(_, l2)) => match_exprs(l1, l2),
-            (Expr::Define(_, i1, a1, b1), Expr::Define(_, i2, a2, b2)) => {
+            (Ast::Atom(_, i1), Ast::Atom(_, i2)) => i1 == i2,
+            (Ast::Literal(_, l1), Ast::Literal(_, l2)) => l1 == l2,
+            (Ast::List(_, l1), Ast::List(_, l2)) => match_exprs(l1, l2),
+            (Ast::Define(_, i1, a1, b1), Ast::Define(_, i2, a2, b2)) => {
                 i1 == i2
                     && a1.len() == a2.len()
                     && a1.iter().zip(a2.iter()).all(|(a1, a2)| a1.0 == a2.0)
@@ -343,7 +283,7 @@ mod tests {
         }
     }
 
-    fn match_exprs(e1: &Vec<Expr>, e2: &Vec<Expr>) -> bool {
+    fn match_exprs(e1: &Vec<Ast>, e2: &Vec<Ast>) -> bool {
         e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(e1, e2)| match_expr(e1, e2))
     }
 
@@ -360,9 +300,9 @@ mod tests {
 
         // fake span factory
         let fs = || Span { start: 0, end: 0 };
-        let mk_atom = |s: &str| Expr::Atom(fs(), Ident::from(s));
-        let mk_num = |s: &str| Expr::Literal(fs(), Literal::Number(String::from(s)));
-        let mk_list = |v: Vec<Expr>| Expr::List(fs(), v);
+        let mk_atom = |s: &str| Ast::Atom(fs(), Ident::from(s));
+        let mk_num = |s: &str| Ast::Literal(fs(), Literal::Number(String::from(s)));
+        let mk_list = |v: Vec<Ast>| Ast::List(fs(), v);
         let mk_sident = |s: &str| Spanned::new(fs(), Ident::from(s));
         let mk_var = |s: &str| Variable(mk_sident(s));
 
@@ -373,7 +313,7 @@ mod tests {
                 Ok(d) => {
                     if !match_expr(
                         &d,
-                        &Expr::Define(
+                        &Ast::Define(
                             fs(),
                             mk_sident("add3"),
                             vec![mk_var("a"), mk_var("b"), mk_var("c")],

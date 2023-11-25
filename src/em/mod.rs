@@ -100,10 +100,10 @@ pub fn exec_stmts(
     let mut last_value = None;
     for statement in stmts {
         match statement {
-            ir::Statement::Function(span, name, params, stmts) => {
+            ir::Statement::Function(span, ir::FunDef { name, vars, body }) => {
                 em.add_module_binding(
                     name.clone(),
-                    Value::Fun(Location::from_span(span), params.clone(), stmts.clone()),
+                    Value::Fun(Location::from_span(span), vars.clone(), body.clone()),
                 );
             }
             ir::Statement::Expr(e) => {
