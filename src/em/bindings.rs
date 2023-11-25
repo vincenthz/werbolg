@@ -2,11 +2,13 @@ use crate::ir::Ident;
 use alloc::{vec, vec::Vec};
 use hashbrown::HashMap;
 
+type BindingName = Ident;
+
+pub struct Bindings<T>(HashMap<BindingName, T>);
+
 pub struct BindingsStack<T> {
     stack: Vec<Bindings<T>>,
 }
-
-pub struct Bindings<T>(HashMap<BindingName, T>);
 
 impl<T> Bindings<T> {
     pub fn new() -> Self {
@@ -25,8 +27,6 @@ impl<T> Bindings<T> {
         self.0.get(name)
     }
 }
-
-type BindingName = Ident;
 
 impl<T> BindingsStack<T> {
     pub fn new() -> Self {
