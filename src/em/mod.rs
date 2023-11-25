@@ -361,7 +361,12 @@ pub fn exec_expr(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<Value, Execu
             return Err(ExecutionError::Abort);
         }
         match stack.next_work() {
-            ExprNext::Finish(v) => return Ok(v),
+            ExprNext::Finish(v) => {
+                assert!(stack.values.is_empty());
+                assert!(stack.constr.is_empty());
+                assert!(stack.work.is_empty());
+                return Ok(v);
+            }
             ExprNext::Shift(e) => work(em, &mut stack, &e)?,
             ExprNext::Reduce(ea, args) => {
                 eval(em, &mut stack, ea, args)?;
