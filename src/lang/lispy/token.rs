@@ -1,9 +1,13 @@
 use alloc::{borrow::ToOwned, string::String};
 use logos::Logos;
 
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct UnknownToken;
+
 #[derive(Debug, Logos)]
 #[logos(skip r"[ \t\r\n\f]+")]
 #[logos(skip r";.*")]
+#[logos(error = UnknownToken)]
 pub enum Token {
     #[token("(")]
     ParenOpen,

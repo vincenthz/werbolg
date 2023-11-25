@@ -1,7 +1,7 @@
 //! an unfinished lang frontend for replacing the scheme lang by a more efficient one
 
 use super::super::common::hex_decode;
-use super::token::Token;
+use super::token::{Token, UnknownToken};
 use crate::ir::{span_merge, Ident, Span, Spanned, Variable};
 use alloc::{string::String, vec, vec::Vec};
 use logos::Logos;
@@ -15,10 +15,8 @@ impl<'a> Lexer<'a> {
     }
 }
 
-type Err = ();
-
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Spanned<Result<Token, Err>>;
+    type Item = Spanned<Result<Token, UnknownToken>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.0.next() {
@@ -108,7 +106,7 @@ pub struct Parser<'a> {
 pub enum ParseError {
     NotStartedList(Span),
     UnterminatedList(Span),
-    LexingError(), //
+    LexingError(Span), //
     DefineEmptyName {
         define_span: Span,
         args_span: Span,
@@ -309,7 +307,7 @@ impl<'a> Iterator for Parser<'a> {
             let Spanned { span, inner } = next;
             let stok = match inner {
                 Err(_) => {
-                    return Some(self.ret_error(ParseError::LexingError()));
+                    return Some(self.ret_error(ParseError::LexingError(span)));
                 }
                 Ok(n) => Spanned::new(span, n),
             };

@@ -82,7 +82,7 @@ impl FileUnit {
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
-    pub location: core::ops::Range<usize>,
+    pub location: ir::Span,
     pub kind: ParseErrorKind,
 }
 
