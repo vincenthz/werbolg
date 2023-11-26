@@ -22,9 +22,9 @@ pub fn parse(lang: lang::Lang, file: &FileUnit) -> Result<ir::Module, lang::Pars
     lang::parse(lang, file)
 }
 
-pub fn exec(
+pub fn exec<'module>(
     em: &mut ExecutionMachine,
-    ast: ir::Module,
+    ast: &'module ir::Module,
     call: ir::Ident,
     args: Vec<em::Value>,
 ) -> Result<Value, ExecutionError> {

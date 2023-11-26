@@ -82,7 +82,7 @@ fn main() -> Result<(), ()> {
     em.add_native_fun("*", nif_mul);
     em.add_native_fun("==", nif_eq);
 
-    let val = exec(&mut em, module, Ident::from("main"), vec![]).expect("no execution error");
+    let val = exec(&mut em, &module, Ident::from("main"), vec![]).expect("no execution error");
 
     println!("{:?}", val);
     Ok(())

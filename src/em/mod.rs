@@ -4,11 +4,13 @@ use crate::ir;
 
 mod bindings;
 mod location;
+mod stack;
 mod value;
 
 use alloc::{string::String, vec, vec::Vec};
 use bindings::{Bindings, BindingsStack};
 pub use location::Location;
+use stack::{ExecutionAtom, ExecutionNext, ExecutionStack};
 pub use value::{Value, ValueKind, NIF};
 
 pub struct ExecutionMachine {
@@ -16,7 +18,10 @@ pub struct ExecutionMachine {
     pub module: Bindings<BindingValue>,
     pub local: BindingsStack<BindingValue>,
     pub stacktrace: Vec<Location>,
+    pub stack: ExecutionStack,
 }
+
+pub type BindingValue = Value;
 
 impl ExecutionMachine {
     pub fn new() -> Self {
@@ -25,6 +30,7 @@ impl ExecutionMachine {
             module: Bindings::new(),
             local: BindingsStack::new(),
             stacktrace: Vec::new(),
+            stack: ExecutionStack::new(),
         }
     }
 
@@ -69,8 +75,6 @@ impl ExecutionMachine {
     }
 }
 
-pub type BindingValue = Value;
-
 #[derive(Debug, Clone)]
 pub enum ExecutionError {
     ArityError {
@@ -89,9 +93,9 @@ pub enum ExecutionError {
     Abort,
 }
 
-pub fn exec(
+pub fn exec<'module>(
     em: &mut ExecutionMachine,
-    module: ir::Module,
+    module: &'module ir::Module,
     call: ir::Ident,
     args: Vec<Value>,
 ) -> Result<Value, ExecutionError> {
@@ -100,11 +104,8 @@ pub fn exec(
     let mut values = vec![em.get_binding(&call)?];
     values.extend_from_slice(&args);
 
-    let mut stack = ExecutionStack::new();
-
     match process_call(
         em,
-        &mut stack,
         &Location {
             module: String::from(""),
             span: ir::Span { start: 0, end: 0 },
@@ -113,31 +114,23 @@ pub fn exec(
     )? {
         None => (),
         Some(_) => {
-            panic!("NIF as entry point")
+            panic!("NIF cannot be used as entry point")
         }
     };
 
-    exec_continue(em, &mut stack)
+    exec_continue(em)
 }
 
-pub fn exec_continue(
-    em: &mut ExecutionMachine,
-    stack: &mut ExecutionStack,
-) -> Result<Value, ExecutionError> {
+pub fn exec_continue(em: &mut ExecutionMachine) -> Result<Value, ExecutionError> {
     loop {
         if em.aborted() {
             return Err(ExecutionError::Abort);
         }
-        match stack.next_work() {
-            ExprNext::Finish(v) => {
-                assert!(stack.values.is_empty());
-                assert!(stack.constr.is_empty());
-                assert!(stack.work.is_empty());
-                return Ok(v);
-            }
-            ExprNext::Shift(e) => work(em, stack, &e)?,
-            ExprNext::Reduce(ea, args) => {
-                eval(em, stack, ea, args)?;
+        match em.stack.next_work() {
+            ExecutionNext::Finish(v) => return Ok(v),
+            ExecutionNext::Shift(e) => work(em, &e)?,
+            ExecutionNext::Reduce(ea, args) => {
+                eval(em, ea, args)?;
             }
         }
     }
@@ -155,120 +148,10 @@ pub fn load_stmts(
                     Value::Fun(Location::from_span(span), vars.clone(), body.clone()),
                 );
             }
-            ir::Statement::Expr(_) => {
-                /*
-                let v = exec_expr(em, &e)?;
-                last_value = Some(v)
-                */
-            }
+            ir::Statement::Expr(_) => {}
         }
     }
     Ok(())
-    /*
-    match last_value {
-        None => Ok(Value::Unit),
-        Some(val) => Ok(val),
-    }
-    */
-}
-
-pub enum ExecutionAtom {
-    List(usize),
-    ThenElse(ir::Expr, ir::Expr),
-    Call(usize, Location),
-    Then(ir::Expr),
-    Let(ir::Ident, ir::Expr),
-    PopScope,
-}
-
-impl ExecutionAtom {
-    pub fn arity(&self) -> usize {
-        match self {
-            ExecutionAtom::List(u) => *u,
-            ExecutionAtom::ThenElse(_, _) => 1,
-            ExecutionAtom::Call(u, _) => *u,
-            ExecutionAtom::Then(_) => 1,
-            ExecutionAtom::Let(_, _) => 1,
-            ExecutionAtom::PopScope => 1,
-        }
-    }
-}
-
-pub struct ExecutionStack {
-    pub values: Vec<Value>,
-    pub work: Vec<Work>,
-    pub constr: Vec<ExecutionAtom>,
-}
-
-pub struct Work(Vec<ir::Expr>);
-
-impl ExecutionStack {
-    pub fn new() -> Self {
-        ExecutionStack {
-            values: Vec::new(),
-            work: Vec::new(),
-            constr: Vec::new(),
-        }
-    }
-
-    pub fn push_work1(&mut self, constr: ExecutionAtom, expr: &ir::Expr) {
-        self.work.push(Work(vec![expr.clone()]));
-        self.constr.push(constr);
-    }
-
-    pub fn push_work(&mut self, constr: ExecutionAtom, exprs: &Vec<ir::Expr>) {
-        assert!(!exprs.is_empty());
-        self.work.push(Work(exprs.clone()));
-        self.constr.push(constr);
-    }
-
-    pub fn push_value(&mut self, value: Value) {
-        self.values.push(value)
-    }
-
-    pub fn next_work(&mut self) -> ExprNext {
-        fn pop_end_rev<T>(v: &mut Vec<T>, mut nb: usize) -> Vec<T> {
-            if nb > v.len() {
-                panic!(
-                    "pop_end_rev: trying to get {} values, but {} found",
-                    nb,
-                    v.len()
-                );
-            }
-            let mut ret = Vec::with_capacity(nb);
-            while nb > 0 {
-                ret.push(v.pop().unwrap());
-                nb -= 1;
-            }
-            ret
-        }
-
-        match self.work.pop() {
-            None => {
-                let val = self.values.pop().expect("one value if no expression left");
-                assert!(self.values.is_empty());
-                ExprNext::Finish(val)
-            }
-            Some(mut exprs) => {
-                if exprs.0.is_empty() {
-                    let constr = self.constr.pop().unwrap();
-                    let nb_args = constr.arity();
-                    let args = pop_end_rev(&mut self.values, nb_args);
-                    ExprNext::Reduce(constr, args)
-                } else {
-                    let x = exprs.0.pop().unwrap();
-                    self.work.push(Work(exprs.0));
-                    ExprNext::Shift(x)
-                }
-            }
-        }
-    }
-}
-
-pub enum ExprNext {
-    Shift(ir::Expr),
-    Reduce(ExecutionAtom, Vec<Value>),
-    Finish(Value),
 }
 
 /// Decompose the work for a given expression
@@ -277,37 +160,35 @@ pub enum ExprNext {
 /// * Push a value when the work doesn't need further evaluation
 /// * Push expressions to evaluate on the work stack and the action to complete
 ///   when all the evaluation of those expression is commplete
-fn work(
-    em: &mut ExecutionMachine,
-    stack: &mut ExecutionStack,
-    e: &ir::Expr,
-) -> Result<(), ExecutionError> {
+fn work(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<(), ExecutionError> {
     match e {
-        ir::Expr::Literal(_, lit) => stack.push_value(Value::from(lit)),
-        ir::Expr::Ident(_, ident) => stack.push_value(em.get_binding(ident)?),
-        ir::Expr::List(_, l) => stack.push_work(ExecutionAtom::List(l.len()), l),
+        ir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
+        ir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
+        ir::Expr::List(_, l) => em.stack.push_work(ExecutionAtom::List(l.len()), l),
         ir::Expr::Lambda(span, args, body) => {
             let val = Value::Fun(
                 Location::from_span(span),
                 args.clone(),
                 body.as_ref().clone(),
             );
-            stack.push_value(val)
+            em.stack.push_value(val)
         }
-        ir::Expr::Let(ident, e1, e2) => stack.push_work1(
+        ir::Expr::Let(ident, e1, e2) => em.stack.push_work1(
             ExecutionAtom::Let(ident.clone().unspan(), e2.as_ref().clone()),
             e1,
         ),
-        ir::Expr::Then(e1, e2) => stack.push_work1(ExecutionAtom::Then(e2.as_ref().clone()), e1),
-        ir::Expr::Call(span, v) => {
-            stack.push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v)
-        }
+        ir::Expr::Then(e1, e2) => em
+            .stack
+            .push_work1(ExecutionAtom::Then(e2.as_ref().clone()), e1),
+        ir::Expr::Call(span, v) => em
+            .stack
+            .push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v),
         ir::Expr::If {
             span: _,
             cond,
             then_expr,
             else_expr,
-        } => stack.push_work1(
+        } => em.stack.push_work1(
             ExecutionAtom::ThenElse(then_expr.clone().unspan(), else_expr.clone().unspan()),
             &cond.inner,
         ),
@@ -317,13 +198,12 @@ fn work(
 
 fn eval(
     em: &mut ExecutionMachine,
-    stack: &mut ExecutionStack,
     ea: ExecutionAtom,
     args: Vec<Value>,
 ) -> Result<(), ExecutionError> {
     match ea {
         ExecutionAtom::List(_) => {
-            stack.push_value(Value::List(args));
+            em.stack.push_value(Value::List(args));
             Ok(())
         }
         ExecutionAtom::ThenElse(then_expr, else_expr) => {
@@ -331,35 +211,35 @@ fn eval(
             let cond_bool = cond_val.bool()?;
 
             if cond_bool {
-                work(em, stack, &then_expr)?
+                work(em, &then_expr)?
             } else {
-                work(em, stack, &else_expr)?
+                work(em, &else_expr)?
             }
             Ok(())
         }
-        ExecutionAtom::Call(_, loc) => match process_call(em, stack, &loc, args)? {
+        ExecutionAtom::Call(_, loc) => match process_call(em, &loc, args)? {
             None => Ok(()),
             Some(value) => {
-                stack.push_value(value);
+                em.stack.push_value(value);
                 Ok(())
             }
         },
         ExecutionAtom::Then(e) => {
             let first_val = args.into_iter().next().unwrap();
             first_val.unit()?;
-            work(em, stack, &e)?;
+            work(em, &e)?;
             Ok(())
         }
         ExecutionAtom::PopScope => {
             assert_eq!(args.len(), 1);
             em.scope_leave();
-            stack.push_value(args[0].clone());
+            em.stack.push_value(args[0].clone());
             Ok(())
         }
         ExecutionAtom::Let(ident, then) => {
             let bind_val = args.into_iter().next().unwrap();
             em.add_local_binding(ident, bind_val);
-            work(em, stack, &then)?;
+            work(em, &then)?;
             Ok(())
         }
     }
@@ -367,7 +247,6 @@ fn eval(
 
 fn process_call(
     em: &mut ExecutionMachine,
-    stack: &mut ExecutionStack,
     location: &Location,
     args: Vec<Value>,
 ) -> Result<Option<Value>, ExecutionError> {
@@ -380,7 +259,7 @@ fn process_call(
                 for (bind_name, arg_value) in bind_names.iter().zip(args.iter()) {
                     em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
                 }
-                stack.push_work1(ExecutionAtom::PopScope, fun_stmts);
+                em.stack.push_work1(ExecutionAtom::PopScope, fun_stmts);
                 Ok(None)
             }
             Value::NativeFun(_name, f) => {
