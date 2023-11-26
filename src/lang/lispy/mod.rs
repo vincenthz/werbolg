@@ -5,7 +5,7 @@ mod token;
 
 use super::common::{FileUnit, ParseError, ParseErrorKind};
 use crate::ir;
-use crate::ir::{spans_merge, Span};
+use crate::ir::{spans_merge, Span, Spanned};
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use ast::Ast;
 
@@ -66,7 +66,8 @@ fn remap_err(e: parse::ParseError) -> ParseError {
 
 /// Turn a vector of lisp parse expression into a ast::Expr of the form `let ID1 = LAMBDA1; let ID2 = LAMBDA2; ...; LAST_EXPR`
 ///
-fn exprs_into_let(exprs: Vec<Ast>) -> Result<ir::Expr, ParseError> {
+fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
+    // parse expressions in reverse order
     let mut exprs = exprs.into_iter().rev();
 
     let Some(last) = exprs.next() else {
@@ -78,8 +79,8 @@ fn exprs_into_let(exprs: Vec<Ast>) -> Result<ir::Expr, ParseError> {
     let mut accumulator = expr(last)?;
 
     while let Some(e) = exprs.next() {
-        match e {
-            Ast::Define(_span, name, args, body) => {
+        match e.inner {
+            Ast::Define(name, args, body) => {
                 let body = exprs_into_let(body)?;
                 let span_args = spans_merge(&mut args.iter().map(|sargs| &sargs.0.span));
                 accumulator = ir::Expr::Let(
@@ -90,7 +91,7 @@ fn exprs_into_let(exprs: Vec<Ast>) -> Result<ir::Expr, ParseError> {
             }
             _ => {
                 return Err(ParseError {
-                    location: Span { start: 0, end: 0 },
+                    location: e.span,
                     kind: ParseErrorKind::Str(format!("trying to have a non function in let")),
                 });
             }
@@ -100,21 +101,24 @@ fn exprs_into_let(exprs: Vec<Ast>) -> Result<ir::Expr, ParseError> {
     Ok(accumulator)
 }
 
-fn statement(ast: Ast) -> Result<ir::Statement, ParseError> {
-    match ast {
-        Ast::Atom(span, ident) => Ok(ir::Statement::Expr(ir::Expr::Ident(span, ident))),
-        Ast::Literal(span, lit) => Ok(ir::Statement::Expr(ir::Expr::Literal(span, literal(lit)))),
-        Ast::List(span, list) => Ok(ir::Statement::Expr(exprs(span, list)?)),
-        Ast::If(span, cond_expr, then_expr, else_expr) => Ok(ir::Statement::Expr(ir::Expr::If {
-            span,
-            cond: cond_expr.map_result(expr)?,
-            then_expr: then_expr.map_result(expr)?,
-            else_expr: else_expr.map_result(expr)?,
+fn statement(ast: Spanned<Ast>) -> Result<ir::Statement, ParseError> {
+    match ast.inner {
+        Ast::Atom(ident) => Ok(ir::Statement::Expr(ir::Expr::Ident(ast.span, ident))),
+        Ast::Literal(lit) => Ok(ir::Statement::Expr(ir::Expr::Literal(
+            ast.span,
+            literal(lit),
+        ))),
+        Ast::List(list) => Ok(ir::Statement::Expr(exprs(ast.span, list)?)),
+        Ast::If(cond_expr, then_expr, else_expr) => Ok(ir::Statement::Expr(ir::Expr::If {
+            span: ast.span,
+            cond: Box::new(spanned_expr(cond_expr.as_ref().clone())?),
+            then_expr: Box::new(spanned_expr(then_expr.as_ref().clone())?),
+            else_expr: Box::new(spanned_expr(else_expr.as_ref().clone())?),
         })),
-        Ast::Define(span, name, args, body) => {
+        Ast::Define(name, args, body) => {
             let body = exprs_into_let(body)?;
             Ok(ir::Statement::Function(
-                span,
+                ast.span,
                 ir::FunDef {
                     name: name.unspan(),
                     vars: args,
@@ -125,25 +129,30 @@ fn statement(ast: Ast) -> Result<ir::Statement, ParseError> {
     }
 }
 
-fn expr(ast: Ast) -> Result<ir::Expr, ParseError> {
-    match ast {
-        Ast::Atom(span, ident) => Ok(ir::Expr::Ident(span, ident)),
-        Ast::Literal(span, lit) => Ok(ir::Expr::Literal(span, literal(lit))),
-        Ast::List(span, e) => exprs(span, e),
-        Ast::If(span, cond_expr, then_expr, else_expr) => Ok(ir::Expr::If {
-            span,
-            cond: cond_expr.map_result(expr)?,
-            then_expr: then_expr.map_result(expr)?,
-            else_expr: else_expr.map_result(expr)?,
+fn spanned_expr(ast: Spanned<Ast>) -> Result<Spanned<ir::Expr>, ParseError> {
+    let span = ast.span.clone();
+    expr(ast).map(|a| Spanned::new(span, a))
+}
+
+fn expr(ast: Spanned<Ast>) -> Result<ir::Expr, ParseError> {
+    match ast.inner {
+        Ast::Atom(ident) => Ok(ir::Expr::Ident(ast.span, ident)),
+        Ast::Literal(lit) => Ok(ir::Expr::Literal(ast.span, literal(lit))),
+        Ast::List(e) => exprs(ast.span, e),
+        Ast::If(cond_expr, then_expr, else_expr) => Ok(ir::Expr::If {
+            span: ast.span,
+            cond: Box::new(spanned_expr(cond_expr.as_ref().clone())?),
+            then_expr: Box::new(spanned_expr(then_expr.as_ref().clone())?),
+            else_expr: Box::new(spanned_expr(else_expr.as_ref().clone())?),
         }),
-        Ast::Define(_, _, _, _) => Err(ParseError {
+        Ast::Define(_, _, _) => Err(ParseError {
             location: Span { start: 0, end: 0 },
             kind: ParseErrorKind::Str(format!("cannot have define in expression")),
         }),
     }
 }
 
-fn exprs(span: Span, exprs: Vec<Ast>) -> Result<ir::Expr, ParseError> {
+fn exprs(span: Span, exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
     let build_list = exprs[0].literal().is_some();
     let params = exprs
         .into_iter()

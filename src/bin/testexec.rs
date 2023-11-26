@@ -1,4 +1,6 @@
-use werbolg::{exec, ir::Number, parse, ExecutionError, ExecutionMachine, FileUnit, Value};
+use werbolg::{
+    exec, ir::Ident, ir::Number, parse, ExecutionError, ExecutionMachine, FileUnit, Value,
+};
 
 fn nif_plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
@@ -80,7 +82,7 @@ fn main() -> Result<(), ()> {
     em.add_native_fun("*", nif_mul);
     em.add_native_fun("==", nif_eq);
 
-    let val = exec(&mut em, module).expect("no execution error");
+    let val = exec(&mut em, module, Ident::from("main"), vec![]).expect("no execution error");
 
     println!("{:?}", val);
     Ok(())

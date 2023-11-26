@@ -1,61 +1,51 @@
-use crate::ir::{Ident, Span, Spanned, SpannedBox, Variable};
-use alloc::{string::String, vec::Vec};
+use crate::ir::{Ident, Spanned, Variable};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 #[derive(Clone)]
 pub enum Ast {
     /// Atom is just some ident like 'foo' or '+'
-    Atom(Span, Ident),
+    Atom(Ident),
     /// Literal value a number '123', string '"foo"', or bytes '#ABCD#'
-    Literal(Span, Literal),
+    Literal(Literal),
     /// List of expression '(a b c)'
-    List(Span, ListExpr),
-    // (define (id args) expr
-    Define(Span, Spanned<Ident>, Vec<Variable>, Vec<Ast>),
-    // (if cond then_expr else_expre
-    If(Span, SpannedBox<Ast>, SpannedBox<Ast>, SpannedBox<Ast>),
+    List(ListExpr),
+    // (define (id args) expr+)
+    Define(Spanned<Ident>, Vec<Variable>, Vec<Spanned<Ast>>),
+    // (if cond then_expr else_expr)
+    If(Box<Spanned<Ast>>, Box<Spanned<Ast>>, Box<Spanned<Ast>>),
 }
 
 impl Ast {
-    pub fn literal(&self) -> Option<(&Literal, &Span)> {
+    pub fn literal(&self) -> Option<&Literal> {
         match &self {
-            Ast::Literal(span, lit) => Some((lit, span)),
+            Ast::Literal(lit) => Some(lit),
             _ => None,
         }
     }
-    pub fn atom(&self) -> Option<(&Ident, &Span)> {
+    pub fn atom(&self) -> Option<&Ident> {
         match &self {
-            Ast::Atom(span, atom) => Some((atom, span)),
+            Ast::Atom(atom) => Some(atom),
             _ => None,
         }
     }
 
     pub fn atom_eq(&self, s: &str) -> bool {
         match &self {
-            Ast::Atom(_, ident) => ident.matches(s),
+            Ast::Atom(ident) => ident.matches(s),
             _ => false,
         }
     }
 
     #[allow(unused)]
-    pub fn list(&self) -> Option<(&ListExpr, &Span)> {
+    pub fn list(&self) -> Option<&ListExpr> {
         match &self {
-            Ast::List(span, si) => Some((&si, &span)),
+            Ast::List(si) => Some(&si),
             _ => None,
-        }
-    }
-
-    pub fn span(&self) -> Span {
-        match self {
-            Ast::Atom(span, _) => span.clone(),
-            Ast::Literal(span, _) => span.clone(),
-            Ast::List(span, _) => span.clone(),
-            Ast::Define(span, _, _, _) => span.clone(),
-            Ast::If(span, _, _, _) => span.clone(),
         }
     }
 }
 
-type ListExpr = Vec<Ast>;
+type ListExpr = Vec<Spanned<Ast>>;
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Literal {

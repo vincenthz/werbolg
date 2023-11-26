@@ -2,7 +2,7 @@
 mod parse;
 mod token;
 
-use crate::ir::{Spanned, SpannedBox, Statement};
+use crate::ir::{Spanned, Statement};
 use alloc::{boxed::Box, vec, vec::Vec};
 
 use super::common::{ir, FileUnit, ParseError};
@@ -10,9 +10,7 @@ use super::common::{ir, FileUnit, ParseError};
 pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     let m = parse::module(&fileunit.content).map_err(|_| todo!())?;
 
-    let has_main = m.iter().any(|(s, _, _)| s == "main");
-
-    let mut statements = m
+    let statements = m
         .into_iter()
         .map(|(n, span, fun)| {
             let body = rewrite_expr(&fun.body);
@@ -27,21 +25,13 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
         })
         .collect::<Vec<_>>();
 
-    if has_main {
-        let fake_span = core::ops::Range { start: 0, end: 0 };
-        statements.push(Statement::Expr(ir::Expr::Call(
-            fake_span.clone(),
-            vec![ir::Expr::Ident(fake_span, ir::Ident::from("main"))],
-        )));
-    }
-
     Ok(ir::Module { statements })
 }
 
-fn rewrite_expr_spanbox(span_expr: &(parse::Expr, parse::Span)) -> SpannedBox<ir::Expr> {
+fn rewrite_expr_spanbox(span_expr: &(parse::Expr, parse::Span)) -> Box<Spanned<ir::Expr>> {
     let span = span_expr.1.clone();
     let expr = rewrite_expr(span_expr);
-    SpannedBox::new(span, expr)
+    Box::new(Spanned::new(span, expr))
 }
 
 fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {

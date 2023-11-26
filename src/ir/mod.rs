@@ -35,9 +35,9 @@ pub enum Expr {
     Call(Span, Vec<Expr>),
     If {
         span: Span,
-        cond: SpannedBox<Expr>,
-        then_expr: SpannedBox<Expr>,
-        else_expr: SpannedBox<Expr>,
+        cond: Box<Spanned<Expr>>,
+        then_expr: Box<Spanned<Expr>>,
+        else_expr: Box<Spanned<Expr>>,
     },
 }
 

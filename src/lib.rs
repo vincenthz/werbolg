@@ -16,10 +16,17 @@ pub mod lang;
 pub use em::{ExecutionError, ExecutionMachine, Value};
 pub use lang::common::FileUnit;
 
+use alloc::vec::Vec;
+
 pub fn parse(lang: lang::Lang, file: &FileUnit) -> Result<ir::Module, lang::ParseError> {
     lang::parse(lang, file)
 }
 
-pub fn exec(em: &mut ExecutionMachine, ast: ir::Module) -> Result<Value, ExecutionError> {
-    em::exec(em, ast)
+pub fn exec(
+    em: &mut ExecutionMachine,
+    ast: ir::Module,
+    call: ir::Ident,
+    args: Vec<em::Value>,
+) -> Result<Value, ExecutionError> {
+    em::exec(em, ast, call, args)
 }

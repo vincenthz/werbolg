@@ -6,7 +6,7 @@ mod bindings;
 mod location;
 mod value;
 
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use bindings::{Bindings, BindingsStack};
 pub use location::Location;
 pub use value::{Value, ValueKind, NIF};
@@ -89,15 +89,64 @@ pub enum ExecutionError {
     Abort,
 }
 
-pub fn exec(em: &mut ExecutionMachine, module: ir::Module) -> Result<Value, ExecutionError> {
-    exec_stmts(em, &module.statements)
+pub fn exec(
+    em: &mut ExecutionMachine,
+    module: ir::Module,
+    call: ir::Ident,
+    args: Vec<Value>,
+) -> Result<Value, ExecutionError> {
+    load_stmts(em, &module.statements)?;
+
+    let mut values = vec![em.get_binding(&call)?];
+    values.extend_from_slice(&args);
+
+    let mut stack = ExecutionStack::new();
+
+    match process_call(
+        em,
+        &mut stack,
+        &Location {
+            module: String::from(""),
+            span: ir::Span { start: 0, end: 0 },
+        },
+        values,
+    )? {
+        None => (),
+        Some(_) => {
+            panic!("NIF as entry point")
+        }
+    };
+
+    exec_continue(em, &mut stack)
 }
 
-pub fn exec_stmts(
+pub fn exec_continue(
+    em: &mut ExecutionMachine,
+    stack: &mut ExecutionStack,
+) -> Result<Value, ExecutionError> {
+    loop {
+        if em.aborted() {
+            return Err(ExecutionError::Abort);
+        }
+        match stack.next_work() {
+            ExprNext::Finish(v) => {
+                assert!(stack.values.is_empty());
+                assert!(stack.constr.is_empty());
+                assert!(stack.work.is_empty());
+                return Ok(v);
+            }
+            ExprNext::Shift(e) => work(em, stack, &e)?,
+            ExprNext::Reduce(ea, args) => {
+                eval(em, stack, ea, args)?;
+            }
+        }
+    }
+}
+
+pub fn load_stmts(
     em: &mut ExecutionMachine,
     stmts: &[ir::Statement],
-) -> Result<Value, ExecutionError> {
-    let mut last_value = None;
+) -> Result<(), ExecutionError> {
     for statement in stmts {
         match statement {
             ir::Statement::Function(span, ir::FunDef { name, vars, body }) => {
@@ -106,16 +155,21 @@ pub fn exec_stmts(
                     Value::Fun(Location::from_span(span), vars.clone(), body.clone()),
                 );
             }
-            ir::Statement::Expr(e) => {
+            ir::Statement::Expr(_) => {
+                /*
                 let v = exec_expr(em, &e)?;
                 last_value = Some(v)
+                */
             }
         }
     }
+    Ok(())
+    /*
     match last_value {
         None => Ok(Value::Unit),
         Some(val) => Ok(val),
     }
+    */
 }
 
 pub enum ExecutionAtom {
@@ -254,8 +308,8 @@ fn work(
             then_expr,
             else_expr,
         } => stack.push_work1(
-            ExecutionAtom::ThenElse(then_expr.unspan().clone(), else_expr.unspan().clone()),
-            cond.unspan(),
+            ExecutionAtom::ThenElse(then_expr.clone().unspan(), else_expr.clone().unspan()),
+            &cond.inner,
         ),
     };
     Ok(())
@@ -267,47 +321,6 @@ fn eval(
     ea: ExecutionAtom,
     args: Vec<Value>,
 ) -> Result<(), ExecutionError> {
-    fn process_call(
-        em: &mut ExecutionMachine,
-        stack: &mut ExecutionStack,
-        location: &Location,
-        args: Vec<Value>,
-    ) -> Result<Option<Value>, ExecutionError> {
-        if let Some((first, args)) = args.split_first() {
-            let k = first.into();
-            match first {
-                Value::Fun(location, bind_names, fun_stmts) => {
-                    em.scope_enter(location);
-                    check_arity(bind_names.len(), args.len())?;
-                    for (bind_name, arg_value) in bind_names.iter().zip(args.iter()) {
-                        em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
-                    }
-                    stack.push_work1(ExecutionAtom::PopScope, fun_stmts);
-                    Ok(None)
-                }
-                Value::NativeFun(_name, f) => {
-                    em.scope_enter(&location);
-                    let res = f(em, args)?;
-                    em.scope_leave();
-                    Ok(Some(res))
-                }
-                Value::List(_)
-                | Value::Bool(_)
-                | Value::Number(_)
-                | Value::String(_)
-                | Value::Decimal(_)
-                | Value::Bytes(_)
-                | Value::Opaque(_)
-                | Value::Unit => Err(ExecutionError::CallingNotFunc {
-                    location: location.clone(),
-                    value_is: k,
-                }),
-            }
-        } else {
-            Ok(Some(Value::Unit))
-        }
-    }
-
     match ea {
         ExecutionAtom::List(_) => {
             stack.push_value(Value::List(args));
@@ -352,26 +365,44 @@ fn eval(
     }
 }
 
-pub fn exec_expr(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<Value, ExecutionError> {
-    let mut stack = ExecutionStack::new();
-    work(em, &mut stack, e)?;
-
-    loop {
-        if em.aborted() {
-            return Err(ExecutionError::Abort);
-        }
-        match stack.next_work() {
-            ExprNext::Finish(v) => {
-                assert!(stack.values.is_empty());
-                assert!(stack.constr.is_empty());
-                assert!(stack.work.is_empty());
-                return Ok(v);
+fn process_call(
+    em: &mut ExecutionMachine,
+    stack: &mut ExecutionStack,
+    location: &Location,
+    args: Vec<Value>,
+) -> Result<Option<Value>, ExecutionError> {
+    if let Some((first, args)) = args.split_first() {
+        let k = first.into();
+        match first {
+            Value::Fun(location, bind_names, fun_stmts) => {
+                em.scope_enter(location);
+                check_arity(bind_names.len(), args.len())?;
+                for (bind_name, arg_value) in bind_names.iter().zip(args.iter()) {
+                    em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
+                }
+                stack.push_work1(ExecutionAtom::PopScope, fun_stmts);
+                Ok(None)
             }
-            ExprNext::Shift(e) => work(em, &mut stack, &e)?,
-            ExprNext::Reduce(ea, args) => {
-                eval(em, &mut stack, ea, args)?;
+            Value::NativeFun(_name, f) => {
+                em.scope_enter(&location);
+                let res = f(em, args)?;
+                em.scope_leave();
+                Ok(Some(res))
             }
+            Value::List(_)
+            | Value::Bool(_)
+            | Value::Number(_)
+            | Value::String(_)
+            | Value::Decimal(_)
+            | Value::Bytes(_)
+            | Value::Opaque(_)
+            | Value::Unit => Err(ExecutionError::CallingNotFunc {
+                location: location.clone(),
+                value_is: k,
+            }),
         }
+    } else {
+        Ok(Some(Value::Unit))
     }
 }
 
