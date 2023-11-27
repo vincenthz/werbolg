@@ -19,7 +19,6 @@ panic = 'abort'
 
 [dependencies]
 hashbrown = "0.14"
-strum = { version = "0.25", default-features = false, features = ["derive"] }
 
 logos = { version = "0.13", optional = true }
 num-bigint = { version = "0.4", optional = true }

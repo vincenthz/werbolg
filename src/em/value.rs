@@ -3,11 +3,9 @@
 use super::{ExecutionError, ExecutionMachine, Location};
 use crate::ir::{self, Literal, Variable};
 use alloc::{boxed::Box, string::String, vec::Vec};
-use strum::EnumDiscriminants;
 
 /// Execution Machine Value
-#[derive(Clone, Debug, EnumDiscriminants)]
-#[strum_discriminants(name(ValueKind))]
+#[derive(Clone, Debug)]
 pub enum Value {
     Unit,
     // Simple values
@@ -22,6 +20,37 @@ pub enum Value {
     // Functions
     NativeFun(&'static str, NIF),
     Fun(Location, Vec<Variable>, ir::Expr),
+}
+
+#[derive(Debug, Clone)]
+pub enum ValueKind {
+    Unit,
+    Bool,
+    Number,
+    String,
+    Decimal,
+    Bytes,
+    Opaque,
+    List,
+    NativeFun,
+    Fun,
+}
+
+impl<'a> From<&'a Value> for ValueKind {
+    fn from(value: &'a Value) -> Self {
+        match value {
+            Value::Unit => ValueKind::Unit,
+            Value::Bool(_) => ValueKind::Bool,
+            Value::Number(_) => ValueKind::Number,
+            Value::String(_) => ValueKind::String,
+            Value::Decimal(_) => ValueKind::Decimal,
+            Value::Bytes(_) => ValueKind::Bytes,
+            Value::Opaque(_) => ValueKind::Opaque,
+            Value::List(_) => ValueKind::List,
+            Value::NativeFun(_, _) => ValueKind::NativeFun,
+            Value::Fun(_, _, _) => ValueKind::Fun,
+        }
+    }
 }
 
 /// Native Implemented Function
