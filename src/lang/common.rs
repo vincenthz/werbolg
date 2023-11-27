@@ -12,6 +12,62 @@ pub struct Report<'a> {
     pub full_text: &'a str,
 }
 
+/// Store a fast resolver from raw bytes offset to (line,col) where line starts at 1
+///
+/// Also line 1 starts at 0 and is not stored, so effectively this starts with the index
+/// of line 2
+pub struct LinesMap {
+    max_ofs: usize,
+    lines: Vec<usize>,
+}
+
+pub type LineCol = (u32, u32);
+
+impl LinesMap {
+    pub fn new(content: &str) -> Self {
+        let mut line_indexes = Vec::new();
+        let mut pos = 0;
+        let content = content.as_bytes();
+        let max_ofs = content.len();
+        for line_content in content.split(|c| *c == b'\n') {
+            pos += line_content.len() + 1;
+            line_indexes.push(pos)
+        }
+        Self {
+            max_ofs,
+            lines: line_indexes,
+        }
+    }
+
+    pub fn resolve(&self, offset: usize) -> Option<LineCol> {
+        if offset > self.max_ofs {
+            return None;
+        }
+        match self.lines.binary_search(&offset) {
+            Ok(found) => Some((found as u32 + 2, 0)),
+            Err(not_found_above) => {
+                if not_found_above == 0 {
+                    Some((1, offset as u32))
+                } else {
+                    let prev_line_start = self.lines[not_found_above - 1];
+                    let col = offset - prev_line_start;
+                    Some(((not_found_above + 1) as u32, col as u32))
+                }
+            }
+        }
+    }
+
+    pub fn resolve_span(&self, span: ir::Span) -> Option<(LineCol, LineCol)> {
+        let Some(start) = self.resolve(span.start) else {
+            return None;
+        };
+        let Some(end) = self.resolve(span.end) else {
+            return None;
+        };
+        Some((start, end))
+    }
+}
+
 impl FileUnit {
     #[cfg(std)]
     pub fn from_file(path: &std::path::Path) -> std::io::Result<Self> {
@@ -33,7 +89,7 @@ impl FileUnit {
         }
     }
 
-    pub fn slice(&self, span: core::ops::Range<usize>) -> Option<&str> {
+    pub fn slice(&self, span: ir::Span) -> Option<&str> {
         let bytes = self.content.as_bytes();
         if span.start < bytes.len() && span.end < bytes.len() {
             let slice = &bytes[span];
@@ -43,7 +99,7 @@ impl FileUnit {
         }
     }
 
-    pub fn report(&self, span: core::ops::Range<usize>) -> Option<Report> {
+    pub fn report(&self, span: ir::Span) -> Option<Report> {
         let bytes = self.content.as_bytes();
         if span.start < bytes.len() && span.end < bytes.len() {
             let before = &bytes[0..span.start];
@@ -114,8 +170,24 @@ pub fn hex_decode(s: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn report() {
         //
+    }
+
+    #[test]
+    fn linesmap() {
+        let source = "this\nis\ntest\n";
+        let linemap = LinesMap::new(source);
+        assert_eq!(linemap.resolve(0), Some((1, 0)));
+        assert_eq!(linemap.resolve(4), Some((1, 4)));
+        assert_eq!(linemap.resolve(5), Some((2, 0)));
+        assert_eq!(linemap.resolve(6), Some((2, 1)));
+        assert_eq!(linemap.resolve(7), Some((2, 2)));
+        assert_eq!(linemap.resolve(8), Some((3, 0)));
+        assert_eq!(linemap.resolve(13), Some((4, 0)));
+        assert_eq!(linemap.resolve(14), None);
     }
 }
