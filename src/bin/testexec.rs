@@ -43,7 +43,6 @@ fn nif_hashtable(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, Execut
     let mut h = HashMap::<u32, u64>::new();
     h.insert(10, 20);
     h.insert(20, 40);
-
     Ok(Value::make_opaque(h))
 }
 
@@ -79,7 +78,7 @@ fn main() -> Result<(), ()> {
             None => default,
             Some(os_str) => match os_str.to_str() {
                 None => default,
-                Some("rs") => werbolg::lang::Lang::Rusty,
+                Some("rusty") => werbolg::lang::Lang::Rusty,
                 Some("scheme") => werbolg::lang::Lang::Lispy,
                 Some(s) => {
                     println!("error: unknown extension {}", s);
@@ -93,8 +92,8 @@ fn main() -> Result<(), ()> {
     };
     #[cfg(not(std))]
     let (fileunit, lang) = {
-        let test_snippet = include_str!("../../test.scheme");
-        let fileunit = FileUnit::from_string("test.scheme".to_string(), test_snippet.to_string());
+        let test_snippet = include_str!("../../test.lispy");
+        let fileunit = FileUnit::from_string("test.lispy".to_string(), test_snippet.to_string());
         (fileunit, werbolg::lang::Lang::Lispy)
     };
 
