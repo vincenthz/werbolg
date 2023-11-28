@@ -2,7 +2,9 @@
 
 use super::{ExecutionError, ExecutionMachine, Location};
 use crate::ir::{self, Literal, Variable};
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
+use core::any::Any;
+use core::cell::RefCell;
 
 /// Execution Machine Value
 #[derive(Clone, Debug)]
@@ -15,6 +17,7 @@ pub enum Value {
     Decimal(ir::Decimal),
     Bytes(Box<[u8]>),
     Opaque(Opaque),
+    OpaqueMut(OpaqueMut),
     // Composite
     List(Vec<Value>),
     // Functions
@@ -31,6 +34,7 @@ pub enum ValueKind {
     Decimal,
     Bytes,
     Opaque,
+    OpaqueMut,
     List,
     NativeFun,
     Fun,
@@ -46,6 +50,7 @@ impl<'a> From<&'a Value> for ValueKind {
             Value::Decimal(_) => ValueKind::Decimal,
             Value::Bytes(_) => ValueKind::Bytes,
             Value::Opaque(_) => ValueKind::Opaque,
+            Value::OpaqueMut(_) => ValueKind::OpaqueMut,
             Value::List(_) => ValueKind::List,
             Value::NativeFun(_, _) => ValueKind::NativeFun,
             Value::Fun(_, _, _) => ValueKind::Fun,
@@ -57,11 +62,59 @@ impl<'a> From<&'a Value> for ValueKind {
 pub type NIF = fn(&ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>;
 
 #[derive(Clone)]
-pub struct Opaque(u64);
+pub struct Opaque(Rc<dyn Any>);
+
+impl Opaque {
+    pub fn new<T: Any + Send + Sync>(t: T) -> Self {
+        Self(Rc::new(t))
+    }
+
+    pub fn downcast_ref<T: Any + Send + Sync>(&self) -> Result<&T, ExecutionError> {
+        self.0
+            .downcast_ref()
+            .ok_or(ExecutionError::OpaqueTypeTypeInvalid {
+                got_type_id: self.0.type_id(),
+            })
+    }
+}
+
+#[derive(Clone)]
+pub struct OpaqueMut(Rc<RefCell<dyn Any>>);
+
+impl OpaqueMut {
+    pub fn new<T: Any + Send + Sync>(t: T) -> Self {
+        Self(Rc::new(RefCell::new(t)))
+    }
+
+    pub fn on_mut<F, T>(&self, f: F) -> Result<(), ExecutionError>
+    where
+        T: Any + Send + Sync,
+        F: FnOnce(&mut T) -> Result<(), ExecutionError>,
+    {
+        let b = self.0.as_ref();
+
+        let mut cell = b.borrow_mut();
+        let r = cell
+            .downcast_mut()
+            .ok_or(ExecutionError::OpaqueTypeTypeInvalid {
+                got_type_id: self.0.type_id(),
+            })?;
+
+        f(r)
+    }
+}
 
 impl core::fmt::Debug for Opaque {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("Opaque").finish()
+        let ty = self.0.type_id();
+        f.debug_tuple("Opaque").field(&ty).finish()
+    }
+}
+
+impl core::fmt::Debug for OpaqueMut {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let ty = self.0.type_id();
+        f.debug_tuple("OpaqueMut").field(&ty).finish()
     }
 }
 
@@ -77,6 +130,24 @@ impl<'a> From<&'a Literal> for Value {
 }
 
 impl Value {
+    pub fn make_opaque<T: Any + Send + Sync>(t: T) -> Self {
+        Value::Opaque(Opaque::new(t))
+    }
+
+    pub fn make_opaque_mut<T: Any + Send + Sync>(t: T) -> Self {
+        Value::OpaqueMut(OpaqueMut::new(t))
+    }
+
+    pub fn opaque<T: Any + Send + Sync>(&self) -> Result<&T, ExecutionError> {
+        match self {
+            Value::Opaque(o) => o.downcast_ref(),
+            _ => Err(ExecutionError::ValueKindUnexpected {
+                value_expected: ValueKind::Opaque,
+                value_got: self.into(),
+            }),
+        }
+    }
+
     pub fn unit(&self) -> Result<(), ExecutionError> {
         match self {
             Value::Unit => Ok(()),

@@ -153,7 +153,7 @@ fn expr(ast: Spanned<Ast>) -> Result<ir::Expr, ParseError> {
 }
 
 fn exprs(span: Span, exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
-    let build_list = exprs[0].literal().is_some();
+    let build_list = exprs.is_empty() || exprs[0].literal().is_some();
     let params = exprs
         .into_iter()
         .map(|e| expr(e))

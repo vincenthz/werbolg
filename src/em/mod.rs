@@ -90,6 +90,12 @@ pub enum ExecutionError {
         value_expected: ValueKind,
         value_got: ValueKind,
     },
+    OpaqueTypeTypeInvalid {
+        got_type_id: core::any::TypeId,
+    },
+    UserPanic {
+        message: String,
+    },
     Abort,
 }
 
@@ -164,7 +170,13 @@ fn work(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<(), ExecutionError> {
     match e {
         ir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
         ir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
-        ir::Expr::List(_, l) => em.stack.push_work(ExecutionAtom::List(l.len()), l),
+        ir::Expr::List(_, l) => {
+            if l.is_empty() {
+                em.stack.push_value(Value::Unit);
+            } else {
+                em.stack.push_work(ExecutionAtom::List(l.len()), l)
+            }
+        }
         ir::Expr::Lambda(span, args, body) => {
             let val = Value::Fun(
                 Location::from_span(span),
@@ -275,6 +287,7 @@ fn process_call(
             | Value::Decimal(_)
             | Value::Bytes(_)
             | Value::Opaque(_)
+            | Value::OpaqueMut(_)
             | Value::Unit => Err(ExecutionError::CallingNotFunc {
                 location: location.clone(),
                 value_is: k,

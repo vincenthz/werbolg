@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use werbolg::{
     exec, ir::Ident, ir::Number, parse, ExecutionError, ExecutionMachine, FileUnit, Value,
 };
@@ -36,6 +37,29 @@ fn nif_eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErro
     let ret = n1.0 == n2.0;
 
     Ok(Value::Bool(ret))
+}
+
+fn nif_hashtable(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+    let mut h = HashMap::<u32, u64>::new();
+    h.insert(10, 20);
+    h.insert(20, 40);
+
+    Ok(Value::make_opaque(h))
+}
+
+fn nif_hashtable_get(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+    let h: &HashMap<u32, u64> = args[0].opaque()?;
+    let index_bignum = args[1].number()?;
+    let index: u32 = index_bignum
+        .try_into()
+        .map_err(|()| ExecutionError::UserPanic {
+            message: String::from("cannot convert number to u64"),
+        })?;
+
+    match h.get(&index) {
+        None => Ok(Value::Unit),
+        Some(value) => Ok(Value::Number(Number::from_u64(*value))),
+    }
 }
 
 fn main() -> Result<(), ()> {
@@ -81,6 +105,8 @@ fn main() -> Result<(), ()> {
     em.add_native_fun("-", nif_sub);
     em.add_native_fun("*", nif_mul);
     em.add_native_fun("==", nif_eq);
+    em.add_native_fun("table_new", nif_hashtable);
+    em.add_native_fun("table_get", nif_hashtable_get);
 
     let val = exec(&mut em, &module, Ident::from("main"), vec![]).expect("no execution error");
 

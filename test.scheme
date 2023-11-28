@@ -11,9 +11,5 @@
 )
 
 (define main
-	(sum3 10 20
-		(sum4 20 10 5
-			(mul4 1 2 3 4)
-		)
-	)
+	(table_get (table_new ()) 20)
 )

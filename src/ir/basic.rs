@@ -30,7 +30,7 @@ pub enum Literal {
 }
 
 #[cfg(feature = "backend-bignum")]
-use num_traits::Num;
+use num_traits::{Num, ToPrimitive};
 
 #[cfg(feature = "backend-bignum")]
 use core::str::FromStr;
@@ -45,10 +45,54 @@ pub type NumberInner = u64;
 pub struct Number(pub NumberInner);
 
 impl Number {
+    pub fn from_u64(v: u64) -> Self {
+        Number(NumberInner::from(v))
+    }
+
     pub fn from_str_radix(s: &str, n: u32) -> Result<Self, ()> {
         NumberInner::from_str_radix(s, n)
             .map(|n| Self(n))
             .map_err(|_| ())
+    }
+}
+
+impl TryFrom<&Number> for u8 {
+    type Error = ();
+
+    fn try_from(num: &Number) -> Result<Self, Self::Error> {
+        num.0.to_u8().ok_or(())
+    }
+}
+
+impl TryFrom<&Number> for u16 {
+    type Error = ();
+
+    fn try_from(num: &Number) -> Result<Self, Self::Error> {
+        num.0.to_u16().ok_or(())
+    }
+}
+
+impl TryFrom<&Number> for u32 {
+    type Error = ();
+
+    fn try_from(num: &Number) -> Result<Self, Self::Error> {
+        num.0.to_u32().ok_or(())
+    }
+}
+
+impl TryFrom<&Number> for u64 {
+    type Error = ();
+
+    fn try_from(num: &Number) -> Result<Self, Self::Error> {
+        num.0.to_u64().ok_or(())
+    }
+}
+
+impl TryFrom<&Number> for u128 {
+    type Error = ();
+
+    fn try_from(num: &Number) -> Result<Self, Self::Error> {
+        num.0.to_u128().ok_or(())
     }
 }
 

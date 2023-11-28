@@ -5,7 +5,7 @@ pub type Span = core::ops::Range<usize>;
 
 pub fn span_merge(start: &Span, end: &Span) -> Span {
     assert!(
-        start.end < end.start,
+        start.end <= end.start,
         "merging span failed start={:?} end={:?}",
         start,
         end
