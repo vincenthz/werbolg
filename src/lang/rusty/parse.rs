@@ -5,7 +5,7 @@ use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{prelude::*, stream::Stream};
 use core::fmt;
 
-use crate::ir::{self, Literal, Number, Variable};
+use werbolg_core::{self as ir, Literal, Number, Variable};
 
 pub type Span = core::ops::Range<usize>;
 

@@ -39,7 +39,7 @@ fn nif_eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErro
     Ok(Value::Bool(ret))
 }
 
-fn nif_hashtable(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable(_em: &ExecutionMachine, _args: &[Value]) -> Result<Value, ExecutionError> {
     let mut h = HashMap::<u32, u64>::new();
     h.insert(10, 20);
     h.insert(20, 40);

@@ -3,9 +3,9 @@
 use super::super::common::hex_decode;
 use super::ast::{Ast, Literal};
 use super::token::{Token, UnknownToken};
-use crate::ir::{span_merge, spans_merge, Ident, Span, Spanned, Variable};
 use alloc::{boxed::Box, vec, vec::Vec};
 use logos::Logos;
+use werbolg_core::{span_merge, spans_merge, Ident, Span, Spanned, Variable};
 
 pub struct Lexer<'a>(logos::Lexer<'a, Token>);
 
@@ -289,8 +289,8 @@ impl<'a> Iterator for Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::Spanned;
     use alloc::string::String;
+    use werbolg_core::Spanned;
 
     fn match_expr(e1: &Ast, e2: &Ast) -> bool {
         match (e1, e2) {

@@ -1,5 +1,5 @@
-use crate::ir::{Ident, Spanned, Variable};
 use alloc::{boxed::Box, string::String, vec::Vec};
+use werbolg_core::{Ident, Spanned, Variable};
 
 #[derive(Clone)]
 pub enum Ast {

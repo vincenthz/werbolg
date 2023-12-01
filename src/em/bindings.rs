@@ -1,6 +1,6 @@
-use crate::ir::Ident;
 use alloc::{vec, vec::Vec};
 use hashbrown::HashMap;
+use werbolg_core::Ident;
 
 type BindingName = Ident;
 

@@ -1,6 +1,6 @@
 //! Werbolg Execution machine
 
-use crate::ir;
+use werbolg_core as ir;
 
 mod bindings;
 mod location;

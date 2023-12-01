@@ -6,7 +6,8 @@ pub mod rusty;
 #[cfg(feature = "lang-lispy")]
 pub mod lispy;
 
-use common::{ir, FileUnit};
+use common::FileUnit;
+use werbolg_core as ir;
 
 pub use common::ParseError;
 

@@ -2,10 +2,10 @@
 mod parse;
 mod token;
 
-use crate::ir::{Spanned, Statement};
 use alloc::{boxed::Box, vec, vec::Vec};
+use werbolg_core::{self as ir, Spanned, Statement};
 
-use super::common::{ir, FileUnit, ParseError};
+use super::common::{FileUnit, ParseError};
 
 pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     let m = parse::module(&fileunit.content).map_err(|_| todo!())?;

@@ -1,7 +1,7 @@
 use super::location::Location;
 use super::value::Value;
-use crate::ir;
 use alloc::{vec, vec::Vec};
+use werbolg_core as ir;
 
 pub struct ExecutionStack {
     pub values: Vec<Value>,

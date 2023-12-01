@@ -1,5 +1,5 @@
-pub use crate::ir;
 use alloc::{format, string::String, vec::Vec};
+use werbolg_core as ir;
 
 pub struct FileUnit {
     pub filename: String,

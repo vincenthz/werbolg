@@ -10,11 +10,11 @@ extern crate alloc;
 extern crate std;
 
 pub mod em;
-pub mod ir;
 pub mod lang;
 
 pub use em::{ExecutionError, ExecutionMachine, Value};
 pub use lang::common::FileUnit;
+pub use werbolg_core as ir;
 
 use alloc::vec::Vec;
 

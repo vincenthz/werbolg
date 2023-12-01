@@ -4,10 +4,9 @@ mod parse;
 mod token;
 
 use super::common::{FileUnit, ParseError, ParseErrorKind};
-use crate::ir;
-use crate::ir::{spans_merge, Span, Spanned};
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use ast::Ast;
+use werbolg_core::{self as ir, spans_merge, Span, Spanned};
 
 pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     let lex = parse::Lexer::new(&fileunit.content);

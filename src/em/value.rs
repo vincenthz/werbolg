@@ -1,10 +1,10 @@
 //! Execution machine value - define the Value type
 
 use super::{ExecutionError, ExecutionMachine, Location};
-use crate::ir::{self, Literal, Variable};
 use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::any::Any;
 use core::cell::RefCell;
+use werbolg_core::{self as ir, Decimal, Expr, Literal, Number, Variable};
 
 /// Execution Machine Value
 #[derive(Clone, Debug)]
@@ -12,9 +12,9 @@ pub enum Value {
     Unit,
     // Simple values
     Bool(bool),
-    Number(ir::Number),
+    Number(Number),
     String(String),
-    Decimal(ir::Decimal),
+    Decimal(Decimal),
     Bytes(Box<[u8]>),
     Opaque(Opaque),
     OpaqueMut(OpaqueMut),
@@ -22,7 +22,7 @@ pub enum Value {
     List(Vec<Value>),
     // Functions
     NativeFun(&'static str, NIF),
-    Fun(Location, Vec<Variable>, ir::Expr),
+    Fun(Location, Vec<Variable>, Expr),
 }
 
 #[derive(Debug, Clone)]
