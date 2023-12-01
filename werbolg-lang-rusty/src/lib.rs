@@ -4,6 +4,7 @@
 
 extern crate alloc;
 
+mod ast;
 mod parse;
 mod token;
 

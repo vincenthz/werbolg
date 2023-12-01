@@ -1,0 +1,110 @@
+use crate::token::{Token, TokenError};
+use alloc::boxed::Box;
+
+grammar;
+
+pub Grammar: Grammar =
+    <statements:Statement*> => {
+        Grammar {
+            statements
+        }
+    };
+
+Statement: Statement =
+    <annotations:Annotation*>
+    <visibility:Visibility?>
+    <lo:@L> <kind:StatementKind> <hi:@R> => {
+        Statement {
+            annotations,
+            visibility: visibility.unwrap_or(Visibility::Private),
+            kind
+        }
+    };
+
+Visibility: Visibility = {
+    "pub" => Visibility::Public,
+};
+
+Annotation: Annotation =
+    "#[" <id:Id> <arg:AnnotationArg?> "]" => { Annotation { id, arg }};
+
+AnnotationArg: (String, String) = "(" <name:Id> "=" <value:"Str"> ")" => (name, value);
+
+StatementKind: StatementKind = {
+    <function:Function> => StatementKind::Fn(function),
+    <ty:Type> => StatementKind::Type(ty),
+};
+
+Function: Function = {
+    "fn" <id:Id> "(" <args:Comma<Id>> ")" "{" <body:Body> "}"=> Function(id, args)
+};
+
+Operator: Operator = {
+    "operator" <prec:"Num"> <op:"Op"> "(" <args:Comma<Id>> ")" "{" <body:Body> "}"=> Operator(prec, op, arg, body)
+};
+    
+Type: Type = {
+    "type" <id:Id> "=" ";" => Type(id)
+};
+
+Body: Body = {
+    <e:BodyExpr*> => Body(e),
+};
+
+BodyExpr: Expr = {
+    "let" <id:Id> "=" "{" <e:BodyExpr> "}" ";" => Expr::Let(id, Box::new(e)),
+    "let" <id:Id> "=" <e:Expr> ";" => Expr::Let(id, Box::new(e)),
+    <s:Expr> => s,
+}
+
+Expr: Expr = {
+    <lit:Literal> => Expr::Literal(lit),
+    //<id:Id> "(" <args:Comma<Expr>?> ")" => Expr::Call(Box::new(expr), args),
+    <id:Id> => Expr::Ident(id),
+    "(" <expr:Expr> ")" => Expr::Paren(Box::new(expr)),
+    "if" <cond:Expr> "{" <then:BodyExpr*> "}" "else" "{" <else_expr:BodyExpr*> "}" => Expr::If(Box::new(e), Box::new(then), Box::new(else_expr)),
+}
+
+Literal: Literal = {
+    <str:"Str"> => Literal::String(str),
+    <num:"Num"> => Literal::Number(num),
+    <bool:"Bool"> => Literal::Bool(bool),
+}
+
+Comma<E>: Vec<E> =
+    <v0:(<E> ",")*> <e1:E?> =>
+        v0.into_iter().chain(e1).collect();
+
+Id: String = <i:"Id"> => i;
+
+extern {
+    type Location = usize;
+    type Error = token::TokenError;
+
+    enum Token {
+        "let" => Token::Let,
+        "if" => Token::If,
+        "fn" => Token::Fn,
+        "type" => Token::Type,
+        "pub" => Token::Pub,
+        "operator" => Token::Op,
+        "else" => Token::Else,
+        "{" => Token::BraceOpen,
+        "}" => Token::BraceClose,
+        "(" => Token::ParenOpen,
+        ")" => Token::ParenClose,
+        "[" => Token::BracketOpen,
+        "]" => Token::BracketClose,
+        ":" => Token::Colon,
+        ";" => Token::Semi,
+        "." => Token::Dot,
+        "," => Token::Comma,
+        "=" => Token::Eq,
+        "#[" => Token::AnnotationStart,
+        "Bool" => Token::Bool(<bool>),
+        "Num" => Token::Number(<u64>),
+        "Str" => Token::String(<String>),
+        "Id" => Token::Ident(<String>),
+        "Op" => Token::Operator(<String>),
+    }
+}

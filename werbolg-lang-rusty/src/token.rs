@@ -28,16 +28,24 @@ pub enum Token {
     Comma,
     #[token(".")]
     Dot,
+    #[token("pub")]
+    Pub,
     #[token("fn")]
     Fn,
+    #[token("type")]
+    Type,
     #[token("if")]
     If,
     #[token("else")]
     Else,
     #[token("let")]
     Let,
+    #[token("operator")]
+    Op,
     #[token("=")]
     Eq,
+    #[token("#[")]
+    AnnotationStart,
     #[regex(r"-?(?:0|[1-9]\d*)?", |lex| lex.slice().parse::<u64>().unwrap())]
     Number(u64),
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#, |lex| lex.slice().to_owned())]
