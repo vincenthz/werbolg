@@ -60,7 +60,14 @@ impl TryFrom<&Number> for u8 {
     type Error = ();
 
     fn try_from(num: &Number) -> Result<Self, Self::Error> {
-        num.0.to_u8().ok_or(())
+        #[cfg(feature = "backend-bignum")]
+        {
+            num.0.to_u8().ok_or(())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            num.0.try_into().map_err(|_| ())
+        }
     }
 }
 
@@ -68,7 +75,14 @@ impl TryFrom<&Number> for u16 {
     type Error = ();
 
     fn try_from(num: &Number) -> Result<Self, Self::Error> {
-        num.0.to_u16().ok_or(())
+        #[cfg(feature = "backend-bignum")]
+        {
+            num.0.to_u16().ok_or(())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            num.0.try_into().map_err(|_| ())
+        }
     }
 }
 
@@ -76,7 +90,14 @@ impl TryFrom<&Number> for u32 {
     type Error = ();
 
     fn try_from(num: &Number) -> Result<Self, Self::Error> {
-        num.0.to_u32().ok_or(())
+        #[cfg(feature = "backend-bignum")]
+        {
+            num.0.to_u32().ok_or(())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            num.0.try_into().map_err(|_| ())
+        }
     }
 }
 
@@ -84,7 +105,14 @@ impl TryFrom<&Number> for u64 {
     type Error = ();
 
     fn try_from(num: &Number) -> Result<Self, Self::Error> {
-        num.0.to_u64().ok_or(())
+        #[cfg(feature = "backend-bignum")]
+        {
+            num.0.to_u64().ok_or(())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            num.0.try_into().map_err(|_| ())
+        }
     }
 }
 
@@ -92,7 +120,14 @@ impl TryFrom<&Number> for u128 {
     type Error = ();
 
     fn try_from(num: &Number) -> Result<Self, Self::Error> {
-        num.0.to_u128().ok_or(())
+        #[cfg(feature = "backend-bignum")]
+        {
+            num.0.to_u128().ok_or(())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            Ok(num.0.into())
+        }
     }
 }
 
