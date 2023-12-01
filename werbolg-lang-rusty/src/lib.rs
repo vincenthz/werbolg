@@ -43,7 +43,10 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
     match &span_expr.0 {
         parse::Expr::Error => todo!(),
         parse::Expr::Literal(lit) => ir::Expr::Literal(span_expr.1.clone(), lit.clone()),
-        parse::Expr::List(_) => todo!(),
+        parse::Expr::List(list) => ir::Expr::List(
+            span_expr.1.clone(),
+            list.iter().map(|se| rewrite_expr(se)).collect::<Vec<_>>(),
+        ),
         parse::Expr::Local(l) => ir::Expr::Ident(span_expr.1.clone(), ir::Ident::from(l.as_str())),
         parse::Expr::Let(name, bind, then) => ir::Expr::Let(
             Spanned::new(span_expr.1.clone(), ir::Ident::from(name.as_str())),
