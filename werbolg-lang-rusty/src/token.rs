@@ -34,6 +34,8 @@ pub enum Token {
     If,
     #[token("else")]
     Else,
+    #[token("let")]
+    Let,
     #[token("=")]
     Eq,
     #[regex(r"-?(?:0|[1-9]\d*)?", |lex| lex.slice().parse::<u64>().unwrap())]
