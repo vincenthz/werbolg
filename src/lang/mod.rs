@@ -1,15 +1,5 @@
-pub mod common;
-
-#[cfg(feature = "lang-rusty")]
-pub mod rusty;
-
-#[cfg(feature = "lang-lispy")]
-pub mod lispy;
-
-use common::FileUnit;
 use werbolg_core as ir;
-
-pub use common::ParseError;
+use werbolg_lang_common::{FileUnit, ParseError};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Lang {
@@ -22,7 +12,7 @@ pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ir::Module, ParseError>
         Lang::Lispy => {
             #[cfg(feature = "lang-lispy")]
             {
-                lispy::module(unit)
+                werbolg_lang_lispy::module(unit)
             }
 
             #[cfg(not(feature = "lang-lispy"))]
@@ -33,7 +23,7 @@ pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ir::Module, ParseError>
         Lang::Rusty => {
             #[cfg(feature = "lang-rusty")]
             {
-                rusty::module(unit)
+                werbolg_lang_rusty::module(unit)
             }
             #[cfg(not(feature = "lang-rusty"))]
             {

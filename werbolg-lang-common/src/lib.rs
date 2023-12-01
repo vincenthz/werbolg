@@ -1,3 +1,7 @@
+#![no_std]
+
+extern crate alloc;
+
 use alloc::{format, string::String, vec::Vec};
 use werbolg_core as ir;
 

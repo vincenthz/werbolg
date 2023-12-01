@@ -1,11 +1,11 @@
 //! an unfinished lang frontend for replacing the scheme lang by a more efficient one
 
-use super::super::common::hex_decode;
 use super::ast::{Ast, Literal};
 use super::token::{Token, UnknownToken};
 use alloc::{boxed::Box, vec, vec::Vec};
 use logos::Logos;
 use werbolg_core::{span_merge, spans_merge, Ident, Span, Spanned, Variable};
+use werbolg_lang_common::hex_decode;
 
 pub struct Lexer<'a>(logos::Lexer<'a, Token>);
 

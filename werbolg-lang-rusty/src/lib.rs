@@ -1,11 +1,16 @@
 //! This is an entire parser and interpreter for a dynamically-typed Rust-like expression-oriented
+
+#![no_std]
+
+extern crate alloc;
+
 mod parse;
 mod token;
 
 use alloc::{boxed::Box, vec, vec::Vec};
 use werbolg_core::{self as ir, Spanned, Statement};
 
-use super::common::{FileUnit, ParseError};
+use werbolg_lang_common::{FileUnit, ParseError};
 
 pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
     let m = parse::module(&fileunit.content).map_err(|_| todo!())?;

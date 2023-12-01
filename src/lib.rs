@@ -13,12 +13,12 @@ pub mod em;
 pub mod lang;
 
 pub use em::{ExecutionError, ExecutionMachine, Value};
-pub use lang::common::FileUnit;
 pub use werbolg_core as ir;
+pub use werbolg_lang_common::{FileUnit, ParseError};
 
 use alloc::vec::Vec;
 
-pub fn parse(lang: lang::Lang, file: &FileUnit) -> Result<ir::Module, lang::ParseError> {
+pub fn parse(lang: lang::Lang, file: &FileUnit) -> Result<ir::Module, ParseError> {
     lang::parse(lang, file)
 }
 

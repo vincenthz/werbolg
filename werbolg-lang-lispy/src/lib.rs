@@ -1,9 +1,13 @@
-//! an unfinished lang frontend for replacing the scheme lang by a more efficient one
+#![no_std]
+
+extern crate alloc;
+
 mod ast;
 mod parse;
 mod token;
 
-use super::common::{FileUnit, ParseError, ParseErrorKind};
+use werbolg_lang_common::{FileUnit, ParseError, ParseErrorKind};
+
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use ast::Ast;
 use werbolg_core::{self as ir, spans_merge, Span, Spanned};
