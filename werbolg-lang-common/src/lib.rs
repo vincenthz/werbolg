@@ -73,15 +73,6 @@ impl LinesMap {
 }
 
 impl FileUnit {
-    #[cfg(std)]
-    pub fn from_file(path: &std::path::Path) -> std::io::Result<Self> {
-        let content = std::fs::read_to_string(path)?;
-        Ok(Self {
-            filename: path.into(),
-            content: content,
-        })
-    }
-
     pub fn from_string(filename: String, content: String) -> Self {
         Self { filename, content }
     }

@@ -7,12 +7,12 @@ pub enum Lang {
     Rusty,
 }
 
-pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ir::Module, ParseError> {
+pub fn parse(lang: Lang, file: &FileUnit) -> Result<ir::Module, ParseError> {
     match lang {
         Lang::Lispy => {
             #[cfg(feature = "lang-lispy")]
             {
-                werbolg_lang_lispy::module(unit)
+                werbolg_lang_lispy::module(file)
             }
 
             #[cfg(not(feature = "lang-lispy"))]
@@ -23,7 +23,7 @@ pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ir::Module, ParseError>
         Lang::Rusty => {
             #[cfg(feature = "lang-rusty")]
             {
-                werbolg_lang_rusty::module(unit)
+                werbolg_lang_rusty::module(file)
             }
             #[cfg(not(feature = "lang-rusty"))]
             {
@@ -31,8 +31,4 @@ pub fn parse_unit(lang: Lang, unit: &FileUnit) -> Result<ir::Module, ParseError>
             }
         }
     }
-}
-
-pub fn parse(lang: Lang, file: &FileUnit) -> Result<ir::Module, ParseError> {
-    parse_unit(lang, file)
 }

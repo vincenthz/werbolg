@@ -1,4 +1,7 @@
 //! Werbolg Execution machine
+#![no_std]
+
+extern crate alloc;
 
 use werbolg_core as ir;
 
