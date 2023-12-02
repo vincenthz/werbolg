@@ -22,11 +22,17 @@ pub struct FunDef {
 }
 
 #[derive(Clone, Debug)]
+pub enum Binder {
+    Unit,
+    Ignore,
+    Ident(Ident),
+}
+
+#[derive(Clone, Debug)]
 pub enum Expr {
     Literal(Span, Literal),
     List(Span, Vec<Expr>),
-    Let(Spanned<Ident>, Box<Expr>, Box<Expr>),
-    Then(Box<Expr>, Box<Expr>),
+    Let(Binder, Box<Expr>, Box<Expr>),
     Ident(Span, Ident),
     Lambda(Span, Vec<Variable>, Box<Expr>),
     Call(Span, Vec<Expr>),

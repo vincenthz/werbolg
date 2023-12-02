@@ -188,13 +188,9 @@ fn work(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<(), ExecutionError> {
             );
             em.stack.push_value(val)
         }
-        ir::Expr::Let(ident, e1, e2) => em.stack.push_work1(
-            ExecutionAtom::Let(ident.clone().unspan(), e2.as_ref().clone()),
-            e1,
-        ),
-        ir::Expr::Then(e1, e2) => em
+        ir::Expr::Let(ident, e1, e2) => em
             .stack
-            .push_work1(ExecutionAtom::Then(e2.as_ref().clone()), e1),
+            .push_work1(ExecutionAtom::Let(ident.clone(), e2.as_ref().clone()), e1),
         ir::Expr::Call(span, v) => em
             .stack
             .push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v),
@@ -239,12 +235,6 @@ fn eval(
                 Ok(())
             }
         },
-        ExecutionAtom::Then(e) => {
-            let first_val = args.into_iter().next().unwrap();
-            first_val.unit()?;
-            work(em, &e)?;
-            Ok(())
-        }
         ExecutionAtom::PopScope => {
             assert_eq!(args.len(), 1);
             em.scope_leave();
@@ -253,7 +243,13 @@ fn eval(
         }
         ExecutionAtom::Let(ident, then) => {
             let bind_val = args.into_iter().next().unwrap();
-            em.add_local_binding(ident, bind_val);
+            match ident {
+                ir::Binder::Unit => bind_val.unit()?,
+                ir::Binder::Ignore => {}
+                ir::Binder::Ident(ident) => {
+                    em.add_local_binding(ident, bind_val);
+                }
+            }
             work(em, &then)?;
             Ok(())
         }

@@ -48,21 +48,33 @@ Type: Type = {
 };
 
 Body: Body = {
-    <e:BodyExpr*> => Body(e),
+    <e:BodyExpr> => Body(e),
 };
 
 BodyExpr: Expr = {
-    "let" <id:Id> "=" "{" <e:BodyExpr> "}" ";" => Expr::Let(id, Box::new(e)),
-    "let" <id:Id> "=" <e:Expr> ";" => Expr::Let(id, Box::new(e)),
-    <s:Expr> => s,
+    "let" <id:Id> "=" "{" <e:BodyExpr> "}" ";" <n:BodyExpr> => Expr::Let(id, Box::new(e)),
+    "let" <id:Id> "=" <e:VExpr> ";" <n:BodyExpr> => Expr::Let(id, Box::new(e)),
+    <s:VExpr> => s,
 }
 
-Expr: Expr = {
+// value expression
+VExpr: Expr = {
+    <id:Id> <calls:CallArgs> => Expr::Ident(id),
+    "(" <expr:VExpr> ")" => Expr::Paren(Box::new(expr)),
+    "if" <cond:VExpr> "{" <then:BodyExpr> "}" "else" "{" <else_expr:BodyExpr> "}" => Expr::If(Box::new(e), Box::new(then), Box::new(else_expr)),
+    <t:Term> => t,
+}
+
+CallArgs: Vec<Expr> = {
+    //"(" ")" => Vec::new(),
+    "(" <args:Comma1<VExpr>> ")" => args,
+};
+
+Term: Expr = {
     <lit:Literal> => Expr::Literal(lit),
-    //<id:Id> "(" <args:Comma<Expr>?> ")" => Expr::Call(Box::new(expr), args),
     <id:Id> => Expr::Ident(id),
-    "(" <expr:Expr> ")" => Expr::Paren(Box::new(expr)),
-    "if" <cond:Expr> "{" <then:BodyExpr*> "}" "else" "{" <else_expr:BodyExpr*> "}" => Expr::If(Box::new(e), Box::new(then), Box::new(else_expr)),
+    "(" <e:VExpr> ")" => e,
+    "[" <e:Comma<VExpr>> "]" => Expr::Array(e),
 }
 
 Literal: Literal = {
@@ -71,8 +83,16 @@ Literal: Literal = {
     <bool:"Bool"> => Literal::Bool(bool),
 }
 
+Comma1<E>: Vec<E> =
+    <v0:(<E> ",")*> <e1:E> =>
+        v0.into_iter().chain(e1).collect();
+
 Comma<E>: Vec<E> =
     <v0:(<E> ",")*> <e1:E?> =>
+        v0.into_iter().chain(e1).collect();
+
+Semi<E>: Vec<E> =
+    <v0:(<E> ";")*> <e1:E> =>
         v0.into_iter().chain(e1).collect();
 
 Id: String = <i:"Id"> => i;

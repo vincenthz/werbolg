@@ -50,11 +50,12 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
         ),
         parse::Expr::Local(l) => ir::Expr::Ident(span_expr.1.clone(), ir::Ident::from(l.as_str())),
         parse::Expr::Let(name, bind, then) => ir::Expr::Let(
-            Spanned::new(span_expr.1.clone(), ir::Ident::from(name.as_str())),
+            ir::Binder::Ident(ir::Ident::from(name.as_str())),
             Box::new(rewrite_expr(bind)),
             Box::new(rewrite_expr(then)),
         ),
-        parse::Expr::Then(first, second) => ir::Expr::Then(
+        parse::Expr::Then(first, second) => ir::Expr::Let(
+            ir::Binder::Ignore,
             Box::new(rewrite_expr(first)),
             Box::new(rewrite_expr(second)),
         ),

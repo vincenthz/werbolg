@@ -79,8 +79,7 @@ pub enum ExecutionAtom {
     List(usize),
     ThenElse(ir::Expr, ir::Expr),
     Call(usize, Location),
-    Then(ir::Expr),
-    Let(ir::Ident, ir::Expr),
+    Let(ir::Binder, ir::Expr),
     PopScope,
 }
 
@@ -90,7 +89,6 @@ impl ExecutionAtom {
             ExecutionAtom::List(u) => *u,
             ExecutionAtom::ThenElse(_, _) => 1,
             ExecutionAtom::Call(u, _) => *u,
-            ExecutionAtom::Then(_) => 1,
             ExecutionAtom::Let(_, _) => 1,
             ExecutionAtom::PopScope => 1,
         }
