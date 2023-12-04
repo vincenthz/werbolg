@@ -72,7 +72,7 @@ fn get_content(args: &[String]) -> Result<(FileUnit, lang::Lang), ()> {
         Some(os_str) => match os_str.to_str() {
             None => default,
             Some("rusty") => lang::Lang::Rusty,
-            Some("scheme") => lang::Lang::Lispy,
+            Some("lispy") => lang::Lang::Lispy,
             Some(s) => {
                 println!("error: unknown extension {}", s);
                 return Err(());
