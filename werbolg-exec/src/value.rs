@@ -59,7 +59,7 @@ impl<'a> From<&'a Value> for ValueKind {
 }
 
 /// Native Implemented Function
-pub type NIF = fn(&ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>;
+pub type NIF = fn(&mut ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>;
 
 #[derive(Clone)]
 pub struct Opaque(Rc<dyn Any>);

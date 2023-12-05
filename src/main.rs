@@ -5,7 +5,7 @@ use werbolg_core::{Ident, Number};
 use werbolg_exec::{ExecutionError, ExecutionMachine, Value};
 use werbolg_lang_common::FileUnit;
 
-fn nif_plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -14,7 +14,7 @@ fn nif_plus(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionEr
     Ok(Value::Number(ret))
 }
 
-fn nif_sub(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_sub(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -23,7 +23,7 @@ fn nif_sub(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErr
     Ok(Value::Number(ret))
 }
 
-fn nif_mul(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_mul(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -32,7 +32,7 @@ fn nif_mul(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErr
     Ok(Value::Number(ret))
 }
 
-fn nif_eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -41,14 +41,14 @@ fn nif_eq(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionErro
     Ok(Value::Bool(ret))
 }
 
-fn nif_hashtable(_em: &ExecutionMachine, _args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable(_em: &mut ExecutionMachine, _args: &[Value]) -> Result<Value, ExecutionError> {
     let mut h = HashMap::<u32, u64>::new();
     h.insert(10, 20);
     h.insert(20, 40);
     Ok(Value::make_opaque(h))
 }
 
-fn nif_hashtable_get(_em: &ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable_get(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
     let h: &HashMap<u32, u64> = args[0].opaque()?;
     let index_bignum = args[1].number()?;
     let index: u32 = index_bignum
