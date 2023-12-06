@@ -1,10 +1,11 @@
 //! Execution machine value - define the Value type
 
-use super::{ExecutionError, ExecutionMachine, Location};
+use super::{ExecutionError, ExecutionMachine};
 use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
 use core::any::Any;
 use core::cell::RefCell;
-use werbolg_core::{self as ir, Decimal, Expr, Literal, Number, Variable};
+use ir::SymbolId;
+use werbolg_core::{self as ir, Decimal, Literal, Number};
 
 /// Execution Machine Value
 #[derive(Clone, Debug)]
@@ -22,7 +23,7 @@ pub enum Value {
     List(Vec<Value>),
     // Functions
     NativeFun(&'static str, NIF),
-    Fun(Location, Vec<Variable>, Expr),
+    Fun(SymbolId),
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +54,7 @@ impl<'a> From<&'a Value> for ValueKind {
             Value::OpaqueMut(_) => ValueKind::OpaqueMut,
             Value::List(_) => ValueKind::List,
             Value::NativeFun(_, _) => ValueKind::NativeFun,
-            Value::Fun(_, _, _) => ValueKind::Fun,
+            Value::Fun(_) => ValueKind::Fun,
         }
     }
 }

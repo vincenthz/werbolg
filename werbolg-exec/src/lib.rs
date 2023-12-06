@@ -3,7 +3,9 @@
 
 extern crate alloc;
 
+use ir::lir::Symbolic;
 use werbolg_core as ir;
+use werbolg_core::lir;
 
 mod bindings;
 mod location;
@@ -16,21 +18,21 @@ pub use location::Location;
 use stack::{ExecutionAtom, ExecutionNext, ExecutionStack};
 pub use value::{Value, ValueKind, NIF};
 
-pub struct ExecutionMachine {
+pub struct ExecutionMachine<'m> {
     pub root: Bindings<BindingValue>,
-    pub module: Bindings<BindingValue>,
+    pub module: &'m lir::Module,
     pub local: BindingsStack<BindingValue>,
     pub stacktrace: Vec<Location>,
-    pub stack: ExecutionStack,
+    pub stack: ExecutionStack<'m>,
 }
 
 pub type BindingValue = Value;
 
-impl ExecutionMachine {
-    pub fn new() -> Self {
+impl<'m> ExecutionMachine<'m> {
+    pub fn new(module: &'m lir::Module) -> Self {
         Self {
             root: Bindings::new(),
-            module: Bindings::new(),
+            module,
             local: BindingsStack::new(),
             stacktrace: Vec::new(),
             stack: ExecutionStack::new(),
@@ -39,10 +41,6 @@ impl ExecutionMachine {
 
     pub fn aborted(&self) -> bool {
         false
-    }
-
-    pub fn add_module_binding(&mut self, ident: ir::Ident, value: Value) {
-        self.module.add(ident, value)
     }
 
     pub fn add_local_binding(&mut self, ident: ir::Ident, value: Value) {
@@ -59,11 +57,16 @@ impl ExecutionMachine {
         let bind = self
             .local
             .get(ident)
-            .or_else(|| self.module.get(ident))
-            .or_else(|| self.root.get(ident));
+            .map(|e| e.clone())
+            .or_else(|| {
+                self.module
+                    .resolve_id(ident)
+                    .map(|symbolic| Value::Fun(symbolic))
+            })
+            .or_else(|| self.root.get(ident).map(|e| e.clone()));
         match bind {
             None => Err(ExecutionError::MissingBinding(ident.clone())),
-            Some(val) => Ok(val.clone()),
+            Some(val) => Ok(val),
         }
     }
 
@@ -103,12 +106,11 @@ pub enum ExecutionError {
 }
 
 pub fn exec<'module>(
-    em: &mut ExecutionMachine,
-    module: &'module ir::Module,
+    em: &mut ExecutionMachine<'module>,
     call: ir::Ident,
     args: Vec<Value>,
 ) -> Result<Value, ExecutionError> {
-    load_stmts(em, &module.statements)?;
+    //load_stmts(em, &module.statements)?;
 
     let mut values = vec![em.get_binding(&call)?];
     values.extend_from_slice(&args);
@@ -130,37 +132,19 @@ pub fn exec<'module>(
     exec_continue(em)
 }
 
-pub fn exec_continue(em: &mut ExecutionMachine) -> Result<Value, ExecutionError> {
+pub fn exec_continue<'m>(em: &mut ExecutionMachine<'m>) -> Result<Value, ExecutionError> {
     loop {
         if em.aborted() {
             return Err(ExecutionError::Abort);
         }
         match em.stack.next_work() {
             ExecutionNext::Finish(v) => return Ok(v),
-            ExecutionNext::Shift(e) => work(em, &e)?,
+            ExecutionNext::Shift(e) => work(em, e)?,
             ExecutionNext::Reduce(ea, args) => {
                 eval(em, ea, args)?;
             }
         }
     }
-}
-
-pub fn load_stmts(
-    em: &mut ExecutionMachine,
-    stmts: &[ir::Statement],
-) -> Result<(), ExecutionError> {
-    for statement in stmts {
-        match statement {
-            ir::Statement::Function(span, ir::FunDef { name, vars, body }) => {
-                em.add_module_binding(
-                    name.clone(),
-                    Value::Fun(Location::from_span(span), vars.clone(), body.clone()),
-                );
-            }
-            ir::Statement::Expr(_) => {}
-        }
-    }
-    Ok(())
 }
 
 /// Decompose the work for a given expression
@@ -169,47 +153,42 @@ pub fn load_stmts(
 /// * Push a value when the work doesn't need further evaluation
 /// * Push expressions to evaluate on the work stack and the action to complete
 ///   when all the evaluation of those expression is commplete
-fn work(em: &mut ExecutionMachine, e: &ir::Expr) -> Result<(), ExecutionError> {
+fn work<'m>(em: &mut ExecutionMachine<'m>, e: &'m lir::Expr) -> Result<(), ExecutionError> {
     match e {
-        ir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
-        ir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
-        ir::Expr::List(_, l) => {
+        lir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
+        lir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
+        lir::Expr::List(_, l) => {
             if l.is_empty() {
                 em.stack.push_value(Value::Unit);
             } else {
                 em.stack.push_work(ExecutionAtom::List(l.len()), l)
             }
         }
-        ir::Expr::Lambda(span, args, body) => {
-            let val = Value::Fun(
-                Location::from_span(span),
-                args.clone(),
-                body.as_ref().clone(),
-            );
+        lir::Expr::Lambda(_span, fundef) => {
+            let val = Value::Fun(*fundef);
             em.stack.push_value(val)
         }
-        ir::Expr::Let(ident, e1, e2) => em
+        lir::Expr::Let(ident, e1, e2) => em
             .stack
-            .push_work1(ExecutionAtom::Let(ident.clone(), e2.as_ref().clone()), e1),
-        ir::Expr::Call(span, v) => em
+            .push_work1(ExecutionAtom::Let(ident.clone(), e2.as_ref()), e1),
+        lir::Expr::Call(span, v) => em
             .stack
             .push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v),
-        ir::Expr::If {
+        lir::Expr::If {
             span: _,
             cond,
             then_expr,
             else_expr,
-        } => em.stack.push_work1(
-            ExecutionAtom::ThenElse(then_expr.clone().unspan(), else_expr.clone().unspan()),
-            &cond.inner,
-        ),
+        } => em
+            .stack
+            .push_work1(ExecutionAtom::ThenElse(then_expr, else_expr), &cond.inner),
     };
     Ok(())
 }
 
-fn eval(
-    em: &mut ExecutionMachine,
-    ea: ExecutionAtom,
+fn eval<'m>(
+    em: &mut ExecutionMachine<'m>,
+    ea: ExecutionAtom<'m>,
     args: Vec<Value>,
 ) -> Result<(), ExecutionError> {
     match ea {
@@ -244,57 +223,77 @@ fn eval(
         ExecutionAtom::Let(ident, then) => {
             let bind_val = args.into_iter().next().unwrap();
             match ident {
-                ir::Binder::Unit => bind_val.unit()?,
-                ir::Binder::Ignore => {}
-                ir::Binder::Ident(ident) => {
+                lir::Binder::Unit => bind_val.unit()?,
+                lir::Binder::Ignore => {}
+                lir::Binder::Ident(ident) => {
                     em.add_local_binding(ident, bind_val);
                 }
             }
-            work(em, &then)?;
+            work(em, then)?;
             Ok(())
         }
     }
 }
 
-fn process_call(
-    em: &mut ExecutionMachine,
+fn process_call<'m>(
+    em: &mut ExecutionMachine<'m>,
     location: &Location,
     args: Vec<Value>,
 ) -> Result<Option<Value>, ExecutionError> {
+    let number_args = args.len();
+
+    let mut values = args.into_iter();
+    let Some(first) = values.next() else {
+        return Ok(Some(Value::Unit));
+    };
+    let first_k = (&first).into();
+
+    match first {
+        Value::List(_)
+        | Value::Bool(_)
+        | Value::Number(_)
+        | Value::String(_)
+        | Value::Decimal(_)
+        | Value::Bytes(_)
+        | Value::Opaque(_)
+        | Value::OpaqueMut(_)
+        | Value::Unit => Err(ExecutionError::CallingNotFunc {
+            location: location.clone(),
+            value_is: first_k,
+        }),
+        Value::Fun(symbol) => {
+            // location, bind_names, fun_stmts) => {
+            match em.module.get_symbol_by_id(symbol) {
+                Some(Symbolic::Fun(fundef)) => {
+                    em.scope_enter(&location);
+                    check_arity(fundef.vars.len(), number_args - 1)?;
+                    for (bind_name, arg_value) in fundef.vars.iter().zip(values) {
+                        em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
+                    }
+                    em.stack.push_work1(ExecutionAtom::PopScope, &fundef.body);
+                    Ok(None)
+                }
+                None => {
+                    panic!("internal error: fun of symbol that doens't exist")
+                }
+            }
+        }
+        Value::NativeFun(_name, f) => {
+            em.scope_enter(&location);
+            let args = values.collect::<Vec<_>>();
+            let res = f(em, &args)?;
+            em.scope_leave();
+            Ok(Some(res))
+        }
+    }
+
+    /*
     if let Some((first, args)) = args.split_first() {
         let k = first.into();
-        match first {
-            Value::Fun(location, bind_names, fun_stmts) => {
-                em.scope_enter(location);
-                check_arity(bind_names.len(), args.len())?;
-                for (bind_name, arg_value) in bind_names.iter().zip(args.iter()) {
-                    em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
-                }
-                em.stack.push_work1(ExecutionAtom::PopScope, fun_stmts);
-                Ok(None)
-            }
-            Value::NativeFun(_name, f) => {
-                em.scope_enter(&location);
-                let res = f(em, args)?;
-                em.scope_leave();
-                Ok(Some(res))
-            }
-            Value::List(_)
-            | Value::Bool(_)
-            | Value::Number(_)
-            | Value::String(_)
-            | Value::Decimal(_)
-            | Value::Bytes(_)
-            | Value::Opaque(_)
-            | Value::OpaqueMut(_)
-            | Value::Unit => Err(ExecutionError::CallingNotFunc {
-                location: location.clone(),
-                value_is: k,
-            }),
-        }
     } else {
         Ok(Some(Value::Unit))
     }
+    */
 }
 
 fn check_arity(expected: usize, got: usize) -> Result<(), ExecutionError> {

@@ -88,7 +88,14 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
                 let span_args = spans_merge(&mut args.iter().map(|sargs| &sargs.0.span));
                 accumulator = ir::Expr::Let(
                     ir::Binder::Ident(name.clone().unspan()),
-                    Box::new(ir::Expr::Lambda(span_args, args, Box::new(body))),
+                    Box::new(ir::Expr::Lambda(
+                        span_args,
+                        Box::new(ir::FunDef {
+                            name: None,
+                            vars: args,
+                            body: body,
+                        }),
+                    )),
                     Box::new(accumulator),
                 )
             }
@@ -123,7 +130,7 @@ fn statement(ast: Spanned<Ast>) -> Result<ir::Statement, ParseError> {
             Ok(ir::Statement::Function(
                 ast.span,
                 ir::FunDef {
-                    name: name.unspan(),
+                    name: Some(name.unspan()),
                     vars: args,
                     body: body,
                 },

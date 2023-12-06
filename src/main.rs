@@ -1,7 +1,7 @@
 mod lang;
 
 use hashbrown::HashMap;
-use werbolg_core::{Ident, Number};
+use werbolg_core::{compile, Ident, Number};
 use werbolg_exec::{ExecutionError, ExecutionMachine, Value};
 use werbolg_lang_common::FileUnit;
 
@@ -110,8 +110,9 @@ fn main() -> Result<(), ()> {
     };
 
     let module = lang::parse(lang, &fileunit).expect("no parse error");
+    let exec_module = compile(module).expect("no compilation error");
 
-    let mut em = ExecutionMachine::new();
+    let mut em = ExecutionMachine::new(&exec_module);
     em.add_native_fun("+", nif_plus);
     em.add_native_fun("-", nif_sub);
     em.add_native_fun("*", nif_mul);
@@ -119,8 +120,7 @@ fn main() -> Result<(), ()> {
     em.add_native_fun("table_new", nif_hashtable);
     em.add_native_fun("table_get", nif_hashtable_get);
 
-    let val = werbolg_exec::exec(&mut em, &module, Ident::from("main"), vec![])
-        .expect("no execution error");
+    let val = werbolg_exec::exec(&mut em, Ident::from("main"), vec![]).expect("no execution error");
 
     println!("{:?}", val);
     Ok(())

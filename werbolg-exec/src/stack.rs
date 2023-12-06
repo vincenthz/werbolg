@@ -1,17 +1,21 @@
 use super::location::Location;
 use super::value::Value;
-use alloc::{vec, vec::Vec};
-use werbolg_core as ir;
+use alloc::vec::Vec;
+use werbolg_core::lir;
 
-pub struct ExecutionStack {
+pub struct ExecutionStack<'m> {
     pub values: Vec<Value>,
-    pub work: Vec<Work>,
-    pub constr: Vec<ExecutionAtom>,
+    pub work: Vec<Work<'m>>,
+    pub constr: Vec<ExecutionAtom<'m>>,
 }
 
-pub struct Work(Vec<ir::Expr>);
+pub enum Work<'m> {
+    Empty,
+    One(&'m lir::Expr),
+    Many(&'m [lir::Expr]),
+}
 
-impl ExecutionStack {
+impl<'m> ExecutionStack<'m> {
     pub fn new() -> Self {
         ExecutionStack {
             values: Vec::new(),
@@ -20,14 +24,14 @@ impl ExecutionStack {
         }
     }
 
-    pub fn push_work1(&mut self, constr: ExecutionAtom, expr: &ir::Expr) {
-        self.work.push(Work(vec![expr.clone()]));
+    pub fn push_work1(&mut self, constr: ExecutionAtom<'m>, expr: &'m lir::Expr) {
+        self.work.push(Work::One(expr));
         self.constr.push(constr);
     }
 
-    pub fn push_work(&mut self, constr: ExecutionAtom, exprs: &Vec<ir::Expr>) {
+    pub fn push_work(&mut self, constr: ExecutionAtom<'m>, exprs: &'m [lir::Expr]) {
         assert!(!exprs.is_empty());
-        self.work.push(Work(exprs.clone()));
+        self.work.push(Work::Many(exprs));
         self.constr.push(constr);
     }
 
@@ -35,7 +39,7 @@ impl ExecutionStack {
         self.values.push(value)
     }
 
-    pub fn next_work(&mut self) -> ExecutionNext {
+    pub fn next_work(&mut self) -> ExecutionNext<'m> {
         fn pop_end_rev<T>(v: &mut Vec<T>, mut nb: usize) -> Vec<T> {
             if nb > v.len() {
                 panic!(
@@ -59,31 +63,42 @@ impl ExecutionStack {
                 assert!(self.constr.is_empty());
                 ExecutionNext::Finish(val)
             }
-            Some(mut exprs) => {
-                if exprs.0.is_empty() {
-                    let constr = self.constr.pop().unwrap();
-                    let nb_args = constr.arity();
-                    let args = pop_end_rev(&mut self.values, nb_args);
-                    ExecutionNext::Reduce(constr, args)
+            Some(Work::Empty) => {
+                let constr = self.constr.pop().unwrap();
+                let nb_args = constr.arity();
+                let args = pop_end_rev(&mut self.values, nb_args);
+                ExecutionNext::Reduce(constr, args)
+            }
+            Some(Work::One(e)) => {
+                self.work.push(Work::Empty);
+                ExecutionNext::Shift(e)
+            }
+            Some(Work::Many(es)) => {
+                if let Some((last, previous)) = es.split_last() {
+                    //let x = exprs.0.pop().unwrap();
+                    if previous.len() > 1 {
+                        self.work.push(Work::Many(previous));
+                    } else {
+                        self.work.push(Work::One(&previous[0]));
+                    }
+                    ExecutionNext::Shift(last)
                 } else {
-                    let x = exprs.0.pop().unwrap();
-                    self.work.push(Work(exprs.0));
-                    ExecutionNext::Shift(x)
+                    panic!("internal error: empty work for many")
                 }
             }
         }
     }
 }
 
-pub enum ExecutionAtom {
+pub enum ExecutionAtom<'m> {
     List(usize),
-    ThenElse(ir::Expr, ir::Expr),
+    ThenElse(&'m lir::Expr, &'m lir::Expr),
     Call(usize, Location),
-    Let(ir::Binder, ir::Expr),
+    Let(lir::Binder, &'m lir::Expr),
     PopScope,
 }
 
-impl ExecutionAtom {
+impl<'m> ExecutionAtom<'m> {
     pub fn arity(&self) -> usize {
         match self {
             ExecutionAtom::List(u) => *u,
@@ -95,8 +110,8 @@ impl ExecutionAtom {
     }
 }
 
-pub enum ExecutionNext {
-    Shift(ir::Expr),
-    Reduce(ExecutionAtom, Vec<Value>),
+pub enum ExecutionNext<'m> {
+    Shift(&'m lir::Expr),
+    Reduce(ExecutionAtom<'m>, Vec<Value>),
     Finish(Value),
 }
