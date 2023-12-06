@@ -3,7 +3,6 @@
 
 extern crate alloc;
 
-use ir::lir::Symbolic;
 use werbolg_core as ir;
 use werbolg_core::lir;
 
@@ -60,6 +59,7 @@ impl<'m> ExecutionMachine<'m> {
             .map(|e| e.clone())
             .or_else(|| {
                 self.module
+                    .funs
                     .resolve_id(ident)
                     .map(|symbolic| Value::Fun(symbolic))
             })
@@ -88,6 +88,7 @@ pub enum ExecutionError {
         got: usize,
     },
     MissingBinding(ir::Ident),
+    InternalErrorFunc(ir::SymbolId),
     CallingNotFunc {
         location: Location,
         value_is: ValueKind,
@@ -261,23 +262,20 @@ fn process_call<'m>(
             location: location.clone(),
             value_is: first_k,
         }),
-        Value::Fun(symbol) => {
-            // location, bind_names, fun_stmts) => {
-            match em.module.get_symbol_by_id(symbol) {
-                Some(Symbolic::Fun(fundef)) => {
-                    em.scope_enter(&location);
-                    check_arity(fundef.vars.len(), number_args - 1)?;
-                    for (bind_name, arg_value) in fundef.vars.iter().zip(values) {
-                        em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
-                    }
-                    em.stack.push_work1(ExecutionAtom::PopScope, &fundef.body);
-                    Ok(None)
+        Value::Fun(symbol) => match em.module.funs.get_symbol_by_id(symbol) {
+            Some(fundef) => {
+                em.scope_enter(&location);
+                check_arity(fundef.vars.len(), number_args - 1)?;
+                for (bind_name, arg_value) in fundef.vars.iter().zip(values) {
+                    em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
                 }
-                None => {
-                    panic!("internal error: fun of symbol that doens't exist")
-                }
+                em.stack.push_work1(ExecutionAtom::PopScope, &fundef.body);
+                Ok(None)
             }
-        }
+            None => {
+                panic!("internal error: fun of symbol that doens't exist")
+            }
+        },
         Value::NativeFun(_name, f) => {
             em.scope_enter(&location);
             let args = values.collect::<Vec<_>>();

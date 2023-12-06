@@ -7,16 +7,26 @@ use super::symbols::{SymbolId, SymbolsTable};
 use alloc::{boxed::Box, vec::Vec};
 
 pub struct Module {
-    pub funtbl: SymbolsTable,
-    pub syms: Vec<Symbolic>,
+    pub funs: SymbolsTableData<FunDef>,
 }
 
-impl Module {
+pub struct SymbolsTableData<T> {
+    pub symtbl: SymbolsTable,
+    pub syms: Vec<T>,
+}
+
+impl<T> SymbolsTableData<T> {
+    pub fn new() -> Self {
+        Self {
+            symtbl: SymbolsTable::new(),
+            syms: Vec::new(),
+        }
+    }
     pub fn resolve_id(&self, ident: &Ident) -> Option<SymbolId> {
-        self.funtbl.get(ident)
+        self.symtbl.get(ident)
     }
 
-    pub fn get_symbol(&self, ident: &Ident) -> Option<&Symbolic> {
+    pub fn get_symbol(&self, ident: &Ident) -> Option<&T> {
         if let Some(id) = self.resolve_id(ident) {
             self.get_symbol_by_id(id)
         } else {
@@ -24,16 +34,12 @@ impl Module {
         }
     }
 
-    pub fn get_symbol_by_id(&self, id: SymbolId) -> Option<&Symbolic> {
+    pub fn get_symbol_by_id(&self, id: SymbolId) -> Option<&T> {
         if id.0 >= self.syms.len() as u32 {
             return None;
         }
         Some(&self.syms[id.0 as usize])
     }
-}
-
-pub enum Symbolic {
-    Fun(FunDef),
 }
 
 #[derive(Clone, Debug)]

@@ -11,7 +11,7 @@ pub mod lir;
 
 pub use basic::*;
 pub use ir::*;
-use lir::Symbolic;
+use lir::SymbolsTableData;
 pub use location::*;
 pub use symbols::SymbolId;
 
@@ -20,12 +20,11 @@ use symbols::SymbolsTableBuilder;
 
 pub struct RewriteState {
     symbol_builder: SymbolsTableBuilder,
-    syms: Vec<Symbolic>,
+    syms: Vec<lir::FunDef>,
 }
 
 impl RewriteState {
     pub fn add_fun(&mut self, fun: lir::FunDef) -> Result<SymbolId, CompilationError> {
-        // propagate this error of duplicate symbols
         let id = if let Some(i) = &fun.name {
             self.symbol_builder
                 .allocate(i.clone())
@@ -33,7 +32,7 @@ impl RewriteState {
         } else {
             self.symbol_builder.allocate_anon()
         };
-        self.syms.push(Symbolic::Fun(fun));
+        self.syms.push(fun);
         Ok(id)
     }
 }
@@ -62,8 +61,10 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
     }
 
     Ok(lir::Module {
-        syms: state.syms,
-        funtbl: state.symbol_builder.finalize(),
+        funs: SymbolsTableData {
+            syms: state.syms,
+            symtbl: state.symbol_builder.finalize(),
+        },
     })
 }
 
