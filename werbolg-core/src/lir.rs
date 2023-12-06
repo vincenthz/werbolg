@@ -2,43 +2,24 @@
 
 use super::basic::*;
 use super::location::*;
-use super::symbols::{SymbolId, SymbolsTable};
+use super::symbols::{SymbolId, SymbolIdRemapper, SymbolsTableData};
 
 use alloc::{boxed::Box, vec::Vec};
 
 pub struct Module {
-    pub funs: SymbolsTableData<FunDef>,
+    pub funs: SymbolsTableData<FunDef, FunId>,
 }
 
-pub struct SymbolsTableData<T> {
-    pub symtbl: SymbolsTable,
-    pub syms: Vec<T>,
-}
+#[derive(Debug, Copy, Clone)]
+pub struct FunId(SymbolId);
 
-impl<T> SymbolsTableData<T> {
-    pub fn new() -> Self {
-        Self {
-            symtbl: SymbolsTable::new(),
-            syms: Vec::new(),
-        }
-    }
-    pub fn resolve_id(&self, ident: &Ident) -> Option<SymbolId> {
-        self.symtbl.get(ident)
+impl SymbolIdRemapper for FunId {
+    fn uncat(self) -> SymbolId {
+        self.0
     }
 
-    pub fn get_symbol(&self, ident: &Ident) -> Option<&T> {
-        if let Some(id) = self.resolve_id(ident) {
-            self.get_symbol_by_id(id)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_symbol_by_id(&self, id: SymbolId) -> Option<&T> {
-        if id.0 >= self.syms.len() as u32 {
-            return None;
-        }
-        Some(&self.syms[id.0 as usize])
+    fn cat(id: SymbolId) -> Self {
+        FunId(id)
     }
 }
 
@@ -62,7 +43,7 @@ pub enum Expr {
     List(Span, Vec<Expr>),
     Let(Binder, Box<Expr>, Box<Expr>),
     Ident(Span, Ident),
-    Lambda(Span, SymbolId),
+    Lambda(Span, FunId),
     Call(Span, Vec<Expr>),
     If {
         span: Span,

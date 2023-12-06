@@ -11,29 +11,22 @@ pub mod lir;
 
 pub use basic::*;
 pub use ir::*;
-use lir::SymbolsTableData;
 pub use location::*;
 pub use symbols::SymbolId;
 
-use alloc::{boxed::Box, vec::Vec};
-use symbols::SymbolsTableBuilder;
+use alloc::boxed::Box;
+use symbols::SymbolsTableDataBuilder;
 
 pub struct RewriteState {
-    symbol_builder: SymbolsTableBuilder,
-    syms: Vec<lir::FunDef>,
+    funs: SymbolsTableDataBuilder<lir::FunDef, lir::FunId>,
 }
 
 impl RewriteState {
-    pub fn add_fun(&mut self, fun: lir::FunDef) -> Result<SymbolId, CompilationError> {
-        let id = if let Some(i) = &fun.name {
-            self.symbol_builder
-                .allocate(i.clone())
-                .ok_or_else(|| CompilationError::DuplicateSymbol(i.clone()))?
-        } else {
-            self.symbol_builder.allocate_anon()
-        };
-        self.syms.push(fun);
-        Ok(id)
+    pub fn add_fun(&mut self, fun: lir::FunDef) -> Result<lir::FunId, CompilationError> {
+        let name = fun.name.clone();
+        self.funs
+            .add(name.clone(), fun)
+            .map_err(|()| CompilationError::DuplicateSymbol(name.unwrap().clone()))
     }
 }
 
@@ -45,8 +38,7 @@ pub enum CompilationError {
 /// Compile a IR Module into an optimised-for-execution LIR Module
 pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
     let mut state = RewriteState {
-        symbol_builder: SymbolsTableBuilder::new(),
-        syms: Vec::new(),
+        funs: SymbolsTableDataBuilder::new(),
     };
 
     for stmt in module.statements {
@@ -61,17 +53,14 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
     }
 
     Ok(lir::Module {
-        funs: SymbolsTableData {
-            syms: state.syms,
-            symtbl: state.symbol_builder.finalize(),
-        },
+        funs: state.funs.finalize(),
     })
 }
 
 fn rewrite_fun(
     state: &mut RewriteState,
     FunDef { name, vars, body }: FunDef,
-) -> Result<SymbolId, CompilationError> {
+) -> Result<lir::FunId, CompilationError> {
     let body = rewrite_expr(state, body)?;
     let fun = lir::FunDef {
         name,
