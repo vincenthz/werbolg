@@ -36,7 +36,7 @@ use num_traits::{Num, ToPrimitive};
 use core::str::FromStr;
 
 #[cfg(feature = "backend-bignum")]
-pub type NumberInner = num_bigint::BigInt;
+pub type NumberInner = Box<num_bigint::BigInt>;
 
 #[cfg(feature = "backend-smallnum")]
 pub type NumberInner = u64;
@@ -45,14 +45,40 @@ pub type NumberInner = u64;
 pub struct Number(pub NumberInner);
 
 impl Number {
+    #[cfg(feature = "backend-bignum")]
+    pub fn new(num: num_bigint::BigInt) -> Self {
+        Self(Box::new(num))
+    }
+
+    #[cfg(feature = "backend-smallnum")]
+    pub fn new(num: NumberInner) -> Self {
+        Self(num)
+    }
+
     pub fn from_u64(v: u64) -> Self {
-        Number(NumberInner::from(v))
+        #[cfg(feature = "backend-bignum")]
+        {
+            Number(Box::new(num_bigint::BigInt::from(v)))
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            Number(NumberInner::from(v))
+        }
     }
 
     pub fn from_str_radix(s: &str, n: u32) -> Result<Self, ()> {
-        NumberInner::from_str_radix(s, n)
-            .map(|n| Self(n))
-            .map_err(|_| ())
+        #[cfg(feature = "backend-bignum")]
+        {
+            num_bigint::BigInt::from_str_radix(s, n)
+                .map(|n| Self(Box::new(n)))
+                .map_err(|_| ())
+        }
+        #[cfg(feature = "backend-smallnum")]
+        {
+            NumberInner::from_str_radix(s, n)
+                .map(|n| Self(n))
+                .map_err(|_| ())
+        }
     }
 }
 
@@ -132,7 +158,7 @@ impl TryFrom<&Number> for u128 {
 }
 
 #[cfg(feature = "backend-bignum")]
-pub type DecimalInner = bigdecimal::BigDecimal;
+pub type DecimalInner = Box<bigdecimal::BigDecimal>;
 
 #[cfg(feature = "backend-smallnum")]
 pub type DecimalInner = f64;
@@ -144,7 +170,9 @@ impl Decimal {
     pub fn from_str(s: &str) -> Result<Self, ()> {
         #[cfg(feature = "backend-bignum")]
         {
-            DecimalInner::from_str(s).map(|n| Self(n)).map_err(|_| ())
+            bigdecimal::BigDecimal::from_str(s)
+                .map(|n| Self(Box::new(n)))
+                .map_err(|_| ())
         }
         #[cfg(feature = "backend-smallnum")]
         {

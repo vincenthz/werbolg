@@ -1,7 +1,7 @@
 //! Execution machine value - define the Value type
 
 use super::{ExecutionError, ExecutionMachine};
-use alloc::{boxed::Box, rc::Rc, string::String, vec::Vec};
+use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::RefCell;
 use werbolg_core::{self as ir, lir::FunId, Decimal, Literal, Number};
@@ -13,13 +13,13 @@ pub enum Value {
     // Simple values
     Bool(bool),
     Number(Number),
-    String(String),
+    String(Box<str>),
     Decimal(Decimal),
     Bytes(Box<[u8]>),
     Opaque(Opaque),
     OpaqueMut(OpaqueMut),
     // Composite
-    List(Vec<Value>),
+    List(Box<[Value]>),
     // Functions
     NativeFun(NifId),
     Fun(FunId),
@@ -68,7 +68,7 @@ pub struct NIF<'m, T> {
 }
 
 /// 2 Variants of Native calls
-/// 
+///
 /// * "Pure" function that don't have access to the execution machine
 /// * "Mut" function that have access to the execution machine and have more power / responsability.
 pub enum NIFCall<'m, T> {
@@ -136,7 +136,7 @@ impl core::fmt::Debug for OpaqueMut {
 impl<'a> From<&'a Literal> for Value {
     fn from(literal: &'a Literal) -> Value {
         match literal {
-            Literal::String(s) => Value::String(s.clone()),
+            Literal::String(s) => Value::String(s.clone().into_boxed_str()),
             Literal::Number(n) => Value::Number(n.clone()),
             Literal::Decimal(d) => Value::Decimal(d.clone()),
             Literal::Bytes(b) => Value::Bytes(b.clone()),
@@ -203,7 +203,7 @@ impl Value {
         }
     }
 
-    pub fn string(&self) -> Result<&String, ExecutionError> {
+    pub fn string(&self) -> Result<&str, ExecutionError> {
         match self {
             Value::String(v) => Ok(v),
             _ => Err(ExecutionError::ValueKindUnexpected {

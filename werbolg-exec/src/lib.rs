@@ -217,7 +217,7 @@ fn eval<'m, T>(
 ) -> Result<(), ExecutionError> {
     match ea {
         ExecutionAtom::List(_) => {
-            em.stack.push_value(Value::List(args));
+            em.stack.push_value(Value::List(args.into()));
             Ok(())
         }
         ExecutionAtom::ThenElse(then_expr, else_expr) => {

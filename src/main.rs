@@ -9,7 +9,7 @@ fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = Number(&n1.0 + &n2.0);
+    let ret = Number::new(n1.0.as_ref() + n2.0.as_ref());
 
     Ok(Value::Number(ret))
 }
@@ -18,7 +18,7 @@ fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = Number(&n1.0 - &n2.0);
+    let ret = Number::new(n1.0.as_ref() - n2.0.as_ref());
 
     Ok(Value::Number(ret))
 }
@@ -27,7 +27,7 @@ fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
-    let ret = Number(&n1.0 * &n2.0);
+    let ret = Number::new(n1.0.as_ref() * n2.0.as_ref());
 
     Ok(Value::Number(ret))
 }
