@@ -5,7 +5,7 @@ use werbolg_core::{compile, Ident, Number};
 use werbolg_exec::{ExecutionError, ExecutionMachine, Value};
 use werbolg_lang_common::FileUnit;
 
-fn nif_plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -14,7 +14,7 @@ fn nif_plus(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, Executi
     Ok(Value::Number(ret))
 }
 
-fn nif_sub(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -23,7 +23,7 @@ fn nif_sub(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, Executio
     Ok(Value::Number(ret))
 }
 
-fn nif_mul(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -32,7 +32,7 @@ fn nif_mul(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, Executio
     Ok(Value::Number(ret))
 }
 
-fn nif_eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_eq(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].number()?;
     let n2 = args[1].number()?;
 
@@ -41,14 +41,14 @@ fn nif_eq(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, Execution
     Ok(Value::Bool(ret))
 }
 
-fn nif_hashtable(_em: &mut ExecutionMachine, _args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable(_args: &[Value]) -> Result<Value, ExecutionError> {
     let mut h = HashMap::<u32, u64>::new();
     h.insert(10, 20);
     h.insert(20, 40);
     Ok(Value::make_opaque(h))
 }
 
-fn nif_hashtable_get(_em: &mut ExecutionMachine, args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable_get(args: &[Value]) -> Result<Value, ExecutionError> {
     let h: &HashMap<u32, u64> = args[0].opaque()?;
     let index_bignum = args[1].number()?;
     let index: u32 = index_bignum
@@ -112,13 +112,13 @@ fn main() -> Result<(), ()> {
     let module = lang::parse(lang, &fileunit).expect("no parse error");
     let exec_module = compile(module).expect("no compilation error");
 
-    let mut em = ExecutionMachine::new(&exec_module);
-    em.add_native_fun("+", nif_plus);
-    em.add_native_fun("-", nif_sub);
-    em.add_native_fun("*", nif_mul);
-    em.add_native_fun("==", nif_eq);
-    em.add_native_fun("table_new", nif_hashtable);
-    em.add_native_fun("table_get", nif_hashtable_get);
+    let mut em = ExecutionMachine::new(&exec_module, ());
+    em.add_native_pure_fun("+", nif_plus);
+    em.add_native_pure_fun("-", nif_sub);
+    em.add_native_pure_fun("*", nif_mul);
+    em.add_native_pure_fun("==", nif_eq);
+    em.add_native_pure_fun("table_new", nif_hashtable);
+    em.add_native_pure_fun("table_get", nif_hashtable_get);
 
     let val = werbolg_exec::exec(&mut em, Ident::from("main"), vec![]).expect("no execution error");
 

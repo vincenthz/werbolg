@@ -15,26 +15,30 @@ use alloc::{string::String, vec, vec::Vec};
 use bindings::{Bindings, BindingsStack};
 pub use location::Location;
 use stack::{ExecutionAtom, ExecutionNext, ExecutionStack};
-pub use value::{Value, ValueKind, NIF};
+pub use value::{NIFCall, NifId, Value, ValueKind, NIF};
 
-pub struct ExecutionMachine<'m> {
-    pub root: Bindings<BindingValue>,
+pub struct ExecutionMachine<'m, T> {
+    pub nifs_binds: Bindings<NifId>,
+    pub nifs: Vec<NIF<'m, T>>,
     pub module: &'m lir::Module,
     pub local: BindingsStack<BindingValue>,
     pub stacktrace: Vec<Location>,
     pub stack: ExecutionStack<'m>,
+    pub userdata: T,
 }
 
 pub type BindingValue = Value;
 
-impl<'m> ExecutionMachine<'m> {
-    pub fn new(module: &'m lir::Module) -> Self {
+impl<'m, T> ExecutionMachine<'m, T> {
+    pub fn new(module: &'m lir::Module, userdata: T) -> Self {
         Self {
-            root: Bindings::new(),
+            nifs_binds: Bindings::new(),
+            nifs: Vec::new(),
             module,
             local: BindingsStack::new(),
             stacktrace: Vec::new(),
             stack: ExecutionStack::new(),
+            userdata,
         }
     }
 
@@ -46,10 +50,29 @@ impl<'m> ExecutionMachine<'m> {
         self.local.add(ident, value)
     }
 
-    pub fn add_native_fun(&mut self, ident: &'static str, f: NIF) {
-        let value = Value::NativeFun(ident, f);
-        let ident = ir::Ident::from(ident);
-        self.root.add(ident, value)
+    pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
+        let id = NifId(self.nifs.len());
+        self.nifs_binds.add(ir::Ident::from(ident), id);
+        self.nifs.push(NIF {
+            name: ident,
+            call: f,
+        });
+    }
+
+    pub fn add_native_mut_fun(
+        &mut self,
+        ident: &'static str,
+        f: fn(&mut ExecutionMachine<'m, T>, &[Value]) -> Result<Value, ExecutionError>,
+    ) {
+        self.add_native_call(ident, NIFCall::Mut(f))
+    }
+
+    pub fn add_native_pure_fun(
+        &mut self,
+        ident: &'static str,
+        f: fn(&[Value]) -> Result<Value, ExecutionError>,
+    ) {
+        self.add_native_call(ident, NIFCall::Pure(f))
     }
 
     pub fn get_binding(&self, ident: &ir::Ident) -> Result<Value, ExecutionError> {
@@ -63,7 +86,7 @@ impl<'m> ExecutionMachine<'m> {
                     .resolve_id(ident)
                     .map(|symbolic| Value::Fun(symbolic))
             })
-            .or_else(|| self.root.get(ident).map(|e| e.clone()));
+            .or_else(|| self.nifs_binds.get(ident).map(|e| Value::NativeFun(*e)));
         match bind {
             None => Err(ExecutionError::MissingBinding(ident.clone())),
             Some(val) => Ok(val),
@@ -106,8 +129,8 @@ pub enum ExecutionError {
     Abort,
 }
 
-pub fn exec<'module>(
-    em: &mut ExecutionMachine<'module>,
+pub fn exec<'module, T>(
+    em: &mut ExecutionMachine<'module, T>,
     call: ir::Ident,
     args: Vec<Value>,
 ) -> Result<Value, ExecutionError> {
@@ -133,7 +156,7 @@ pub fn exec<'module>(
     exec_continue(em)
 }
 
-pub fn exec_continue<'m>(em: &mut ExecutionMachine<'m>) -> Result<Value, ExecutionError> {
+pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, ExecutionError> {
     loop {
         if em.aborted() {
             return Err(ExecutionError::Abort);
@@ -154,7 +177,7 @@ pub fn exec_continue<'m>(em: &mut ExecutionMachine<'m>) -> Result<Value, Executi
 /// * Push a value when the work doesn't need further evaluation
 /// * Push expressions to evaluate on the work stack and the action to complete
 ///   when all the evaluation of those expression is commplete
-fn work<'m>(em: &mut ExecutionMachine<'m>, e: &'m lir::Expr) -> Result<(), ExecutionError> {
+fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m lir::Expr) -> Result<(), ExecutionError> {
     match e {
         lir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
         lir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
@@ -187,8 +210,8 @@ fn work<'m>(em: &mut ExecutionMachine<'m>, e: &'m lir::Expr) -> Result<(), Execu
     Ok(())
 }
 
-fn eval<'m>(
-    em: &mut ExecutionMachine<'m>,
+fn eval<'m, T>(
+    em: &mut ExecutionMachine<'m, T>,
     ea: ExecutionAtom<'m>,
     args: Vec<Value>,
 ) -> Result<(), ExecutionError> {
@@ -236,8 +259,8 @@ fn eval<'m>(
     }
 }
 
-fn process_call<'m>(
-    em: &mut ExecutionMachine<'m>,
+fn process_call<'m, T>(
+    em: &mut ExecutionMachine<'m, T>,
     location: &Location,
     args: Vec<Value>,
 ) -> Result<Option<Value>, ExecutionError> {
@@ -276,22 +299,17 @@ fn process_call<'m>(
                 panic!("internal error: fun of symbol that doens't exist")
             }
         },
-        Value::NativeFun(_name, f) => {
+        Value::NativeFun(nifid) => {
             em.scope_enter(&location);
             let args = values.collect::<Vec<_>>();
-            let res = f(em, &args)?;
+            let res = match &em.nifs[nifid.0].call {
+                NIFCall::Pure(nif) => nif(&args)?,
+                NIFCall::Mut(nif) => nif(em, &args)?,
+            };
             em.scope_leave();
             Ok(Some(res))
         }
     }
-
-    /*
-    if let Some((first, args)) = args.split_first() {
-        let k = first.into();
-    } else {
-        Ok(Some(Value::Unit))
-    }
-    */
 }
 
 fn check_arity(expected: usize, got: usize) -> Result<(), ExecutionError> {

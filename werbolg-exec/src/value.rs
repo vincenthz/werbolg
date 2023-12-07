@@ -21,9 +21,12 @@ pub enum Value {
     // Composite
     List(Vec<Value>),
     // Functions
-    NativeFun(&'static str, NIF),
+    NativeFun(NifId),
     Fun(FunId),
 }
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NifId(pub(crate) usize);
 
 #[derive(Debug, Clone)]
 pub enum ValueKind {
@@ -52,14 +55,26 @@ impl<'a> From<&'a Value> for ValueKind {
             Value::Opaque(_) => ValueKind::Opaque,
             Value::OpaqueMut(_) => ValueKind::OpaqueMut,
             Value::List(_) => ValueKind::List,
-            Value::NativeFun(_, _) => ValueKind::NativeFun,
+            Value::NativeFun(_) => ValueKind::NativeFun,
             Value::Fun(_) => ValueKind::Fun,
         }
     }
 }
 
 /// Native Implemented Function
-pub type NIF = fn(&mut ExecutionMachine, &[Value]) -> Result<Value, ExecutionError>;
+pub struct NIF<'m, T> {
+    pub name: &'static str,
+    pub call: NIFCall<'m, T>,
+}
+
+/// 2 Variants of Native calls
+/// 
+/// * "Pure" function that don't have access to the execution machine
+/// * "Mut" function that have access to the execution machine and have more power / responsability.
+pub enum NIFCall<'m, T> {
+    Pure(fn(&[Value]) -> Result<Value, ExecutionError>),
+    Mut(fn(&mut ExecutionMachine<'m, T>, &[Value]) -> Result<Value, ExecutionError>),
+}
 
 #[derive(Clone)]
 pub struct Opaque(Rc<dyn Any>);
