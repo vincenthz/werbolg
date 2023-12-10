@@ -19,8 +19,8 @@ use alloc::boxed::Box;
 use symbols::{SymbolsTableDataBuilder, UniqueTableBuilder};
 
 pub struct RewriteState {
-    funs: SymbolsTableDataBuilder<lir::FunDef, FunId>,
-    structs: SymbolsTableDataBuilder<lir::StructDef, StructId>,
+    funs: SymbolsTableDataBuilder<FunId, lir::FunDef>,
+    structs: SymbolsTableDataBuilder<StructId, lir::StructDef>,
     lits: UniqueTableBuilder<LitId, basic::Literal>,
 }
 
@@ -71,9 +71,16 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
         }
     }
 
+    let RewriteState {
+        funs,
+        structs,
+        lits,
+    } = state;
+
     Ok(lir::Module {
-        funs: state.funs.finalize(),
-        lits: state.lits.finalize(),
+        funs: funs.finalize(),
+        lits: lits.finalize(),
+        structs: structs.finalize(),
     })
 }
 

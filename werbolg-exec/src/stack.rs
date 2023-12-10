@@ -75,7 +75,6 @@ impl<'m> ExecutionStack<'m> {
             }
             Some(Work::Many(es)) => {
                 if let Some((last, previous)) = es.split_last() {
-                    //let x = exprs.0.pop().unwrap();
                     if previous.len() > 1 {
                         self.work.push(Work::Many(previous));
                     } else {

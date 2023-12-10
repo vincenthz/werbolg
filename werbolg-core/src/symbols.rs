@@ -56,13 +56,13 @@ impl SymbolsTableBuilder {
     }
 }
 
-pub struct SymbolsTableData<T, ID: IdRemapper> {
+pub struct SymbolsTableData<ID: IdRemapper, T> {
     pub symtbl: SymbolsTable,
     pub syms: Vec<T>,
     pub phantom: PhantomData<ID>,
 }
 
-impl<T, ID: IdRemapper> SymbolsTableData<T, ID> {
+impl<T, ID: IdRemapper> SymbolsTableData<ID, T> {
     pub fn new() -> Self {
         Self {
             symtbl: SymbolsTable::new(),
@@ -90,13 +90,13 @@ impl<T, ID: IdRemapper> SymbolsTableData<T, ID> {
     }
 }
 
-pub struct SymbolsTableDataBuilder<T, ID: IdRemapper> {
+pub struct SymbolsTableDataBuilder<ID: IdRemapper, T> {
     builder: SymbolsTableBuilder,
     vec: Vec<T>,
     phantom: PhantomData<ID>,
 }
 
-impl<T, ID: IdRemapper> SymbolsTableDataBuilder<T, ID> {
+impl<T, ID: IdRemapper> SymbolsTableDataBuilder<ID, T> {
     pub fn new() -> Self {
         Self {
             builder: SymbolsTableBuilder::new(),
@@ -115,7 +115,7 @@ impl<T, ID: IdRemapper> SymbolsTableDataBuilder<T, ID> {
         Ok(ID::cat(id))
     }
 
-    pub fn finalize(self) -> SymbolsTableData<T, ID> {
+    pub fn finalize(self) -> SymbolsTableData<ID, T> {
         SymbolsTableData {
             syms: self.vec,
             symtbl: self.builder.finalize(),
