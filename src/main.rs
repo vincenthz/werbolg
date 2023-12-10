@@ -120,7 +120,7 @@ fn main() -> Result<(), ()> {
     em.add_native_pure_fun("table_new", nif_hashtable);
     em.add_native_pure_fun("table_get", nif_hashtable_get);
 
-    let val = werbolg_exec::exec(&mut em, Ident::from("main"), vec![]).expect("no execution error");
+    let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
 
     println!("{:?}", val);
     Ok(())

@@ -111,7 +111,7 @@ pub enum ExecutionError {
         got: usize,
     },
     MissingBinding(ir::Ident),
-    InternalErrorFunc(ir::SymbolId),
+    InternalErrorFunc(ir::FunId),
     CallingNotFunc {
         location: Location,
         value_is: ValueKind,
@@ -132,12 +132,12 @@ pub enum ExecutionError {
 pub fn exec<'module, T>(
     em: &mut ExecutionMachine<'module, T>,
     call: ir::Ident,
-    args: Vec<Value>,
+    args: &[Value],
 ) -> Result<Value, ExecutionError> {
     //load_stmts(em, &module.statements)?;
 
     let mut values = vec![em.get_binding(&call)?];
-    values.extend_from_slice(&args);
+    values.extend_from_slice(args);
 
     match process_call(
         em,
@@ -179,7 +179,10 @@ pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, E
 ///   when all the evaluation of those expression is commplete
 fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m lir::Expr) -> Result<(), ExecutionError> {
     match e {
-        lir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
+        lir::Expr::Literal(_, lit) => {
+            let literal = &em.module.lits[*lit];
+            em.stack.push_value(Value::from(literal))
+        }
         lir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
         lir::Expr::List(_, l) => {
             if l.is_empty() {

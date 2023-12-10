@@ -21,7 +21,7 @@ impl Ident {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Literal {
     String(String),
     Number(Number),
@@ -41,7 +41,7 @@ pub type NumberInner = Box<num_bigint::BigInt>;
 #[cfg(feature = "backend-smallnum")]
 pub type NumberInner = u64;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Number(pub NumberInner);
 
 impl Number {
@@ -163,7 +163,7 @@ pub type DecimalInner = Box<bigdecimal::BigDecimal>;
 #[cfg(feature = "backend-smallnum")]
 pub type DecimalInner = f64;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decimal(pub DecimalInner);
 
 impl Decimal {

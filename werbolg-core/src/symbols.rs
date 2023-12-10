@@ -1,14 +1,13 @@
 use super::basic::Ident;
+use super::id::{Id, IdAllocator, IdRemapper};
 use alloc::vec::Vec;
+use core::hash::Hash;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
 pub struct SymbolsTable {
-    tbl: HashMap<Ident, SymbolId>,
+    tbl: HashMap<Ident, Id>,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SymbolId(pub u32);
 
 impl SymbolsTable {
     pub fn new() -> Self {
@@ -17,43 +16,29 @@ impl SymbolsTable {
         }
     }
 
-    pub fn insert(&mut self, ident: Ident, id: SymbolId) {
+    pub fn insert(&mut self, ident: Ident, id: Id) {
         self.tbl.insert(ident, id);
     }
 
-    pub fn get(&self, ident: &Ident) -> Option<SymbolId> {
+    pub fn get(&self, ident: &Ident) -> Option<Id> {
         self.tbl.get(ident).map(|i| *i)
     }
 }
 
-pub struct SymbolIdAllocator(u32);
-
 pub struct SymbolsTableBuilder {
     table: SymbolsTable,
-    allocator: SymbolIdAllocator,
-}
-
-impl SymbolIdAllocator {
-    pub fn new() -> Self {
-        Self(0)
-    }
-
-    pub fn allocate(&mut self) -> SymbolId {
-        let v = self.0;
-        self.0 += 1;
-        SymbolId(v)
-    }
+    allocator: IdAllocator,
 }
 
 impl SymbolsTableBuilder {
     pub fn new() -> Self {
         Self {
             table: SymbolsTable::new(),
-            allocator: SymbolIdAllocator::new(),
+            allocator: IdAllocator::new(),
         }
     }
 
-    pub fn allocate(&mut self, ident: Ident) -> Option<SymbolId> {
+    pub fn allocate(&mut self, ident: Ident) -> Option<Id> {
         if self.table.get(&ident).is_some() {
             return None;
         }
@@ -62,7 +47,7 @@ impl SymbolsTableBuilder {
         Some(id)
     }
 
-    pub fn allocate_anon(&mut self) -> SymbolId {
+    pub fn allocate_anon(&mut self) -> Id {
         self.allocator.allocate()
     }
 
@@ -71,18 +56,13 @@ impl SymbolsTableBuilder {
     }
 }
 
-pub struct SymbolsTableData<T, ID: SymbolIdRemapper> {
+pub struct SymbolsTableData<T, ID: IdRemapper> {
     pub symtbl: SymbolsTable,
     pub syms: Vec<T>,
     pub phantom: PhantomData<ID>,
 }
 
-pub trait SymbolIdRemapper: Copy {
-    fn uncat(self) -> SymbolId;
-    fn cat(id: SymbolId) -> Self;
-}
-
-impl<T, ID: SymbolIdRemapper> SymbolsTableData<T, ID> {
+impl<T, ID: IdRemapper> SymbolsTableData<T, ID> {
     pub fn new() -> Self {
         Self {
             symtbl: SymbolsTable::new(),
@@ -110,13 +90,13 @@ impl<T, ID: SymbolIdRemapper> SymbolsTableData<T, ID> {
     }
 }
 
-pub struct SymbolsTableDataBuilder<T, ID: SymbolIdRemapper> {
+pub struct SymbolsTableDataBuilder<T, ID: IdRemapper> {
     builder: SymbolsTableBuilder,
     vec: Vec<T>,
     phantom: PhantomData<ID>,
 }
 
-impl<T, ID: SymbolIdRemapper> SymbolsTableDataBuilder<T, ID> {
+impl<T, ID: IdRemapper> SymbolsTableDataBuilder<T, ID> {
     pub fn new() -> Self {
         Self {
             builder: SymbolsTableBuilder::new(),
@@ -139,6 +119,55 @@ impl<T, ID: SymbolIdRemapper> SymbolsTableDataBuilder<T, ID> {
         SymbolsTableData {
             syms: self.vec,
             symtbl: self.builder.finalize(),
+            phantom: self.phantom,
+        }
+    }
+}
+
+pub struct UniqueTable<ID: IdRemapper, T> {
+    pub syms: Vec<T>,
+    pub phantom: PhantomData<ID>,
+}
+
+impl<ID: IdRemapper, T> core::ops::Index<ID> for UniqueTable<ID, T> {
+    type Output = T;
+
+    fn index(&self, index: ID) -> &Self::Output {
+        &self.syms[index.uncat().0 as usize]
+    }
+}
+
+pub struct UniqueTableBuilder<ID: IdRemapper, T: Eq + Hash> {
+    pub symtbl: HashMap<T, Id>,
+    pub syms: Vec<T>,
+    pub allocator: IdAllocator,
+    pub phantom: PhantomData<ID>,
+}
+
+impl<ID: IdRemapper, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
+    pub fn new() -> Self {
+        Self {
+            symtbl: HashMap::new(),
+            syms: Vec::new(),
+            allocator: IdAllocator::new(),
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn add(&mut self, data: T) -> ID {
+        if let Some(id) = self.symtbl.get(&data) {
+            ID::cat(*id)
+        } else {
+            let id = self.allocator.allocate();
+            self.syms.push(data.clone());
+            self.symtbl.insert(data, id);
+            ID::cat(id)
+        }
+    }
+
+    pub fn finalize(self) -> UniqueTable<ID, T> {
+        UniqueTable {
+            syms: self.syms,
             phantom: self.phantom,
         }
     }

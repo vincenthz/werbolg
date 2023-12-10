@@ -4,7 +4,7 @@ use super::{ExecutionError, ExecutionMachine};
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::RefCell;
-use werbolg_core::{self as ir, lir::FunId, Decimal, Literal, Number};
+use werbolg_core::{self as ir, Decimal, FunId, Literal, Number};
 
 /// Execution Machine Value
 #[derive(Clone, Debug)]

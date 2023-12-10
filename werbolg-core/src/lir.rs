@@ -1,26 +1,15 @@
 //! lowlevel IR
 
 use super::basic::*;
+use super::id::{FunId, LitId};
 use super::location::*;
-use super::symbols::{SymbolId, SymbolIdRemapper, SymbolsTableData};
+use super::symbols::{SymbolsTableData, UniqueTable};
 
 use alloc::{boxed::Box, vec::Vec};
 
 pub struct Module {
+    pub lits: UniqueTable<LitId, Literal>,
     pub funs: SymbolsTableData<FunDef, FunId>,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct FunId(SymbolId);
-
-impl SymbolIdRemapper for FunId {
-    fn uncat(self) -> SymbolId {
-        self.0
-    }
-
-    fn cat(id: SymbolId) -> Self {
-        FunId(id)
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -39,10 +28,10 @@ pub enum Binder {
 
 #[derive(Clone, Debug)]
 pub enum Expr {
-    Literal(Span, Literal),
+    Literal(Span, LitId),
+    Ident(Span, Ident),
     List(Span, Vec<Expr>),
     Let(Binder, Box<Expr>, Box<Expr>),
-    Ident(Span, Ident),
     Lambda(Span, FunId),
     Call(Span, Vec<Expr>),
     If {

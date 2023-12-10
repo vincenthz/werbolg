@@ -31,9 +31,9 @@ pub enum Binder {
 #[derive(Clone, Debug)]
 pub enum Expr {
     Literal(Span, Literal),
+    Ident(Span, Ident),
     List(Span, Vec<Expr>),
     Let(Binder, Box<Expr>, Box<Expr>),
-    Ident(Span, Ident),
     Lambda(Span, Box<FunDef>),
     Call(Span, Vec<Expr>),
     If {

@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod basic;
+mod id;
 mod ir;
 mod location;
 mod symbols;
@@ -10,23 +11,28 @@ mod symbols;
 pub mod lir;
 
 pub use basic::*;
+pub use id::{FunId, Id, LitId};
 pub use ir::*;
 pub use location::*;
-pub use symbols::SymbolId;
 
 use alloc::boxed::Box;
-use symbols::SymbolsTableDataBuilder;
+use symbols::{SymbolsTableDataBuilder, UniqueTableBuilder};
 
 pub struct RewriteState {
-    funs: SymbolsTableDataBuilder<lir::FunDef, lir::FunId>,
+    funs: SymbolsTableDataBuilder<lir::FunDef, FunId>,
+    lits: UniqueTableBuilder<LitId, basic::Literal>,
 }
 
 impl RewriteState {
-    pub fn add_fun(&mut self, fun: lir::FunDef) -> Result<lir::FunId, CompilationError> {
+    pub fn add_fun(&mut self, fun: lir::FunDef) -> Result<FunId, CompilationError> {
         let name = fun.name.clone();
         self.funs
             .add(name.clone(), fun)
             .map_err(|()| CompilationError::DuplicateSymbol(name.unwrap().clone()))
+    }
+
+    pub fn add_lit(&mut self, lit: basic::Literal) -> LitId {
+        self.lits.add(lit)
     }
 }
 
@@ -39,6 +45,7 @@ pub enum CompilationError {
 pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
     let mut state = RewriteState {
         funs: SymbolsTableDataBuilder::new(),
+        lits: UniqueTableBuilder::new(),
     };
 
     for stmt in module.statements {
@@ -54,13 +61,14 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 
     Ok(lir::Module {
         funs: state.funs.finalize(),
+        lits: state.lits.finalize(),
     })
 }
 
 fn rewrite_fun(
     state: &mut RewriteState,
     FunDef { name, vars, body }: FunDef,
-) -> Result<lir::FunId, CompilationError> {
+) -> Result<FunId, CompilationError> {
     let body = rewrite_expr(state, body)?;
     let fun = lir::FunDef {
         name,
@@ -72,7 +80,10 @@ fn rewrite_fun(
 
 fn rewrite_expr(state: &mut RewriteState, expr: Expr) -> Result<lir::Expr, CompilationError> {
     match expr {
-        Expr::Literal(span, lit) => Ok(lir::Expr::Literal(span, lit)),
+        Expr::Literal(span, lit) => {
+            let lit_id = state.add_lit(lit);
+            Ok(lir::Expr::Literal(span, lit_id))
+        }
         Expr::List(span, l) => {
             let l = l
                 .into_iter()
