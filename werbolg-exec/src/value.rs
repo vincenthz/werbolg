@@ -21,6 +21,7 @@ pub enum Value {
     // Composite
     List(Box<[Value]>),
     Struct(StructId, Box<[Value]>),
+    Enum(u32, Box<[Value]>),
     // Functions
     NativeFun(NifId),
     Fun(FunId),
@@ -41,6 +42,7 @@ pub enum ValueKind {
     OpaqueMut,
     List,
     Struct,
+    Enum,
     NativeFun,
     Fun,
 }
@@ -58,6 +60,7 @@ impl<'a> From<&'a Value> for ValueKind {
             Value::OpaqueMut(_) => ValueKind::OpaqueMut,
             Value::List(_) => ValueKind::List,
             Value::Struct(_, _) => ValueKind::Struct,
+            Value::Enum(_, _) => ValueKind::Enum,
             Value::NativeFun(_) => ValueKind::NativeFun,
             Value::Fun(_) => ValueKind::Fun,
         }

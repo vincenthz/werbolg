@@ -285,6 +285,7 @@ fn process_call<'m, T>(
         | Value::Opaque(_)
         | Value::OpaqueMut(_)
         | Value::Struct(_, _)
+        | Value::Enum(_, _)
         | Value::Unit => Err(ExecutionError::CallingNotFunc {
             location: location.clone(),
             value_is: first_k,
