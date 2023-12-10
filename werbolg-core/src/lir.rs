@@ -1,7 +1,7 @@
 //! lowlevel IR
 
 use super::basic::*;
-use super::id::{FunId, LitId, StructId};
+use super::id::{ConstrId, FunId, LitId};
 use super::location::*;
 use super::symbols::{SymbolsTableData, UniqueTable};
 
@@ -9,7 +9,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 pub struct Module {
     pub lits: UniqueTable<LitId, Literal>,
-    pub structs: SymbolsTableData<StructId, StructDef>,
+    pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
     pub funs: SymbolsTableData<FunId, FunDef>,
 }
 
@@ -24,6 +24,24 @@ pub struct FunDef {
 pub struct StructDef {
     pub name: Ident,
     pub fields: Vec<Ident>,
+}
+
+#[derive(Clone, Debug)]
+pub struct EnumDef {
+    pub name: Ident,
+    pub variants: Vec<Variant>,
+}
+
+#[derive(Clone, Debug)]
+pub enum ConstrDef {
+    Struct(StructDef),
+    Enum(EnumDef), //Enum { pub name: Ident, pub variants: },
+}
+
+#[derive(Clone, Debug)]
+pub struct Variant {
+    pub name: Ident,
+    pub constr: ConstrId,
 }
 
 #[derive(Clone, Debug)]

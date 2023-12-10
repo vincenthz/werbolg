@@ -11,7 +11,7 @@ mod symbols;
 pub mod lir;
 
 pub use basic::*;
-pub use id::{FunId, Id, LitId, StructId};
+pub use id::{ConstrId, FunId, Id, LitId};
 pub use ir::*;
 pub use location::*;
 
@@ -20,7 +20,7 @@ use symbols::{SymbolsTableDataBuilder, UniqueTableBuilder};
 
 pub struct RewriteState {
     funs: SymbolsTableDataBuilder<FunId, lir::FunDef>,
-    structs: SymbolsTableDataBuilder<StructId, lir::StructDef>,
+    constrs: SymbolsTableDataBuilder<ConstrId, lir::ConstrDef>,
     lits: UniqueTableBuilder<LitId, basic::Literal>,
 }
 
@@ -32,10 +32,17 @@ impl RewriteState {
             .map_err(|()| CompilationError::DuplicateSymbol(name.unwrap()))
     }
 
-    pub fn add_struct(&mut self, stru: lir::StructDef) -> Result<StructId, CompilationError> {
+    pub fn add_struct(&mut self, stru: lir::StructDef) -> Result<ConstrId, CompilationError> {
         let name = stru.name.clone();
-        self.structs
-            .add(Some(name.clone()), stru)
+        self.constrs
+            .add(Some(name.clone()), lir::ConstrDef::Struct(stru))
+            .map_err(|()| CompilationError::DuplicateSymbol(name))
+    }
+
+    pub fn add_enum(&mut self, enu: lir::EnumDef) -> Result<ConstrId, CompilationError> {
+        let name = enu.name.clone();
+        self.constrs
+            .add(Some(name.clone()), lir::ConstrDef::Enum(enu))
             .map_err(|()| CompilationError::DuplicateSymbol(name))
     }
 
@@ -53,7 +60,7 @@ pub enum CompilationError {
 pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
     let mut state = RewriteState {
         funs: SymbolsTableDataBuilder::new(),
-        structs: SymbolsTableDataBuilder::new(),
+        constrs: SymbolsTableDataBuilder::new(),
         lits: UniqueTableBuilder::new(),
     };
 
@@ -73,21 +80,21 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 
     let RewriteState {
         funs,
-        structs,
+        constrs,
         lits,
     } = state;
 
     Ok(lir::Module {
         funs: funs.finalize(),
         lits: lits.finalize(),
-        structs: structs.finalize(),
+        constrs: constrs.finalize(),
     })
 }
 
 fn rewrite_struct(
     state: &mut RewriteState,
     StructDef { name, fields }: StructDef,
-) -> Result<StructId, CompilationError> {
+) -> Result<ConstrId, CompilationError> {
     let stru = lir::StructDef {
         name: name.unspan(),
         fields: fields.into_iter().map(|v| v.unspan()).collect(),

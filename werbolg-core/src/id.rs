@@ -41,8 +41,8 @@ pub struct FunId(Id);
 pub struct LitId(Id);
 
 #[derive(Debug, Copy, Clone)]
-pub struct StructId(Id);
+pub struct ConstrId(Id);
 
 define_id_remapper!(FunId);
 define_id_remapper!(LitId);
-define_id_remapper!(StructId);
+define_id_remapper!(ConstrId);

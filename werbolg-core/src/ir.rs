@@ -29,6 +29,15 @@ pub struct StructDef {
 }
 
 #[derive(Clone, Debug)]
+pub struct EnumDef {
+    pub name: Spanned<Ident>,
+    pub variants: Vec<Variant>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Variant(StructDef);
+
+#[derive(Clone, Debug)]
 pub enum Binder {
     Unit,
     Ignore,

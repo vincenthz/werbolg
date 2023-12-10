@@ -4,7 +4,7 @@ use super::{ExecutionError, ExecutionMachine};
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::RefCell;
-use werbolg_core::{self as ir, Decimal, FunId, Literal, Number, StructId};
+use werbolg_core::{self as ir, ConstrId, Decimal, FunId, Literal, Number};
 
 /// Execution Machine Value
 #[derive(Clone, Debug)]
@@ -20,7 +20,7 @@ pub enum Value {
     OpaqueMut(OpaqueMut),
     // Composite
     List(Box<[Value]>),
-    Struct(StructId, Box<[Value]>),
+    Struct(ConstrId, Box<[Value]>),
     Enum(u32, Box<[Value]>),
     // Functions
     NativeFun(NifId),
