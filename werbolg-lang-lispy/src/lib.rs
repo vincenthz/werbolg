@@ -49,6 +49,13 @@ fn remap_err(e: parse::ParseError) -> ParseError {
             location: if_span,
             kind: ParseErrorKind::Str(String::from("if expect 3 parameters")),
         },
+        parse::ParseError::DefineArgumentNotIdent {
+            define_span,
+            arg_span: _,
+        } => ParseError {
+            location: define_span,
+            kind: ParseErrorKind::Str(String::from("define argument not ident")),
+        },
         parse::ParseError::DefineArgumentNotList {
             define_span,
             args_span: _,
@@ -56,13 +63,23 @@ fn remap_err(e: parse::ParseError) -> ParseError {
             location: define_span,
             kind: ParseErrorKind::Str(String::from("define argument not a list")),
         },
-        parse::ParseError::DefineArgumentNotAtom {
-            define_span,
-            args_span: _,
+        parse::ParseError::AtomListNotList { arg_span } => ParseError {
+            location: arg_span,
+            kind: ParseErrorKind::Str(String::from("atom list is not a list")),
+        },
+        parse::ParseError::ArgumentNotAtom {
+            args_span,
             arg_invalid_span: _,
         } => ParseError {
-            location: define_span,
-            kind: ParseErrorKind::Str(String::from("define argument not an atom")),
+            location: args_span,
+            kind: ParseErrorKind::Str(String::from("argument not an atom in list")),
+        },
+        parse::ParseError::StructArgumentNotIdent {
+            struct_span,
+            arg_span: _,
+        } => ParseError {
+            location: struct_span,
+            kind: ParseErrorKind::Str(String::from("struct argument not ident")),
         },
     }
 }
@@ -136,6 +153,10 @@ fn statement(ast: Spanned<Ast>) -> Result<ir::Statement, ParseError> {
                 },
             ))
         }
+        Ast::Struct(name, fields) => Ok(ir::Statement::Struct(
+            ast.span,
+            ir::StructDef { name, fields },
+        )),
     }
 }
 
@@ -158,6 +179,10 @@ fn expr(ast: Spanned<Ast>) -> Result<ir::Expr, ParseError> {
         Ast::Define(_, _, _) => Err(ParseError {
             location: Span { start: 0, end: 0 },
             kind: ParseErrorKind::Str(format!("cannot have define in expression")),
+        }),
+        Ast::Struct(_, _) => Err(ParseError {
+            location: Span { start: 0, end: 0 },
+            kind: ParseErrorKind::Str(format!("cannot have struct in expression")),
         }),
     }
 }

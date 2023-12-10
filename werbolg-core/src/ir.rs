@@ -11,6 +11,7 @@ pub struct Module {
 #[derive(Clone, Debug)]
 pub enum Statement {
     Function(Span, FunDef),
+    Struct(Span, StructDef),
     Expr(Expr),
 }
 
@@ -19,6 +20,12 @@ pub struct FunDef {
     pub name: Option<Ident>,
     pub vars: Vec<Variable>,
     pub body: Expr,
+}
+
+#[derive(Clone, Debug)]
+pub struct StructDef {
+    pub name: Spanned<Ident>,
+    pub fields: Vec<Spanned<Ident>>,
 }
 
 #[derive(Clone, Debug)]

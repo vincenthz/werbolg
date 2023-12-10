@@ -53,12 +53,22 @@ pub enum ParseError {
         define_span: Span,
         args_span: Span,
     },
+    DefineArgumentNotIdent {
+        define_span: Span,
+        arg_span: Span,
+    },
+    StructArgumentNotIdent {
+        struct_span: Span,
+        arg_span: Span,
+    },
     DefineArgumentNotList {
         define_span: Span,
         args_span: Span,
     },
-    DefineArgumentNotAtom {
-        define_span: Span,
+    AtomListNotList {
+        arg_span: Span,
+    },
+    ArgumentNotAtom {
         args_span: Span,
         arg_invalid_span: Span,
     },
@@ -100,6 +110,8 @@ impl<'a> Parser<'a> {
             Some(first_elem) => {
                 if first_elem.atom_eq("define") {
                     parse_define(list_span.clone(), exprs).map(|a| Spanned::new(list_span, a))
+                } else if first_elem.atom_eq("struct") {
+                    parse_struct(list_span.clone(), exprs).map(|a| Spanned::new(list_span, a))
                 } else if first_elem.atom_eq("if") {
                     parse_if(list_span.clone(), exprs).map(|a| Spanned::new(list_span, a))
                 } else {
@@ -209,10 +221,9 @@ fn parse_define(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, Pa
             let span_args = spans_merge(&mut id_args.iter().map(|e| &e.span));
 
             let Some(ident) = first_expr.atom() else {
-                return Err(ParseError::DefineArgumentNotAtom {
+                return Err(ParseError::DefineArgumentNotIdent {
                     define_span: list_span,
-                    args_span: span_args.clone(),
-                    arg_invalid_span: first_expr.span.clone(),
+                    arg_span: span_args.clone(),
                 });
             };
             let ident = Ident(ident.0.clone());
@@ -220,8 +231,7 @@ fn parse_define(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, Pa
             let args = args_exprs
                 .into_iter()
                 .map(|arg_expr| match arg_expr.atom() {
-                    None => Err(ParseError::DefineArgumentNotAtom {
-                        define_span: list_span.clone(),
+                    None => Err(ParseError::ArgumentNotAtom {
                         args_span: span_args.clone(),
                         arg_invalid_span: arg_expr.span.clone(),
                     }),
@@ -246,6 +256,39 @@ fn parse_define(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, Pa
     // drop 'define' atom and first name or list of name+args
     vec_drop_start(&mut exprs, 2);
     Ok(Ast::Define(Spanned::new(span_name, ident), args, exprs))
+}
+
+fn parse_struct(list_span: Span, exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
+    // (struct name (field+)
+    let span_name = exprs[1].span.clone();
+    let ident = exprs[1]
+        .inner
+        .atom()
+        .ok_or(ParseError::StructArgumentNotIdent {
+            struct_span: list_span,
+            arg_span: exprs[1].span.clone(),
+        })?;
+    let fields = parse_atom_list(&exprs[2])?;
+
+    Ok(Ast::Struct(Spanned::new(span_name, ident.clone()), fields))
+}
+
+fn parse_atom_list(ast: &Spanned<Ast>) -> Result<Vec<Spanned<Ident>>, ParseError> {
+    let Ast::List(l) = &ast.inner else {
+        return Err(ParseError::AtomListNotList {
+            arg_span: ast.span.clone(),
+        });
+    };
+
+    l.into_iter()
+        .map(|arg_expr| match arg_expr.atom() {
+            None => Err(ParseError::ArgumentNotAtom {
+                args_span: ast.span.clone(),
+                arg_invalid_span: arg_expr.span.clone(),
+            }),
+            Some(sident) => Ok(Spanned::new(arg_expr.span.clone(), sident.clone())),
+        })
+        .collect::<Result<Vec<_>, _>>()
 }
 
 impl<'a> Iterator for Parser<'a> {

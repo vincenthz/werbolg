@@ -10,7 +10,10 @@ pub enum Ast {
     /// List of expression '(a b c)'
     List(ListExpr),
     // (define (id args) expr+)
+    // (define id expr+)
     Define(Spanned<Ident>, Vec<Variable>, Vec<Spanned<Ast>>),
+    // (struct id (field+))
+    Struct(Spanned<Ident>, Vec<Spanned<Ident>>),
     // (if cond then_expr else_expr)
     If(Box<Spanned<Ast>>, Box<Spanned<Ast>>, Box<Spanned<Ast>>),
 }
@@ -33,14 +36,6 @@ impl Ast {
         match &self {
             Ast::Atom(ident) => ident.matches(s),
             _ => false,
-        }
-    }
-
-    #[allow(unused)]
-    pub fn list(&self) -> Option<&ListExpr> {
-        match &self {
-            Ast::List(si) => Some(&si),
-            _ => None,
         }
     }
 }

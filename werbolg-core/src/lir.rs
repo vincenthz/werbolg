@@ -20,6 +20,12 @@ pub struct FunDef {
 }
 
 #[derive(Clone, Debug)]
+pub struct StructDef {
+    pub name: Ident,
+    pub fields: Vec<Ident>,
+}
+
+#[derive(Clone, Debug)]
 pub enum Binder {
     Unit,
     Ignore,

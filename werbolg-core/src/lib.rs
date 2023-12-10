@@ -11,7 +11,7 @@ mod symbols;
 pub mod lir;
 
 pub use basic::*;
-pub use id::{FunId, Id, LitId};
+pub use id::{FunId, Id, LitId, StructId};
 pub use ir::*;
 pub use location::*;
 
@@ -20,6 +20,7 @@ use symbols::{SymbolsTableDataBuilder, UniqueTableBuilder};
 
 pub struct RewriteState {
     funs: SymbolsTableDataBuilder<lir::FunDef, FunId>,
+    structs: SymbolsTableDataBuilder<lir::StructDef, StructId>,
     lits: UniqueTableBuilder<LitId, basic::Literal>,
 }
 
@@ -28,7 +29,14 @@ impl RewriteState {
         let name = fun.name.clone();
         self.funs
             .add(name.clone(), fun)
-            .map_err(|()| CompilationError::DuplicateSymbol(name.unwrap().clone()))
+            .map_err(|()| CompilationError::DuplicateSymbol(name.unwrap()))
+    }
+
+    pub fn add_struct(&mut self, stru: lir::StructDef) -> Result<StructId, CompilationError> {
+        let name = stru.name.clone();
+        self.structs
+            .add(Some(name.clone()), stru)
+            .map_err(|()| CompilationError::DuplicateSymbol(name))
     }
 
     pub fn add_lit(&mut self, lit: basic::Literal) -> LitId {
@@ -45,6 +53,7 @@ pub enum CompilationError {
 pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
     let mut state = RewriteState {
         funs: SymbolsTableDataBuilder::new(),
+        structs: SymbolsTableDataBuilder::new(),
         lits: UniqueTableBuilder::new(),
     };
 
@@ -52,6 +61,9 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
         match stmt {
             ir::Statement::Function(_span, fundef) => {
                 rewrite_fun(&mut state, fundef)?;
+            }
+            ir::Statement::Struct(_span, structdef) => {
+                rewrite_struct(&mut state, structdef)?;
             }
             ir::Statement::Expr(_) => {
                 todo!()
@@ -63,6 +75,17 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
         funs: state.funs.finalize(),
         lits: state.lits.finalize(),
     })
+}
+
+fn rewrite_struct(
+    state: &mut RewriteState,
+    StructDef { name, fields }: StructDef,
+) -> Result<StructId, CompilationError> {
+    let stru = lir::StructDef {
+        name: name.unspan(),
+        fields: fields.into_iter().map(|v| v.unspan()).collect(),
+    };
+    state.add_struct(stru)
 }
 
 fn rewrite_fun(
