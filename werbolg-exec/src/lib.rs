@@ -82,8 +82,8 @@ impl<'m, T> ExecutionMachine<'m, T> {
             .map(|e| e.clone())
             .or_else(|| {
                 self.module
-                    .funs
-                    .resolve_id(ident)
+                    .funs_tbl
+                    .get(ident)
                     .map(|symbolic| Value::Fun(symbolic))
             })
             .or_else(|| self.nifs_binds.get(ident).map(|e| Value::NativeFun(*e)));
@@ -290,7 +290,7 @@ fn process_call<'m, T>(
             location: location.clone(),
             value_is: first_k,
         }),
-        Value::Fun(symbol) => match em.module.funs.get_symbol_by_id(symbol) {
+        Value::Fun(symbol) => match em.module.funs.get(symbol) {
             Some(fundef) => {
                 em.scope_enter(&location);
                 check_arity(fundef.vars.len(), number_args - 1)?;

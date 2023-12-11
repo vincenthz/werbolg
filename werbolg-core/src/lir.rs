@@ -3,15 +3,35 @@
 use super::basic::*;
 use super::id::{ConstrId, FunId, LitId};
 use super::location::*;
-use super::symbols::{SymbolsTableData, UniqueTable};
+use super::symbols::{IdVec, SymbolsTable, SymbolsTableData};
 
 use alloc::{boxed::Box, vec::Vec};
 
 pub struct Module {
-    pub lits: UniqueTable<LitId, Literal>,
+    pub lits: IdVec<LitId, Literal>,
     pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
-    pub funs: SymbolsTableData<FunId, FunDef>,
+    pub funs_tbl: SymbolsTable<FunId>,
+    pub funs: IdVec<FunId, FunDef>,
 }
+
+/*
+impl Module {
+    pub fn print(&self) {
+        println!("# literals");
+        for (lit_id, lit) in self.lits.iter() {
+            println!("* {:?} => {:?}", lit_id, lit);
+        }
+        println!("# functions map");
+        for (k, v) in self.funs_tbl.tbl.iter() {
+            println!("* {:?} => {:?}", k, v);
+        }
+        println!("# functions");
+        for (fun_id, fun) in self.funs.iter() {
+            println!("* {:?} => {:?} {:?}", fun_id, fun.name, fun.vars);
+        }
+    }
+}
+*/
 
 #[derive(Clone, Debug)]
 pub struct FunDef {

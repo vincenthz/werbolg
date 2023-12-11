@@ -1,67 +1,140 @@
 use super::basic::Ident;
-use super::id::{Id, IdAllocator, IdRemapper};
+use super::id::{Id, IdRemapper};
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
-pub struct SymbolsTable {
-    tbl: HashMap<Ident, Id>,
+pub struct SymbolsTable<ID: IdRemapper> {
+    pub(crate) tbl: HashMap<Ident, Id>,
+    phantom: PhantomData<ID>,
 }
 
-impl SymbolsTable {
+impl<ID: IdRemapper> SymbolsTable<ID> {
     pub fn new() -> Self {
         Self {
             tbl: Default::default(),
+            phantom: PhantomData,
         }
     }
 
-    pub fn insert(&mut self, ident: Ident, id: Id) {
-        self.tbl.insert(ident, id);
+    pub fn insert(&mut self, ident: Ident, id: ID) {
+        self.tbl.insert(ident, id.uncat());
     }
 
-    pub fn get(&self, ident: &Ident) -> Option<Id> {
-        self.tbl.get(ident).map(|i| *i)
+    pub fn get(&self, ident: &Ident) -> Option<ID> {
+        self.tbl.get(ident).map(|i| ID::cat(*i))
     }
 }
 
-pub struct SymbolsTableBuilder {
-    table: SymbolsTable,
-    allocator: IdAllocator,
+pub struct IdVec<ID, T> {
+    vec: Vec<T>,
+    phantom: PhantomData<ID>,
 }
 
-impl SymbolsTableBuilder {
+impl<ID: IdRemapper, T> core::ops::Index<ID> for IdVec<ID, T> {
+    type Output = T;
+
+    fn index(&self, index: ID) -> &Self::Output {
+        &self.vec[index.uncat().0 as usize]
+    }
+}
+
+impl<ID: IdRemapper, T> IdVec<ID, T> {
     pub fn new() -> Self {
         Self {
-            table: SymbolsTable::new(),
-            allocator: IdAllocator::new(),
+            vec: Vec::new(),
+            phantom: PhantomData,
         }
     }
 
-    pub fn allocate(&mut self, ident: Ident) -> Option<Id> {
-        if self.table.get(&ident).is_some() {
-            return None;
+    pub fn get(&self, id: ID) -> Option<&T> {
+        let idx = id.uncat().0 as usize;
+        if self.vec.len() > idx {
+            Some(&self.vec[id.uncat().0 as usize])
+        } else {
+            None
         }
-        let id = self.allocator.allocate();
-        self.table.insert(ident, id);
-        Some(id)
     }
 
-    pub fn allocate_anon(&mut self) -> Id {
-        self.allocator.allocate()
+    pub fn next_id(&self) -> ID {
+        ID::cat(Id(self.vec.len() as u32))
     }
 
-    pub fn finalize(self) -> SymbolsTable {
-        self.table
+    pub fn push(&mut self, v: T) -> ID {
+        let id = Id(self.vec.len() as u32);
+        self.vec.push(v);
+        ID::cat(id)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (ID, &T)> {
+        self.vec
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (ID::cat(Id(i as u32)), t))
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = (ID, T)> {
+        self.vec
+            .into_iter()
+            .enumerate()
+            .map(|(i, t)| (ID::cat(Id(i as u32)), t))
+    }
+
+    pub fn concat(&mut self, after: &mut IdVecAfter<ID, T>) {
+        assert!(self.vec.len() == after.ofs as usize);
+        self.vec.append(&mut after.id_vec.vec)
+    }
+}
+
+pub struct IdVecAfter<ID, T> {
+    id_vec: IdVec<ID, T>,
+    ofs: u32,
+}
+
+impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
+    pub fn new(first_id: ID) -> Self {
+        Self {
+            id_vec: IdVec::new(),
+            ofs: first_id.uncat().0,
+        }
+    }
+
+    pub fn push(&mut self, v: T) -> ID {
+        let id = self.id_vec.push(v).uncat();
+        let new_id = Id(id.0 + self.ofs as u32);
+        ID::cat(new_id)
     }
 }
 
 pub struct SymbolsTableData<ID: IdRemapper, T> {
-    pub symtbl: SymbolsTable,
-    pub syms: Vec<T>,
-    pub phantom: PhantomData<ID>,
+    pub table: SymbolsTable<ID>,
+    pub vecdata: IdVec<ID, T>,
 }
 
+impl<ID: IdRemapper, T> SymbolsTableData<ID, T> {
+    pub fn new() -> Self {
+        Self {
+            table: SymbolsTable::new(),
+            vecdata: IdVec::new(),
+        }
+    }
+
+    pub fn add(&mut self, ident: Ident, v: T) -> Option<ID> {
+        if self.table.get(&ident).is_some() {
+            return None;
+        }
+        let id = self.vecdata.push(v);
+        self.table.insert(ident, id);
+        Some(id)
+    }
+
+    pub fn add_anon(&mut self, v: T) -> ID {
+        self.vecdata.push(v)
+    }
+}
+
+/*
 impl<T, ID: IdRemapper> SymbolsTableData<ID, T> {
     pub fn new() -> Self {
         Self {
@@ -87,6 +160,26 @@ impl<T, ID: IdRemapper> SymbolsTableData<ID, T> {
             return None;
         }
         Some(&self.syms[id.uncat().0 as usize])
+    }
+
+    pub fn remap<A, F, U, E>(self, f: F) -> Result<SymbolsTableData<ID, U>, E>
+    where
+        F: Fn(T) -> Result<U, E>,
+    {
+        let Self {
+            syms,
+            symtbl,
+            phantom,
+        } = self;
+        let syms = syms
+            .into_iter()
+            .map(|s| f(s))
+            .collect::<Result<Vec<_>, E>>()?;
+        Ok(SymbolsTableData {
+            syms,
+            symtbl,
+            phantom,
+        })
     }
 }
 
@@ -124,23 +217,11 @@ impl<T, ID: IdRemapper> SymbolsTableDataBuilder<ID, T> {
     }
 }
 
-pub struct UniqueTable<ID: IdRemapper, T> {
-    pub syms: Vec<T>,
-    pub phantom: PhantomData<ID>,
-}
-
-impl<ID: IdRemapper, T> core::ops::Index<ID> for UniqueTable<ID, T> {
-    type Output = T;
-
-    fn index(&self, index: ID) -> &Self::Output {
-        &self.syms[index.uncat().0 as usize]
-    }
-}
+*/
 
 pub struct UniqueTableBuilder<ID: IdRemapper, T: Eq + Hash> {
-    pub symtbl: HashMap<T, Id>,
-    pub syms: Vec<T>,
-    pub allocator: IdAllocator,
+    pub symtbl: HashMap<T, ID>,
+    pub syms: IdVec<ID, T>,
     pub phantom: PhantomData<ID>,
 }
 
@@ -148,27 +229,22 @@ impl<ID: IdRemapper, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
     pub fn new() -> Self {
         Self {
             symtbl: HashMap::new(),
-            syms: Vec::new(),
-            allocator: IdAllocator::new(),
+            syms: IdVec::new(),
             phantom: PhantomData,
         }
     }
 
     pub fn add(&mut self, data: T) -> ID {
         if let Some(id) = self.symtbl.get(&data) {
-            ID::cat(*id)
+            *id
         } else {
-            let id = self.allocator.allocate();
-            self.syms.push(data.clone());
+            let id = self.syms.push(data.clone());
             self.symtbl.insert(data, id);
-            ID::cat(id)
+            id
         }
     }
 
-    pub fn finalize(self) -> UniqueTable<ID, T> {
-        UniqueTable {
-            syms: self.syms,
-            phantom: self.phantom,
-        }
+    pub fn finalize(self) -> IdVec<ID, T> {
+        self.syms
     }
 }

@@ -112,6 +112,8 @@ fn main() -> Result<(), ()> {
     let module = lang::parse(lang, &fileunit).expect("no parse error");
     let exec_module = compile(module).expect("no compilation error");
 
+    //exec_module.print();
+
     let mut em = ExecutionMachine::new(&exec_module, ());
     em.add_native_pure_fun("+", nif_plus);
     em.add_native_pure_fun("-", nif_sub);

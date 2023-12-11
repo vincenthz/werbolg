@@ -1,20 +1,6 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub u32);
 
-pub struct IdAllocator(u32);
-
-impl IdAllocator {
-    pub fn new() -> Self {
-        Self(0)
-    }
-
-    pub fn allocate(&mut self) -> Id {
-        let v = self.0;
-        self.0 += 1;
-        Id(v)
-    }
-}
-
 pub trait IdRemapper: Copy {
     fn uncat(self) -> Id;
     fn cat(id: Id) -> Self;
@@ -34,13 +20,13 @@ macro_rules! define_id_remapper {
     };
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct FunId(Id);
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct LitId(Id);
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ConstrId(Id);
 
 define_id_remapper!(FunId);

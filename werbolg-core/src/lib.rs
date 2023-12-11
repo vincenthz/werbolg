@@ -1,8 +1,9 @@
-#![no_std]
+//#![no_std]
 
 extern crate alloc;
 
 mod basic;
+mod environ;
 mod id;
 mod ir;
 mod location;
@@ -16,39 +17,14 @@ pub use ir::*;
 pub use location::*;
 
 use alloc::boxed::Box;
-use symbols::{SymbolsTableDataBuilder, UniqueTableBuilder};
+use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData, UniqueTableBuilder};
 
-pub struct RewriteState {
-    funs: SymbolsTableDataBuilder<FunId, lir::FunDef>,
-    constrs: SymbolsTableDataBuilder<ConstrId, lir::ConstrDef>,
+struct RewriteState {
+    funs_tbl: SymbolsTable<FunId>,
+    funs_vec: IdVec<FunId, lir::FunDef>,
+    constrs: SymbolsTableData<ConstrId, lir::ConstrDef>,
     lits: UniqueTableBuilder<LitId, basic::Literal>,
-}
-
-impl RewriteState {
-    pub fn add_fun(&mut self, fun: lir::FunDef) -> Result<FunId, CompilationError> {
-        let name = fun.name.clone();
-        self.funs
-            .add(name.clone(), fun)
-            .map_err(|()| CompilationError::DuplicateSymbol(name.unwrap()))
-    }
-
-    pub fn add_struct(&mut self, stru: lir::StructDef) -> Result<ConstrId, CompilationError> {
-        let name = stru.name.clone();
-        self.constrs
-            .add(Some(name.clone()), lir::ConstrDef::Struct(stru))
-            .map_err(|()| CompilationError::DuplicateSymbol(name))
-    }
-
-    pub fn add_enum(&mut self, enu: lir::EnumDef) -> Result<ConstrId, CompilationError> {
-        let name = enu.name.clone();
-        self.constrs
-            .add(Some(name.clone()), lir::ConstrDef::Enum(enu))
-            .map_err(|()| CompilationError::DuplicateSymbol(name))
-    }
-
-    pub fn add_lit(&mut self, lit: basic::Literal) -> LitId {
-        self.lits.add(lit)
-    }
+    lambdas: IdVecAfter<FunId, lir::FunDef>,
 }
 
 #[derive(Debug)]
@@ -58,67 +34,91 @@ pub enum CompilationError {
 
 /// Compile a IR Module into an optimised-for-execution LIR Module
 pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
-    let mut state = RewriteState {
-        funs: SymbolsTableDataBuilder::new(),
-        constrs: SymbolsTableDataBuilder::new(),
-        lits: UniqueTableBuilder::new(),
-    };
+    let mut funs = SymbolsTableData::new();
+    let mut constrs = SymbolsTableData::new();
 
-    for stmt in module.statements {
+    for stmt in module.statements.into_iter() {
         match stmt {
             ir::Statement::Function(_span, fundef) => {
-                rewrite_fun(&mut state, fundef)?;
+                alloc_fun(&mut funs, fundef)?;
             }
             ir::Statement::Struct(_span, structdef) => {
-                rewrite_struct(&mut state, structdef)?;
+                alloc_struct(&mut constrs, structdef)?;
             }
-            ir::Statement::Expr(_) => {
-                todo!()
-            }
+            ir::Statement::Expr(_) => (),
         }
     }
 
-    let RewriteState {
-        funs,
-        constrs,
-        lits,
-    } = state;
+    let SymbolsTableData { table, vecdata } = funs;
+
+    let mut state = RewriteState {
+        funs_tbl: table,
+        funs_vec: IdVec::new(),
+        lambdas: IdVecAfter::new(vecdata.next_id()),
+        constrs: SymbolsTableData::new(),
+        lits: UniqueTableBuilder::new(),
+    };
+
+    for (funid, fundef) in vecdata.into_iter() {
+        let lirdef = rewrite_fun(&mut state, fundef)?;
+        let lirid = state.funs_vec.push(lirdef);
+        assert_eq!(funid, lirid)
+    }
+
+    state.funs_vec.concat(&mut state.lambdas);
+    let funs = state.funs_vec;
 
     Ok(lir::Module {
-        funs: funs.finalize(),
-        lits: lits.finalize(),
-        constrs: constrs.finalize(),
+        lits: state.lits.finalize(),
+        constrs: state.constrs,
+        funs: funs,
+        funs_tbl: state.funs_tbl,
     })
 }
 
-fn rewrite_struct(
-    state: &mut RewriteState,
+fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, CompilationError> {
+    let FunDef { name, vars, body } = fundef;
+    let lir_vars = vars.into_iter().map(|v| lir::Variable(v.0)).collect();
+    let lir_body = rewrite_expr(state, body)?;
+    Ok(lir::FunDef {
+        name,
+        vars: lir_vars,
+        body: lir_body,
+    })
+}
+
+fn alloc_fun(
+    state: &mut SymbolsTableData<FunId, FunDef>,
+    fundef: FunDef,
+) -> Result<FunId, CompilationError> {
+    let ident = fundef.name.clone();
+    if let Some(ident) = ident {
+        state
+            .add(ident.clone(), fundef)
+            .ok_or_else(|| CompilationError::DuplicateSymbol(ident))
+    } else {
+        Ok(state.add_anon(fundef))
+    }
+}
+
+fn alloc_struct(
+    state: &mut SymbolsTableData<ConstrId, lir::ConstrDef>,
     StructDef { name, fields }: StructDef,
 ) -> Result<ConstrId, CompilationError> {
     let stru = lir::StructDef {
         name: name.unspan(),
         fields: fields.into_iter().map(|v| v.unspan()).collect(),
     };
-    state.add_struct(stru)
-}
-
-fn rewrite_fun(
-    state: &mut RewriteState,
-    FunDef { name, vars, body }: FunDef,
-) -> Result<FunId, CompilationError> {
-    let body = rewrite_expr(state, body)?;
-    let fun = lir::FunDef {
-        name,
-        vars: vars.into_iter().map(|v| lir::Variable(v.0)).collect(),
-        body,
-    };
-    state.add_fun(fun)
+    let name = stru.name.clone();
+    state
+        .add(name.clone(), lir::ConstrDef::Struct(stru))
+        .ok_or_else(|| CompilationError::DuplicateSymbol(name))
 }
 
 fn rewrite_expr(state: &mut RewriteState, expr: Expr) -> Result<lir::Expr, CompilationError> {
     match expr {
         Expr::Literal(span, lit) => {
-            let lit_id = state.add_lit(lit);
+            let lit_id = state.lits.add(lit);
             Ok(lir::Expr::Literal(span, lit_id))
         }
         Expr::List(span, l) => {
@@ -135,8 +135,9 @@ fn rewrite_expr(state: &mut RewriteState, expr: Expr) -> Result<lir::Expr, Compi
         )),
         Expr::Ident(span, ident) => Ok(lir::Expr::Ident(span, ident)),
         Expr::Lambda(span, fundef) => {
-            let symbolid = rewrite_fun(state, fundef.as_ref().clone())?;
-            Ok(lir::Expr::Lambda(span, symbolid))
+            let lirdef = rewrite_fun(state, *fundef)?;
+            let lambda_id = state.lambdas.push(lirdef);
+            Ok(lir::Expr::Lambda(span, lambda_id))
         }
         Expr::Call(span, args) => {
             let args = args
