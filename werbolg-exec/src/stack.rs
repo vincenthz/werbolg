@@ -1,7 +1,7 @@
 use super::location::Location;
 use super::value::Value;
 use alloc::vec::Vec;
-use werbolg_core::lir;
+use werbolg_core::{lir, Ident};
 
 pub struct ExecutionStack<'m> {
     pub values: Vec<Value>,
@@ -91,6 +91,7 @@ impl<'m> ExecutionStack<'m> {
 
 pub enum ExecutionAtom<'m> {
     List(usize),
+    Field(&'m Ident),
     ThenElse(&'m lir::Expr, &'m lir::Expr),
     Call(usize, Location),
     Let(lir::Binder, &'m lir::Expr),
@@ -101,6 +102,7 @@ impl<'m> ExecutionAtom<'m> {
     pub fn arity(&self) -> usize {
         match self {
             ExecutionAtom::List(u) => *u,
+            ExecutionAtom::Field(_) => 1,
             ExecutionAtom::ThenElse(_, _) => 1,
             ExecutionAtom::Call(u, _) => *u,
             ExecutionAtom::Let(_, _) => 1,

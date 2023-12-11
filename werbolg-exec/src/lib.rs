@@ -110,6 +110,8 @@ pub enum ExecutionError {
         expected: usize,
         got: usize,
     },
+    AccessingInexistentField(ir::Ident, ir::Ident),
+    AccessingFieldNotAStruct(ir::Ident, ValueKind),
     MissingBinding(ir::Ident),
     InternalErrorFunc(ir::FunId),
     CallingNotFunc {
@@ -191,6 +193,7 @@ fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m lir::Expr) -> Result<(),
                 em.stack.push_work(ExecutionAtom::List(l.len()), l)
             }
         }
+        lir::Expr::Field(expr, ident) => em.stack.push_work1(ExecutionAtom::Field(ident), expr),
         lir::Expr::Lambda(_span, fundef) => {
             let val = Value::Fun(*fundef);
             em.stack.push_value(val)
@@ -221,6 +224,35 @@ fn eval<'m, T>(
     match ea {
         ExecutionAtom::List(_) => {
             em.stack.push_value(Value::List(args.into()));
+            Ok(())
+        }
+        ExecutionAtom::Field(field) => {
+            assert_eq!(args.len(), 1);
+            let Value::Struct(constrid, inner_vals) = &args[0] else {
+                return Err(ExecutionError::AccessingFieldNotAStruct(
+                    field.clone(),
+                    (&args[0]).into(),
+                ));
+            };
+
+            match &em.module.constrs.vecdata[*constrid] {
+                lir::ConstrDef::Enum(_) => {
+                    return Err(ExecutionError::AccessingFieldNotAStruct(
+                        field.clone(),
+                        (&args[0]).into(),
+                    ));
+                }
+                lir::ConstrDef::Struct(defs) => {
+                    let Some(idx) = defs.fields.iter().position(|r| r == field) else {
+                        return Err(ExecutionError::AccessingInexistentField(
+                            field.clone(),
+                            defs.name.clone(),
+                        ));
+                    };
+                    em.stack.push_value(inner_vals[idx].clone());
+                }
+            };
+
             Ok(())
         }
         ExecutionAtom::ThenElse(then_expr, else_expr) => {

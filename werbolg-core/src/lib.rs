@@ -133,6 +133,10 @@ fn rewrite_expr(state: &mut RewriteState, expr: Expr) -> Result<lir::Expr, Compi
             rewrite_boxed_expr(state, body)?,
             rewrite_boxed_expr(state, in_expr)?,
         )),
+        Expr::Field(expr, ident) => {
+            let expr = rewrite_boxed_expr(state, expr)?;
+            Ok(lir::Expr::Field(expr, ident))
+        }
         Expr::Ident(span, ident) => Ok(lir::Expr::Ident(span, ident)),
         Expr::Lambda(span, fundef) => {
             let lirdef = rewrite_fun(state, *fundef)?;

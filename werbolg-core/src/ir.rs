@@ -48,6 +48,7 @@ pub enum Binder {
 pub enum Expr {
     Literal(Span, Literal),
     Ident(Span, Ident),
+    Field(Box<Expr>, Ident),
     List(Span, Vec<Expr>),
     Let(Binder, Box<Expr>, Box<Expr>),
     Lambda(Span, Box<FunDef>),

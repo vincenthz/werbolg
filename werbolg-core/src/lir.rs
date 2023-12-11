@@ -55,7 +55,7 @@ pub struct EnumDef {
 #[derive(Clone, Debug)]
 pub enum ConstrDef {
     Struct(StructDef),
-    Enum(EnumDef), //Enum { pub name: Ident, pub variants: },
+    Enum(EnumDef),
 }
 
 #[derive(Clone, Debug)]
@@ -75,6 +75,7 @@ pub enum Binder {
 pub enum Expr {
     Literal(Span, LitId),
     Ident(Span, Ident),
+    Field(Box<Expr>, Ident),
     List(Span, Vec<Expr>),
     Let(Binder, Box<Expr>, Box<Expr>),
     Lambda(Span, FunId),
