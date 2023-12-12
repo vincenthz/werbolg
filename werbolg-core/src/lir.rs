@@ -1,6 +1,7 @@
 //! lowlevel IR
 
 use super::basic::*;
+use super::code::{Code, InstructionAddress};
 use super::id::{ConstrId, FunId, LitId};
 use super::location::*;
 use super::symbols::{IdVec, SymbolsTable, SymbolsTableData};
@@ -12,6 +13,7 @@ pub struct Module {
     pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
     pub funs_tbl: SymbolsTable<FunId>,
     pub funs: IdVec<FunId, FunDef>,
+    pub code: Code,
 }
 
 /*
@@ -38,6 +40,7 @@ pub struct FunDef {
     pub name: Option<Ident>,
     pub vars: Vec<Variable>,
     pub body: Expr,
+    pub code_pos: InstructionAddress,
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +89,26 @@ pub enum Expr {
         then_expr: Box<Spanned<Expr>>,
         else_expr: Box<Spanned<Expr>>,
     },
+}
+
+#[derive(Clone, Debug)]
+pub enum Statement {
+    /// Push a literal value on the stack
+    PushLiteral(LitId),
+    /// Fetch the ident from the current bindings and push its value on the stack
+    FetchIdent(Ident),
+    /// Access a field in a structure value as stack[top]
+    AccessField(Ident),
+    /// Call the function on the stack with the N value in arguments.
+    ///
+    /// expecting N+1 value on the value stack
+    Call(usize),
+    /// Jump by usize instructions
+    Jump(usize),
+    /// Jump by usize instructions if stack[top] is true
+    CondJump(usize),
+    /// Return from call
+    Ret,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

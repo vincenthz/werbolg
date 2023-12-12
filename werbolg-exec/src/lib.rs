@@ -3,10 +3,12 @@
 
 extern crate alloc;
 
+use value::ValueFun;
 use werbolg_core as ir;
 use werbolg_core::lir;
 
 mod bindings;
+mod exec2;
 mod location;
 mod stack;
 mod value;
@@ -25,6 +27,7 @@ pub struct ExecutionMachine<'m, T> {
     pub stacktrace: Vec<Location>,
     pub stack: ExecutionStack<'m>,
     pub userdata: T,
+    pub ip: usize,
 }
 
 pub type BindingValue = Value;
@@ -39,6 +42,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
             stacktrace: Vec::new(),
             stack: ExecutionStack::new(),
             userdata,
+            ip: 0,
         }
     }
 
@@ -51,7 +55,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
     }
 
     pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
-        let id = NifId(self.nifs.len());
+        let id = NifId(self.nifs.len() as u32);
         self.nifs_binds.add(ir::Ident::from(ident), id);
         self.nifs.push(NIF {
             name: ident,
@@ -84,9 +88,9 @@ impl<'m, T> ExecutionMachine<'m, T> {
                 self.module
                     .funs_tbl
                     .get(ident)
-                    .map(|symbolic| Value::Fun(symbolic))
+                    .map(|symbolic| Value::from(symbolic))
             })
-            .or_else(|| self.nifs_binds.get(ident).map(|e| Value::NativeFun(*e)));
+            .or_else(|| self.nifs_binds.get(ident).map(|e| Value::from(*e)));
         match bind {
             None => Err(ExecutionError::MissingBinding(ident.clone())),
             Some(val) => Ok(val),
@@ -195,7 +199,7 @@ fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m lir::Expr) -> Result<(),
         }
         lir::Expr::Field(expr, ident) => em.stack.push_work1(ExecutionAtom::Field(ident), expr),
         lir::Expr::Lambda(_span, fundef) => {
-            let val = Value::Fun(*fundef);
+            let val = Value::Fun(value::ValueFun::Fun(*fundef));
             em.stack.push_value(val)
         }
         lir::Expr::Let(ident, e1, e2) => em
@@ -305,24 +309,11 @@ fn process_call<'m, T>(
     let Some(first) = values.next() else {
         return Ok(Some(Value::Unit));
     };
-    let first_k = (&first).into();
 
-    match first {
-        Value::List(_)
-        | Value::Bool(_)
-        | Value::Number(_)
-        | Value::String(_)
-        | Value::Decimal(_)
-        | Value::Bytes(_)
-        | Value::Opaque(_)
-        | Value::OpaqueMut(_)
-        | Value::Struct(_, _)
-        | Value::Enum(_, _)
-        | Value::Unit => Err(ExecutionError::CallingNotFunc {
-            location: location.clone(),
-            value_is: first_k,
-        }),
-        Value::Fun(symbol) => match em.module.funs.get(symbol) {
+    let first_call = first.fun()?;
+
+    match first_call {
+        ValueFun::Fun(funid) => match em.module.funs.get(funid) {
             Some(fundef) => {
                 em.scope_enter(&location);
                 check_arity(fundef.vars.len(), number_args - 1)?;
@@ -336,10 +327,10 @@ fn process_call<'m, T>(
                 panic!("internal error: fun of symbol that doens't exist")
             }
         },
-        Value::NativeFun(nifid) => {
+        ValueFun::Native(nifid) => {
             em.scope_enter(&location);
             let args = values.collect::<Vec<_>>();
-            let res = match &em.nifs[nifid.0].call {
+            let res = match &em.nifs[nifid.0 as usize].call {
                 NIFCall::Pure(nif) => nif(&args)?,
                 NIFCall::Mut(nif) => nif(em, &args)?,
             };

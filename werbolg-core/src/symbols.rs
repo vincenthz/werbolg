@@ -40,6 +40,12 @@ impl<ID: IdRemapper, T> core::ops::Index<ID> for IdVec<ID, T> {
     }
 }
 
+impl<ID: IdRemapper, T> core::ops::IndexMut<ID> for IdVec<ID, T> {
+    fn index_mut(&mut self, index: ID) -> &mut T {
+        &mut self.vec[index.uncat().0 as usize]
+    }
+}
+
 impl<ID: IdRemapper, T> IdVec<ID, T> {
     pub fn new() -> Self {
         Self {
@@ -65,6 +71,10 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
         let id = Id(self.vec.len() as u32);
         self.vec.push(v);
         ID::cat(id)
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.vec.iter_mut()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (ID, &T)> {
@@ -100,10 +110,26 @@ impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
         }
     }
 
+    pub fn from_idvec(id_vec: IdVec<ID, T>, first: ID) -> Self {
+        Self {
+            id_vec,
+            ofs: first.uncat().0,
+        }
+    }
+
     pub fn push(&mut self, v: T) -> ID {
         let id = self.id_vec.push(v).uncat();
         let new_id = Id(id.0 + self.ofs as u32);
         ID::cat(new_id)
+    }
+
+    pub fn remap<F>(&mut self, f: F)
+    where
+        F: Fn(&mut T) -> (),
+    {
+        for elem in self.id_vec.iter_mut() {
+            f(elem)
+        }
     }
 }
 

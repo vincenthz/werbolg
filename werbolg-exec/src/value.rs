@@ -23,12 +23,17 @@ pub enum Value {
     Struct(ConstrId, Box<[Value]>),
     Enum(u32, Box<[Value]>),
     // Functions
-    NativeFun(NifId),
+    Fun(ValueFun),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ValueFun {
+    Native(NifId),
     Fun(FunId),
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NifId(pub(crate) usize);
+pub struct NifId(pub(crate) u32);
 
 #[derive(Debug, Clone)]
 pub enum ValueKind {
@@ -47,6 +52,18 @@ pub enum ValueKind {
     Fun,
 }
 
+impl From<NifId> for Value {
+    fn from(value: NifId) -> Self {
+        Value::Fun(ValueFun::Native(value))
+    }
+}
+
+impl From<FunId> for Value {
+    fn from(value: FunId) -> Self {
+        Value::Fun(ValueFun::Fun(value))
+    }
+}
+
 impl<'a> From<&'a Value> for ValueKind {
     fn from(value: &'a Value) -> Self {
         match value {
@@ -61,7 +78,6 @@ impl<'a> From<&'a Value> for ValueKind {
             Value::List(_) => ValueKind::List,
             Value::Struct(_, _) => ValueKind::Struct,
             Value::Enum(_, _) => ValueKind::Enum,
-            Value::NativeFun(_) => ValueKind::NativeFun,
             Value::Fun(_) => ValueKind::Fun,
         }
     }
@@ -164,6 +180,16 @@ impl Value {
             Value::Opaque(o) => o.downcast_ref(),
             _ => Err(ExecutionError::ValueKindUnexpected {
                 value_expected: ValueKind::Opaque,
+                value_got: self.into(),
+            }),
+        }
+    }
+
+    pub fn fun(&self) -> Result<ValueFun, ExecutionError> {
+        match self {
+            Value::Fun(valuefun) => Ok(*valuefun),
+            _ => Err(ExecutionError::ValueKindUnexpected {
+                value_expected: ValueKind::Fun,
                 value_got: self.into(),
             }),
         }
