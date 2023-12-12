@@ -197,6 +197,13 @@ fn exprs(span: Span, exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
     if build_list {
         Ok(ir::Expr::List(span, params))
     } else {
+        let params = params
+            .into_iter()
+            .filter(|e| match e {
+                ir::Expr::List(_, e) if e.is_empty() => false,
+                _ => true,
+            })
+            .collect();
         Ok(ir::Expr::Call(span, params))
     }
 }

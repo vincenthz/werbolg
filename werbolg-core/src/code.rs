@@ -1,8 +1,10 @@
+use hashbrown::HashMap;
+
 use super::id::IdRemapper;
 use super::lir;
 use super::symbols::{IdVec, IdVecAfter};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InstructionAddress(u32);
 
 impl IdRemapper for InstructionAddress {
@@ -21,6 +23,14 @@ impl core::ops::AddAssign<InstructionDiff> for InstructionAddress {
     }
 }
 
+impl core::ops::Sub for InstructionAddress {
+    type Output = InstructionDiff;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        InstructionDiff(self.0 - rhs.0)
+    }
+}
+
 pub struct Code {
     stmts: IdVec<InstructionAddress, lir::Statement>,
     temps: usize,
@@ -29,7 +39,7 @@ pub struct Code {
 /// placeholder instruction
 pub struct CodeRef(InstructionAddress);
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct InstructionDiff(u32);
 
 impl Code {
@@ -50,7 +60,7 @@ impl Code {
 
     pub fn push_temp(&mut self) -> CodeRef {
         let r = self.position();
-        self.stmts.push(lir::Statement::CondJump(0));
+        self.stmts.push(lir::Statement::IgnoreOne);
         self.temps += 1;
         CodeRef(r)
     }
@@ -65,5 +75,31 @@ impl Code {
         self.stmts
             .concat(&mut IdVecAfter::from_idvec(later.stmts, ofs));
         InstructionDiff(ofs.0)
+    }
+}
+
+use crate::{lir::FunDef, FunId};
+
+impl Code {
+    pub fn dump(&self, fundefs: &IdVec<FunId, FunDef>) {
+        let mut place = HashMap::new();
+        for (funid, fundef) in fundefs.iter() {
+            place.insert(fundef.code_pos, funid);
+        }
+
+        for (ia, stmt) in self.stmts.iter() {
+            if let Some(funid) = place.get(&ia) {
+                let fundef = &fundefs[*funid];
+                println!(
+                    "[{}]",
+                    fundef
+                        .name
+                        .as_ref()
+                        .map(|n| format!("{:?}", n))
+                        .unwrap_or(format!("{:?}", funid))
+                );
+            }
+            println!("{:04x}  : {:?}", ia.0, stmt)
+        }
     }
 }

@@ -132,6 +132,7 @@ fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, 
     let lir_vars = vars.into_iter().map(|v| lir::Variable(v.0)).collect();
     rewrite_expr2(state, body.clone())?;
     let lir_body = rewrite_expr(state, body)?;
+    state.write_code().push(lir::Statement::Ret);
     Ok(lir::FunDef {
         name,
         vars: lir_vars,
@@ -259,14 +260,29 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
         }
         Expr::Let(binder, body, in_expr) => {
             rewrite_boxed_expr2(state, body)?;
-            todo!()
+            match binder {
+                Binder::Ident(ident) => {
+                    state.write_code().push(lir::Statement::LocalBind(ident));
+                }
+                Binder::Ignore => {
+                    state.write_code().push(lir::Statement::IgnoreOne);
+                }
+                Binder::Unit => {
+                    // TODO, not sure ignore one is the best to do here
+                    state.write_code().push(lir::Statement::IgnoreOne);
+                }
+            }
+            rewrite_boxed_expr2(state, in_expr)?;
+            Ok(())
         }
         Expr::Field(expr, ident) => {
-            todo!()
+            rewrite_boxed_expr2(state, expr)?;
+            state.write_code().push(lir::Statement::AccessField(ident));
+            Ok(())
         }
         Expr::Lambda(span, fundef) => {
             let prev = state.set_in_lambda();
-            //rewrite_fun();
+            rewrite_fun(state, *fundef)?;
 
             state.restore_codestate(prev);
             todo!()
@@ -286,11 +302,38 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             then_expr,
             else_expr,
         } => {
-            todo!()
+            rewrite_boxed_sexpr2(state, cond)?;
+
+            let cond_jump_ref = state.write_code().push_temp();
+            let cond_pos = state.get_instruction_address();
+
+            rewrite_boxed_sexpr2(state, then_expr)?;
+
+            let jump_else_ref = state.write_code().push_temp();
+            let else_pos = state.get_instruction_address();
+            rewrite_boxed_sexpr2(state, else_expr)?;
+
+            let end_pos = state.get_instruction_address();
+
+            state
+                .write_code()
+                .resolve_temp(cond_jump_ref, lir::Statement::CondJump(else_pos - cond_pos));
+            state
+                .write_code()
+                .resolve_temp(jump_else_ref, lir::Statement::Jump(end_pos - else_pos));
+
+            Ok(())
         }
     }
 }
 
 fn rewrite_boxed_expr2(state: &mut RewriteState, expr: Box<Expr>) -> Result<(), CompilationError> {
-    Ok(rewrite_expr2(state, expr.as_ref().clone())?)
+    Ok(rewrite_expr2(state, *expr)?)
+}
+
+fn rewrite_boxed_sexpr2(
+    state: &mut RewriteState,
+    expr: Box<Spanned<Expr>>,
+) -> Result<(), CompilationError> {
+    Ok(rewrite_expr2(state, (*expr).unspan())?)
 }

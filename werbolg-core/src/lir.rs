@@ -1,5 +1,7 @@
 //! lowlevel IR
 
+use crate::code::InstructionDiff;
+
 use super::basic::*;
 use super::code::{Code, InstructionAddress};
 use super::id::{ConstrId, FunId, LitId};
@@ -99,14 +101,18 @@ pub enum Statement {
     FetchIdent(Ident),
     /// Access a field in a structure value as stack[top]
     AccessField(Ident),
+    /// Bind Locally a value
+    LocalBind(Ident),
+    /// Ignore a value from the stack
+    IgnoreOne,
     /// Call the function on the stack with the N value in arguments.
     ///
     /// expecting N+1 value on the value stack
     Call(usize),
-    /// Jump by usize instructions
-    Jump(usize),
-    /// Jump by usize instructions if stack[top] is true
-    CondJump(usize),
+    /// Jump by N instructions
+    Jump(InstructionDiff),
+    /// Jump by N instructions if stack[top] is true
+    CondJump(InstructionDiff),
     /// Return from call
     Ret,
 }

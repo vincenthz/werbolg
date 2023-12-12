@@ -30,8 +30,13 @@ impl<'m> ExecutionStack<'m> {
     }
 
     pub fn push_work(&mut self, constr: ExecutionAtom<'m>, exprs: &'m [lir::Expr]) {
-        assert!(!exprs.is_empty());
-        self.work.push(Work::Many(exprs));
+        if exprs.len() == 0 {
+            self.work.push(Work::Empty)
+        } else if exprs.len() == 1 {
+            self.work.push(Work::One(&exprs[0]))
+        } else {
+            self.work.push(Work::Many(exprs));
+        }
         self.constr.push(constr);
     }
 

@@ -113,6 +113,7 @@ fn main() -> Result<(), ()> {
     let exec_module = compile(module).expect("no compilation error");
 
     //exec_module.print();
+    exec_module.code.dump(&exec_module.funs);
 
     let mut em = ExecutionMachine::new(&exec_module, ());
     em.add_native_pure_fun("+", nif_plus);
