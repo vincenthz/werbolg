@@ -3,7 +3,7 @@
 extern crate alloc;
 
 mod basic;
-mod code;
+pub mod code;
 mod environ;
 mod id;
 mod ir;
@@ -13,6 +13,7 @@ mod symbols;
 pub mod lir;
 
 pub use basic::*;
+pub use code::InstructionAddress;
 pub use id::{ConstrId, FunId, Id, LitId};
 pub use ir::*;
 pub use location::*;
@@ -121,18 +122,19 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
         constrs: state.constrs,
         funs: funs,
         funs_tbl: state.funs_tbl,
-        code: state.main_code,
+        code: state.main_code.finalize(),
     })
 }
 
 fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, CompilationError> {
     let FunDef { name, vars, body } = fundef;
+    let arity = vars.len();
 
     let code_pos = state.get_instruction_address();
     let lir_vars = vars.into_iter().map(|v| lir::Variable(v.0)).collect();
     rewrite_expr2(state, body.clone())?;
     let lir_body = rewrite_expr(state, body)?;
-    state.write_code().push(lir::Statement::Ret);
+    state.write_code().push(lir::Statement::Ret(arity));
     Ok(lir::FunDef {
         name,
         vars: lir_vars,
@@ -255,7 +257,7 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             state.write_code().push(lir::Statement::FetchIdent(ident));
             Ok(())
         }
-        Expr::List(span, l) => {
+        Expr::List(_span, l) => {
             todo!()
         }
         Expr::Let(binder, body, in_expr) => {
@@ -280,14 +282,14 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             state.write_code().push(lir::Statement::AccessField(ident));
             Ok(())
         }
-        Expr::Lambda(span, fundef) => {
+        Expr::Lambda(_span, fundef) => {
             let prev = state.set_in_lambda();
             rewrite_fun(state, *fundef)?;
 
             state.restore_codestate(prev);
             todo!()
         }
-        Expr::Call(span, args) => {
+        Expr::Call(_span, args) => {
             assert!(args.len() > 0);
             let len = args.len() - 1;
             for arg in args {

@@ -15,7 +15,7 @@ pub struct Module {
     pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
     pub funs_tbl: SymbolsTable<FunId>,
     pub funs: IdVec<FunId, FunDef>,
-    pub code: Code,
+    pub code: IdVec<InstructionAddress, Statement>,
 }
 
 /*
@@ -114,7 +114,7 @@ pub enum Statement {
     /// Jump by N instructions if stack[top] is true
     CondJump(InstructionDiff),
     /// Return from call
-    Ret,
+    Ret(usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

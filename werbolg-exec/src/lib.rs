@@ -3,12 +3,13 @@
 
 extern crate alloc;
 
+use ir::InstructionAddress;
 use value::ValueFun;
 use werbolg_core as ir;
 use werbolg_core::lir;
 
 mod bindings;
-mod exec2;
+pub mod exec2;
 mod location;
 mod stack;
 mod value;
@@ -25,9 +26,53 @@ pub struct ExecutionMachine<'m, T> {
     pub module: &'m lir::Module,
     pub local: BindingsStack<BindingValue>,
     pub stacktrace: Vec<Location>,
+    pub rets: Vec<InstructionAddress>,
     pub stack: ExecutionStack<'m>,
+    pub stack2: ValueStack,
     pub userdata: T,
-    pub ip: usize,
+    pub ip: ir::InstructionAddress,
+}
+
+pub struct ValueStack {
+    values: Vec<Value>,
+}
+
+impl ValueStack {
+    pub fn new() -> Self {
+        Self { values: Vec::new() }
+    }
+
+    pub fn push_call(&mut self, call: Value, args: &[Value]) {
+        self.values.push(call);
+        self.values.extend_from_slice(args);
+    }
+
+    pub fn pop_call(&mut self, arity: usize) {
+        for _ in 0..arity + 1 {
+            self.values.pop();
+        }
+    }
+
+    pub fn get_call(&self, arity: usize) -> &Value {
+        let top = self.values.len();
+        &self.values[top - arity - 1]
+    }
+
+    pub fn push_value(&mut self, arg: Value) {
+        self.values.push(arg);
+    }
+
+    pub fn pop_value(&mut self) -> Value {
+        self.values.pop().expect("can be popped")
+    }
+
+    pub fn get_call_and_args(&self, arity: usize) -> (&Value, &[Value]) {
+        let top = self.values.len();
+        (
+            &self.values[top - arity - 1],
+            &self.values[top - arity..top],
+        )
+    }
 }
 
 pub type BindingValue = Value;
@@ -41,8 +86,10 @@ impl<'m, T> ExecutionMachine<'m, T> {
             local: BindingsStack::new(),
             stacktrace: Vec::new(),
             stack: ExecutionStack::new(),
+            stack2: ValueStack::new(),
+            rets: Vec::new(),
             userdata,
-            ip: 0,
+            ip: InstructionAddress::default(),
         }
     }
 
@@ -77,6 +124,13 @@ impl<'m, T> ExecutionMachine<'m, T> {
         f: fn(&[Value]) -> Result<Value, ExecutionError>,
     ) {
         self.add_native_call(ident, NIFCall::Pure(f))
+    }
+
+    pub fn resolve_fun(&self, ident: &ir::Ident) -> Option<&'m lir::FunDef> {
+        self.module
+            .funs_tbl
+            .get(ident)
+            .map(|funid| &self.module.funs[funid])
     }
 
     pub fn get_binding(&self, ident: &ir::Ident) -> Result<Value, ExecutionError> {

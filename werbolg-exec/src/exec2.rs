@@ -2,30 +2,8 @@ use super::location::Location;
 use super::NIFCall;
 use super::{ExecutionError, ExecutionMachine, Value};
 use alloc::{string::String, vec, vec::Vec};
+use ir::InstructionAddress;
 use werbolg_core as ir;
-
-pub struct ValueStack {
-    values: Vec<Value>,
-}
-
-impl ValueStack {
-    pub fn new() -> Self {
-        Self { values: Vec::new() }
-    }
-
-    pub fn push_call(&mut self, call: Value, args: &[Value]) {
-        self.values.push(call);
-        self.values.extend_from_slice(args);
-    }
-
-    pub fn get_call(&self, arity: usize) -> (&Value, &[Value]) {
-        let top = self.values.len();
-        (
-            &self.values[top - arity - 1],
-            &self.values[top - arity..top],
-        )
-    }
-}
 
 pub fn exec<'module, T>(
     em: &mut ExecutionMachine<'module, T>,
@@ -34,20 +12,13 @@ pub fn exec<'module, T>(
 ) -> Result<Value, ExecutionError> {
     // setup the initial value stack, where we inject a dummy function call and then
     // the arguments to this function
-    let mut vstack = ValueStack::new();
-    vstack.push_call(em.get_binding(&call)?, args);
+    em.stack2.push_call(em.get_binding(&call)?, args);
 
-    match process_call(
-        em,
-        &Location {
-            module: String::from(""),
-            span: ir::Span { start: 0, end: 0 },
-        },
-        &mut vstack,
-        args.len(),
-    )? {
-        None => (),
-        Some(_) => {
+    match process_call(em, args.len())? {
+        CallResult::Jump(ip) => {
+            em.ip = ip;
+        }
+        CallResult::Value(_) => {
             panic!("NIF cannot be used as entry point")
         }
     };
@@ -60,20 +31,80 @@ pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, E
         if em.aborted() {
             return Err(ExecutionError::Abort);
         }
+        let instr = &em.module.code[em.ip];
+        em.ip = em.ip.next();
+        match instr {
+            ir::lir::Statement::PushLiteral(lit) => {
+                let literal = &em.module.lits[*lit];
+                em.stack2.push_value(Value::from(literal))
+            }
+            ir::lir::Statement::FetchIdent(ident) => em.stack2.push_value(em.get_binding(ident)?),
+            ir::lir::Statement::AccessField(_) => todo!(),
+            ir::lir::Statement::LocalBind(_) => todo!(),
+            ir::lir::Statement::IgnoreOne => todo!(),
+            ir::lir::Statement::Call(arity) => {
+                let val = process_call(em, *arity)?;
+                match val {
+                    CallResult::Jump(fun_ip) => {
+                        let saved = em.ip;
+                        em.rets.push(saved);
+                        em.ip = fun_ip;
+                    }
+                    CallResult::Value(nif_val) => {
+                        em.stack2.pop_call(*arity);
+                        em.stack2.push_value(nif_val);
+                    }
+                }
+            }
+            ir::lir::Statement::Jump(_) => todo!(),
+            ir::lir::Statement::CondJump(_) => todo!(),
+            ir::lir::Statement::Ret(arity) => {
+                let val = em.stack2.pop_value();
+                em.stack2.pop_call(*arity);
+                match em.rets.pop() {
+                    None => break Ok(val),
+                    Some(ret) => {
+                        em.stack2.push_value(val);
+                        em.ip = ret;
+                    }
+                }
+            }
+        }
     }
+}
+
+enum CallResult {
+    Jump(InstructionAddress),
+    Value(Value),
 }
 
 fn process_call<'m, T>(
     em: &mut ExecutionMachine<'m, T>,
-    location: &Location,
-    args: &mut ValueStack,
     arity: usize,
-) -> Result<Option<Value>, ExecutionError> {
-    let number_args = arity;
-
-    let (first, args) = args.get_call(arity);
-
-    todo!()
+) -> Result<CallResult, ExecutionError> {
+    let first = em.stack2.get_call(arity);
+    let fun = first.fun()?;
+    match fun {
+        crate::value::ValueFun::Native(nifid) => {
+            let res = match &em.nifs[nifid.0 as usize].call {
+                NIFCall::Pure(nif) => {
+                    let (_first, args) = em.stack2.get_call_and_args(arity);
+                    nif(args)?
+                }
+                NIFCall::Mut(nif) => {
+                    todo!()
+                }
+            };
+            Ok(CallResult::Value(res))
+        }
+        crate::value::ValueFun::Fun(funid) => {
+            // setup the instruction pointer to the called function
+            let call_def = &em.module.funs[funid];
+            //let saved = em.ip.next();
+            //em.ip = call_def.code_pos;
+            Ok(CallResult::Jump(call_def.code_pos))
+        }
+    }
 }
 
 fn check_arity(expected: usize, got: usize) -> Result<(), ExecutionError> {

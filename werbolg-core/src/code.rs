@@ -4,8 +4,14 @@ use super::id::IdRemapper;
 use super::lir;
 use super::symbols::{IdVec, IdVecAfter};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct InstructionAddress(u32);
+
+impl InstructionAddress {
+    pub fn next(self) -> Self {
+        Self(self.0 + 1)
+    }
+}
 
 impl IdRemapper for InstructionAddress {
     fn uncat(self) -> crate::Id {
@@ -76,30 +82,32 @@ impl Code {
             .concat(&mut IdVecAfter::from_idvec(later.stmts, ofs));
         InstructionDiff(ofs.0)
     }
+
+    pub fn finalize(self) -> IdVec<InstructionAddress, lir::Statement> {
+        self.stmts
+    }
 }
 
 use crate::{lir::FunDef, FunId};
 
-impl Code {
-    pub fn dump(&self, fundefs: &IdVec<FunId, FunDef>) {
-        let mut place = HashMap::new();
-        for (funid, fundef) in fundefs.iter() {
-            place.insert(fundef.code_pos, funid);
-        }
+pub fn code_dump(code: &IdVec<InstructionAddress, lir::Statement>, fundefs: &IdVec<FunId, FunDef>) {
+    let mut place = HashMap::new();
+    for (funid, fundef) in fundefs.iter() {
+        place.insert(fundef.code_pos, funid);
+    }
 
-        for (ia, stmt) in self.stmts.iter() {
-            if let Some(funid) = place.get(&ia) {
-                let fundef = &fundefs[*funid];
-                println!(
-                    "[{}]",
-                    fundef
-                        .name
-                        .as_ref()
-                        .map(|n| format!("{:?}", n))
-                        .unwrap_or(format!("{:?}", funid))
-                );
-            }
-            println!("{:04x}  : {:?}", ia.0, stmt)
+    for (ia, stmt) in code.iter() {
+        if let Some(funid) = place.get(&ia) {
+            let fundef = &fundefs[*funid];
+            println!(
+                "[{}]",
+                fundef
+                    .name
+                    .as_ref()
+                    .map(|n| format!("{:?}", n))
+                    .unwrap_or(format!("{:?}", funid))
+            );
         }
+        println!("{:04x}  : {:?}", ia.0, stmt)
     }
 }
