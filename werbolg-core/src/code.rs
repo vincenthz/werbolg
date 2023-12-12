@@ -37,6 +37,12 @@ impl core::ops::Sub for InstructionAddress {
     }
 }
 
+impl core::fmt::Display for InstructionAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:04x}_{:04x}", self.0 >> 16, self.0 & 0xffff)
+    }
+}
+
 pub struct Code {
     stmts: IdVec<InstructionAddress, lir::Statement>,
     temps: usize,
@@ -108,6 +114,6 @@ pub fn code_dump(code: &IdVec<InstructionAddress, lir::Statement>, fundefs: &IdV
                     .unwrap_or(format!("{:?}", funid))
             );
         }
-        println!("{:04x}  : {:?}", ia.0, stmt)
+        println!("{}  {:?}", ia, stmt)
     }
 }

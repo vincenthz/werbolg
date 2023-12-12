@@ -7,6 +7,7 @@ use ir::InstructionAddress;
 use value::ValueFun;
 use werbolg_core as ir;
 use werbolg_core::lir;
+use werbolg_core::lir::CallArity;
 
 mod bindings;
 pub mod exec2;
@@ -26,7 +27,7 @@ pub struct ExecutionMachine<'m, T> {
     pub module: &'m lir::Module,
     pub local: BindingsStack<BindingValue>,
     pub stacktrace: Vec<Location>,
-    pub rets: Vec<InstructionAddress>,
+    pub rets: Vec<(InstructionAddress, CallArity)>,
     pub stack: ExecutionStack<'m>,
     pub stack2: ValueStack,
     pub userdata: T,
@@ -47,15 +48,15 @@ impl ValueStack {
         self.values.extend_from_slice(args);
     }
 
-    pub fn pop_call(&mut self, arity: usize) {
-        for _ in 0..arity + 1 {
+    pub fn pop_call(&mut self, arity: CallArity) {
+        for _ in 0..(arity.0 as usize) + 1 {
             self.values.pop();
         }
     }
 
-    pub fn get_call(&self, arity: usize) -> &Value {
+    pub fn get_call(&self, arity: CallArity) -> &Value {
         let top = self.values.len();
-        &self.values[top - arity - 1]
+        &self.values[top - (arity.0 as usize) - 1]
     }
 
     pub fn push_value(&mut self, arg: Value) {
@@ -66,11 +67,11 @@ impl ValueStack {
         self.values.pop().expect("can be popped")
     }
 
-    pub fn get_call_and_args(&self, arity: usize) -> (&Value, &[Value]) {
+    pub fn get_call_and_args(&self, arity: CallArity) -> (&Value, &[Value]) {
         let top = self.values.len();
         (
-            &self.values[top - arity - 1],
-            &self.values[top - arity..top],
+            &self.values[top - (arity.0 as usize) - 1],
+            &self.values[top - (arity.0 as usize)..top],
         )
     }
 }

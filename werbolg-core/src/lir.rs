@@ -108,14 +108,17 @@ pub enum Statement {
     /// Call the function on the stack with the N value in arguments.
     ///
     /// expecting N+1 value on the value stack
-    Call(usize),
+    Call(CallArity),
     /// Jump by N instructions
     Jump(InstructionDiff),
     /// Jump by N instructions if stack[top] is true
     CondJump(InstructionDiff),
     /// Return from call
-    Ret(usize),
+    Ret,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct CallArity(pub u32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Variable(pub Spanned<Ident>);

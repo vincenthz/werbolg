@@ -127,9 +127,15 @@ fn main() -> Result<(), ()> {
 
     println!("{:?}", val);
 
-    let val =
-        werbolg_exec::exec2::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
+    match werbolg_exec::exec2::exec(&mut em, Ident::from("main"), &[]) {
+        Err(e) => {
+            println!("error: {:?} at {}", e, em.ip);
+            return Err(());
+        }
+        Ok(val) => {
+            println!("{:?}", val);
+        }
+    }
 
-    println!("{:?}", val);
     Ok(())
 }

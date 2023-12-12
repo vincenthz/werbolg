@@ -1,9 +1,8 @@
-use super::location::Location;
 use super::NIFCall;
 use super::{ExecutionError, ExecutionMachine, Value};
-use alloc::{string::String, vec, vec::Vec};
 use ir::InstructionAddress;
 use werbolg_core as ir;
+use werbolg_core::lir::CallArity;
 
 pub fn exec<'module, T>(
     em: &mut ExecutionMachine<'module, T>,
@@ -14,7 +13,7 @@ pub fn exec<'module, T>(
     // the arguments to this function
     em.stack2.push_call(em.get_binding(&call)?, args);
 
-    match process_call(em, args.len())? {
+    match process_call(em, CallArity(args.len() as u32))? {
         CallResult::Jump(ip) => {
             em.ip = ip;
         }
@@ -47,7 +46,7 @@ pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, E
                 match val {
                     CallResult::Jump(fun_ip) => {
                         let saved = em.ip;
-                        em.rets.push(saved);
+                        em.rets.push((saved, *arity));
                         em.ip = fun_ip;
                     }
                     CallResult::Value(nif_val) => {
@@ -56,14 +55,16 @@ pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, E
                     }
                 }
             }
-            ir::lir::Statement::Jump(_) => todo!(),
+            ir::lir::Statement::Jump(d) => {
+                em.ip += *d;
+            }
             ir::lir::Statement::CondJump(_) => todo!(),
-            ir::lir::Statement::Ret(arity) => {
+            ir::lir::Statement::Ret => {
                 let val = em.stack2.pop_value();
-                em.stack2.pop_call(*arity);
                 match em.rets.pop() {
                     None => break Ok(val),
-                    Some(ret) => {
+                    Some((ret, arity)) => {
+                        em.stack2.pop_call(arity);
                         em.stack2.push_value(val);
                         em.ip = ret;
                     }
@@ -80,7 +81,7 @@ enum CallResult {
 
 fn process_call<'m, T>(
     em: &mut ExecutionMachine<'m, T>,
-    arity: usize,
+    arity: CallArity,
 ) -> Result<CallResult, ExecutionError> {
     let first = em.stack2.get_call(arity);
     let fun = first.fun()?;
@@ -98,10 +99,7 @@ fn process_call<'m, T>(
             Ok(CallResult::Value(res))
         }
         crate::value::ValueFun::Fun(funid) => {
-            // setup the instruction pointer to the called function
             let call_def = &em.module.funs[funid];
-            //let saved = em.ip.next();
-            //em.ip = call_def.code_pos;
             Ok(CallResult::Jump(call_def.code_pos))
         }
     }

@@ -128,13 +128,12 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 
 fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, CompilationError> {
     let FunDef { name, vars, body } = fundef;
-    let arity = vars.len();
 
     let code_pos = state.get_instruction_address();
     let lir_vars = vars.into_iter().map(|v| lir::Variable(v.0)).collect();
     rewrite_expr2(state, body.clone())?;
     let lir_body = rewrite_expr(state, body)?;
-    state.write_code().push(lir::Statement::Ret(arity));
+    state.write_code().push(lir::Statement::Ret);
     Ok(lir::FunDef {
         name,
         vars: lir_vars,
@@ -295,7 +294,9 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             for arg in args {
                 rewrite_expr2(state, arg)?;
             }
-            state.write_code().push(lir::Statement::Call(len));
+            state
+                .write_code()
+                .push(lir::Statement::Call(lir::CallArity(len as u32)));
             Ok(())
         }
         Expr::If {
