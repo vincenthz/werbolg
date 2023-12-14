@@ -140,7 +140,7 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, CompilationError> {
     let FunDef { name, vars, body } = fundef;
 
-    let mut local = state.bindings.clone();
+    let mut local = BindingsStack::new();
 
     for (var_i, var) in vars.iter().enumerate() {
         local.add(var.0.clone().unspan(), BindingType::Param(var_i));

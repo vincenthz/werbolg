@@ -3,7 +3,7 @@
 use crate::code::InstructionDiff;
 
 use super::basic::*;
-use super::code::{Code, InstructionAddress};
+use super::code::InstructionAddress;
 use super::id::{ConstrId, FunId, LitId};
 use super::location::*;
 use super::symbols::{IdVec, SymbolsTable, SymbolsTableData};
