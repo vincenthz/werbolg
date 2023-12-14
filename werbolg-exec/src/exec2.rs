@@ -1,5 +1,6 @@
 use super::NIFCall;
 use super::{ExecutionError, ExecutionMachine, Value};
+use ir::code::InstructionDiff;
 use ir::InstructionAddress;
 use werbolg_core as ir;
 use werbolg_core::lir::CallArity;
@@ -14,64 +15,91 @@ pub fn exec<'module, T>(
     em.stack2.push_call(em.get_binding(&call)?, args);
 
     match process_call(em, CallArity(args.len() as u32))? {
-        CallResult::Jump(ip) => {
-            em.ip = ip;
-        }
-        CallResult::Value(_) => {
-            panic!("NIF cannot be used as entry point")
-        }
+        CallResult::Jump(ip) => em.ip_set(ip),
+        CallResult::Value(value) => return Ok(value),
     };
 
     exec_continue(em)
 }
 
 pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, ExecutionError> {
+    if em.rets.is_empty() {
+        return Err(ExecutionError::ExecutionFinished);
+    }
+
     loop {
         if em.aborted() {
             return Err(ExecutionError::Abort);
         }
-        let instr = &em.module.code[em.ip];
-        em.ip = em.ip.next();
-        match instr {
-            ir::lir::Statement::PushLiteral(lit) => {
-                let literal = &em.module.lits[*lit];
-                em.stack2.push_value(Value::from(literal))
-            }
-            ir::lir::Statement::FetchIdent(ident) => em.stack2.push_value(em.get_binding(ident)?),
-            ir::lir::Statement::AccessField(_) => todo!(),
-            ir::lir::Statement::LocalBind(_) => todo!(),
-            ir::lir::Statement::IgnoreOne => todo!(),
-            ir::lir::Statement::Call(arity) => {
-                let val = process_call(em, *arity)?;
-                match val {
-                    CallResult::Jump(fun_ip) => {
-                        let saved = em.ip;
-                        em.rets.push((saved, *arity));
-                        em.ip = fun_ip;
-                    }
-                    CallResult::Value(nif_val) => {
-                        em.stack2.pop_call(*arity);
-                        em.stack2.push_value(nif_val);
-                    }
+        match step(em)? {
+            None => {}
+            Some(v) => break Ok(v),
+        }
+    }
+}
+
+type StepResult = Result<Option<Value>, ExecutionError>;
+
+/// Step through 1 single instruction, and returning a Step Result which is either:
+///
+/// * an execution error
+/// * not an error : Either no value or a value if the execution of the program is finished
+///
+/// The step function need to update the execution IP
+pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
+    let instr = &em.module.code[em.ip];
+    match instr {
+        ir::lir::Statement::PushLiteral(lit) => {
+            let literal = &em.module.lits[*lit];
+            em.stack2.push_value(Value::from(literal));
+            em.ip_next();
+        }
+        ir::lir::Statement::FetchIdent(ident) => {
+            em.stack2.push_value(em.get_binding(ident)?);
+            em.ip_next()
+        }
+        ir::lir::Statement::AccessField(_) => todo!(),
+        ir::lir::Statement::LocalBind(_) => todo!(),
+        ir::lir::Statement::IgnoreOne => todo!(),
+        ir::lir::Statement::Call(arity) => {
+            let val = process_call(em, *arity)?;
+            match val {
+                CallResult::Jump(fun_ip) => {
+                    let saved = em.ip;
+                    em.rets.push((saved, *arity));
+                    em.ip_set(fun_ip)
+                }
+                CallResult::Value(nif_val) => {
+                    em.stack2.pop_call(*arity);
+                    em.stack2.push_value(nif_val);
+                    em.ip_next()
                 }
             }
-            ir::lir::Statement::Jump(d) => {
-                em.ip += *d;
+        }
+        ir::lir::Statement::Jump(d) => em.ip_jump(*d),
+        ir::lir::Statement::CondJump(d) => {
+            let val = em.stack2.pop_value();
+            let b = val.bool()?;
+            if b {
+                em.ip_jump(*d)
+            } else {
+                em.ip_next()
             }
-            ir::lir::Statement::CondJump(_) => todo!(),
-            ir::lir::Statement::Ret => {
-                let val = em.stack2.pop_value();
-                match em.rets.pop() {
-                    None => break Ok(val),
-                    Some((ret, arity)) => {
-                        em.stack2.pop_call(arity);
-                        em.stack2.push_value(val);
-                        em.ip = ret;
-                    }
+        }
+        ir::lir::Statement::Ret => {
+            let val = em.stack2.pop_value();
+            match em.rets.pop() {
+                None => return Ok(Some(val)),
+                Some((ret, arity)) => {
+                    em.sp_unwind(arity);
+                    em.stack2.pop_call(arity);
+                    em.stack2.push_value(val);
+                    em.ip_set(ret)
                 }
             }
         }
     }
+    Ok(None)
 }
 
 enum CallResult {

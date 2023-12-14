@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod basic;
+mod bindings;
 pub mod code;
 mod environ;
 mod id;
@@ -13,12 +14,13 @@ mod symbols;
 pub mod lir;
 
 pub use basic::*;
-pub use code::InstructionAddress;
+pub use code::{InstructionAddress, InstructionDiff};
 pub use id::{ConstrId, FunId, Id, LitId};
 pub use ir::*;
 pub use location::*;
 
 use alloc::boxed::Box;
+use bindings::BindingsStack;
 use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData, UniqueTableBuilder};
 
 struct RewriteState {
@@ -30,6 +32,14 @@ struct RewriteState {
     lambdas: IdVecAfter<FunId, lir::FunDef>,
     lambdas_code: code::Code,
     in_lambda: CodeState,
+    bindings: BindingsStack<BindingType>,
+}
+
+#[derive(Clone)]
+pub enum BindingType {
+    Global,
+    Param(usize),
+    Local(usize),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -99,6 +109,7 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
         constrs: SymbolsTableData::new(),
         lits: UniqueTableBuilder::new(),
         in_lambda: CodeState::default(),
+        bindings: BindingsStack::new(),
     };
 
     for (funid, fundef) in vecdata.into_iter() {
@@ -129,9 +140,17 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, CompilationError> {
     let FunDef { name, vars, body } = fundef;
 
+    let mut local = state.bindings.clone();
+
+    for (var_i, var) in vars.iter().enumerate() {
+        local.add(var.0.clone().unspan(), BindingType::Param(var_i));
+    }
+
     let code_pos = state.get_instruction_address();
+    rewrite_expr2(state, &mut local, body.clone())?;
+
     let lir_vars = vars.into_iter().map(|v| lir::Variable(v.0)).collect();
-    rewrite_expr2(state, body.clone())?;
+
     let lir_body = rewrite_expr(state, body)?;
     state.write_code().push(lir::Statement::Ret);
     Ok(lir::FunDef {
@@ -245,7 +264,11 @@ fn rewrite_binder(binder: Binder) -> lir::Binder {
     }
 }
 
-fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), CompilationError> {
+fn rewrite_expr2(
+    state: &mut RewriteState,
+    local: &mut BindingsStack<BindingType>,
+    expr: Expr,
+) -> Result<(), CompilationError> {
     match expr {
         Expr::Literal(_span, lit) => {
             let lit_id = state.lits.add(lit);
@@ -260,7 +283,7 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             todo!()
         }
         Expr::Let(binder, body, in_expr) => {
-            rewrite_boxed_expr2(state, body)?;
+            rewrite_expr2(state, local, *body)?;
             match binder {
                 Binder::Ident(ident) => {
                     state.write_code().push(lir::Statement::LocalBind(ident));
@@ -273,11 +296,11 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
                     state.write_code().push(lir::Statement::IgnoreOne);
                 }
             }
-            rewrite_boxed_expr2(state, in_expr)?;
+            rewrite_expr2(state, local, *in_expr)?;
             Ok(())
         }
         Expr::Field(expr, ident) => {
-            rewrite_boxed_expr2(state, expr)?;
+            rewrite_expr2(state, local, *expr)?;
             state.write_code().push(lir::Statement::AccessField(ident));
             Ok(())
         }
@@ -292,7 +315,7 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             assert!(args.len() > 0);
             let len = args.len() - 1;
             for arg in args {
-                rewrite_expr2(state, arg)?;
+                rewrite_expr2(state, local, arg)?;
             }
             state
                 .write_code()
@@ -300,21 +323,21 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             Ok(())
         }
         Expr::If {
-            span,
+            span: _,
             cond,
             then_expr,
             else_expr,
         } => {
-            rewrite_boxed_sexpr2(state, cond)?;
+            rewrite_expr2(state, local, (*cond).unspan())?;
 
             let cond_jump_ref = state.write_code().push_temp();
             let cond_pos = state.get_instruction_address();
 
-            rewrite_boxed_sexpr2(state, then_expr)?;
+            rewrite_expr2(state, local, (*then_expr).unspan())?;
 
             let jump_else_ref = state.write_code().push_temp();
             let else_pos = state.get_instruction_address();
-            rewrite_boxed_sexpr2(state, else_expr)?;
+            rewrite_expr2(state, local, (*else_expr).unspan())?;
 
             let end_pos = state.get_instruction_address();
 
@@ -328,15 +351,4 @@ fn rewrite_expr2(state: &mut RewriteState, expr: Expr) -> Result<(), Compilation
             Ok(())
         }
     }
-}
-
-fn rewrite_boxed_expr2(state: &mut RewriteState, expr: Box<Expr>) -> Result<(), CompilationError> {
-    Ok(rewrite_expr2(state, *expr)?)
-}
-
-fn rewrite_boxed_sexpr2(
-    state: &mut RewriteState,
-    expr: Box<Spanned<Expr>>,
-) -> Result<(), CompilationError> {
-    Ok(rewrite_expr2(state, (*expr).unspan())?)
 }

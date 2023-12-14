@@ -3,7 +3,7 @@
 
 extern crate alloc;
 
-use ir::InstructionAddress;
+use ir::{InstructionAddress, InstructionDiff};
 use value::ValueFun;
 use werbolg_core as ir;
 use werbolg_core::lir;
@@ -32,6 +32,7 @@ pub struct ExecutionMachine<'m, T> {
     pub stack2: ValueStack,
     pub userdata: T,
     pub ip: ir::InstructionAddress,
+    pub sp: usize,
 }
 
 pub struct ValueStack {
@@ -91,6 +92,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
             rets: Vec::new(),
             userdata,
             ip: InstructionAddress::default(),
+            sp: 0,
         }
     }
 
@@ -161,6 +163,27 @@ impl<'m, T> ExecutionMachine<'m, T> {
         self.stacktrace.pop().unwrap();
         self.local.scope_leave();
     }
+
+    #[inline]
+    pub fn ip_next(&mut self) {
+        self.ip = self.ip.next()
+    }
+
+    #[inline]
+    pub fn ip_set(&mut self, ia: InstructionAddress) {
+        self.ip = ia;
+    }
+
+    #[inline]
+    pub fn ip_jump(&mut self, id: InstructionDiff) {
+        self.ip_next();
+        self.ip += id;
+    }
+
+    #[inline]
+    pub fn sp_unwind(&mut self, arity: CallArity) {
+        //
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -187,6 +210,7 @@ pub enum ExecutionError {
     UserPanic {
         message: String,
     },
+    ExecutionFinished,
     Abort,
 }
 
@@ -195,8 +219,6 @@ pub fn exec<'module, T>(
     call: ir::Ident,
     args: &[Value],
 ) -> Result<Value, ExecutionError> {
-    //load_stmts(em, &module.statements)?;
-
     let mut values = vec![em.get_binding(&call)?];
     values.extend_from_slice(args);
 
