@@ -4,7 +4,7 @@ use crate::code::InstructionDiff;
 
 use super::basic::*;
 use super::code::InstructionAddress;
-use super::id::{ConstrId, FunId, LitId};
+use super::id::{ConstrId, FunId, GlobalId, LitId};
 use super::location::*;
 use super::symbols::{IdVec, SymbolsTable, SymbolsTableData};
 
@@ -37,10 +37,14 @@ impl Module {
 }
 */
 
+#[derive(Copy, Clone, Debug)]
+pub struct LocalStackSize(pub u32);
+
 #[derive(Clone, Debug)]
 pub struct FunDef {
     pub name: Option<Ident>,
     pub vars: Vec<Variable>,
+    pub stack_size: LocalStackSize,
     pub body: Expr,
     pub code_pos: InstructionAddress,
 }
@@ -97,12 +101,18 @@ pub enum Expr {
 pub enum Statement {
     /// Push a literal value on the stack
     PushLiteral(LitId),
-    /// Fetch the ident from the current bindings and push its value on the stack
-    FetchIdent(Ident),
+    /// Fetch from the callstack param (which is relative and before SP)
+    FetchGlobal(GlobalId),
+    /// Fetch from the callstack param (which is relative and before SP)
+    FetchFun(FunId),
+    /// Fetch from the callstack param (which is relative and before SP)
+    FetchStackParam(ParamBindIndex),
+    /// Fetch from the localstack values (which is relative and after SP)
+    FetchStackLocal(LocalBindIndex),
     /// Access a field in a structure value as stack[top]
     AccessField(Ident),
     /// Bind Locally a value
-    LocalBind(Ident),
+    LocalBind(LocalBindIndex),
     /// Ignore a value from the stack
     IgnoreOne,
     /// Call the function on the stack with the N value in arguments.
@@ -116,6 +126,12 @@ pub enum Statement {
     /// Return from call
     Ret,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct LocalBindIndex(pub u32);
+
+#[derive(Clone, Copy, Debug)]
+pub struct ParamBindIndex(pub u32);
 
 #[derive(Clone, Copy, Debug)]
 pub struct CallArity(pub u32);

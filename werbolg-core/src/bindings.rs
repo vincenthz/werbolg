@@ -32,11 +32,17 @@ impl<T> Bindings<T> {
 
 impl<T> BindingsStack<T> {
     pub fn new() -> Self {
-        Self { stack: vec![] }
+        Self {
+            stack: vec![Bindings::new()],
+        }
     }
 
     pub fn scope_enter(&mut self) {
         self.stack.push(Bindings::new())
+    }
+
+    pub fn scope_pop(&mut self) -> Bindings<T> {
+        self.stack.pop().unwrap()
     }
 
     pub fn scope_leave(&mut self) {
@@ -53,9 +59,11 @@ impl<T> BindingsStack<T> {
     }
 
     pub fn get(&self, name: &BindingName) -> Option<&T> {
-        match self.stack.last() {
-            None => None,
-            Some(bindings) => bindings.get(name),
+        for bindings in self.stack.iter().rev() {
+            if let Some(ident) = bindings.get(name) {
+                return Some(ident);
+            }
         }
+        return None;
     }
 }

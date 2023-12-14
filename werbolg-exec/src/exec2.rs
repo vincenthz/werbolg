@@ -3,7 +3,8 @@ use super::{ExecutionError, ExecutionMachine, Value};
 use ir::code::InstructionDiff;
 use ir::InstructionAddress;
 use werbolg_core as ir;
-use werbolg_core::lir::CallArity;
+use werbolg_core::lir::{CallArity, LocalStackSize};
+use werbolg_core::ValueFun;
 
 pub fn exec<'module, T>(
     em: &mut ExecutionMachine<'module, T>,
@@ -15,18 +16,23 @@ pub fn exec<'module, T>(
     em.stack2.push_call(em.get_binding(&call)?, args);
 
     match process_call(em, CallArity(args.len() as u32))? {
-        CallResult::Jump(ip) => em.ip_set(ip),
+        CallResult::Jump(ip, local) => {
+            em.ip_set(ip);
+            em.sp_set(local);
+        }
         CallResult::Value(value) => return Ok(value),
     };
 
-    exec_continue(em)
+    exec_loop(em)
 }
-
 pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, ExecutionError> {
     if em.rets.is_empty() {
         return Err(ExecutionError::ExecutionFinished);
     }
+    exec_loop(em)
+}
 
+fn exec_loop<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, ExecutionError> {
     loop {
         if em.aborted() {
             return Err(ExecutionError::Abort);
@@ -54,22 +60,42 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             em.stack2.push_value(Value::from(literal));
             em.ip_next();
         }
-        ir::lir::Statement::FetchIdent(ident) => {
-            em.stack2.push_value(em.get_binding(ident)?);
+        ir::lir::Statement::FetchGlobal(global_id) => {
+            em.sp_push_value_from_global(*global_id);
+            em.ip_next();
+        }
+        ir::lir::Statement::FetchFun(fun_id) => {
+            em.stack2.push_value(Value::Fun(ValueFun::Fun(*fun_id)));
+            em.ip_next();
+        }
+        ir::lir::Statement::FetchStackLocal(local_bind) => {
+            em.sp_push_value_from_local(*local_bind);
+            em.ip_next()
+        }
+        ir::lir::Statement::FetchStackParam(param_bind) => {
+            em.sp_push_value_from_param(*param_bind);
             em.ip_next()
         }
         ir::lir::Statement::AccessField(_) => todo!(),
-        ir::lir::Statement::LocalBind(_) => todo!(),
-        ir::lir::Statement::IgnoreOne => todo!(),
+        ir::lir::Statement::LocalBind(local_bind) => {
+            let val = em.stack2.pop_value();
+            em.sp_set_value_at(*local_bind, val);
+            em.ip_next();
+        }
+        ir::lir::Statement::IgnoreOne => {
+            let _ = em.stack2.pop_value();
+            em.ip_next();
+        }
         ir::lir::Statement::Call(arity) => {
             let val = process_call(em, *arity)?;
             match val {
-                CallResult::Jump(fun_ip) => {
-                    let saved = em.ip;
-                    em.rets.push((saved, *arity));
-                    em.ip_set(fun_ip)
+                CallResult::Jump(fun_ip, local_stack_size) => {
+                    em.rets.push((em.ip, em.sp, local_stack_size, *arity));
+                    em.ip_set(fun_ip);
+                    em.sp_set(local_stack_size);
                 }
                 CallResult::Value(nif_val) => {
+                    //em.sp_set(em.sp);
                     em.stack2.pop_call(*arity);
                     em.stack2.push_value(nif_val);
                     em.ip_next()
@@ -90,9 +116,10 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             let val = em.stack2.pop_value();
             match em.rets.pop() {
                 None => return Ok(Some(val)),
-                Some((ret, arity)) => {
-                    em.sp_unwind(arity);
-                    em.stack2.pop_call(arity);
+                Some((ret, sp, stack_size, arity)) => {
+                    em.current_stack_size = stack_size;
+                    em.sp_unwind(sp, stack_size);
+                    //em.stack2.pop_call(arity);
                     em.stack2.push_value(val);
                     em.ip_set(ret)
                 }
@@ -103,7 +130,7 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
 }
 
 enum CallResult {
-    Jump(InstructionAddress),
+    Jump(InstructionAddress, LocalStackSize),
     Value(Value),
 }
 
@@ -114,8 +141,8 @@ fn process_call<'m, T>(
     let first = em.stack2.get_call(arity);
     let fun = first.fun()?;
     match fun {
-        crate::value::ValueFun::Native(nifid) => {
-            let res = match &em.nifs[nifid.0 as usize].call {
+        ValueFun::Native(nifid) => {
+            let res = match &em.nifs[nifid].call {
                 NIFCall::Pure(nif) => {
                     let (_first, args) = em.stack2.get_call_and_args(arity);
                     nif(args)?
@@ -126,9 +153,9 @@ fn process_call<'m, T>(
             };
             Ok(CallResult::Value(res))
         }
-        crate::value::ValueFun::Fun(funid) => {
+        ValueFun::Fun(funid) => {
             let call_def = &em.module.funs[funid];
-            Ok(CallResult::Jump(call_def.code_pos))
+            Ok(CallResult::Jump(call_def.code_pos, call_def.stack_size))
         }
     }
 }

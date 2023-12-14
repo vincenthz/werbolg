@@ -3,11 +3,11 @@
 
 extern crate alloc;
 
-use ir::{InstructionAddress, InstructionDiff};
-use value::ValueFun;
+use ir::{GlobalId, InstructionAddress, InstructionDiff, NifId};
 use werbolg_core as ir;
 use werbolg_core::lir;
-use werbolg_core::lir::CallArity;
+use werbolg_core::lir::{CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex};
+use werbolg_core::{symbols::IdVec, ValueFun};
 
 mod bindings;
 pub mod exec2;
@@ -16,24 +16,36 @@ mod stack;
 mod value;
 
 use alloc::{string::String, vec, vec::Vec};
-use bindings::{Bindings, BindingsStack};
+pub use bindings::{Bindings, BindingsStack};
 pub use location::Location;
 use stack::{ExecutionAtom, ExecutionNext, ExecutionStack};
-pub use value::{NIFCall, NifId, Value, ValueKind, NIF};
+pub use value::{NIFCall, Value, ValueKind, NIF};
+
+pub struct ExecutionEnviron<'m, T> {
+    pub nifs_binds: Bindings<NifId>,
+    pub nifs: IdVec<NifId, NIF<'m, T>>,
+    pub globals: IdVec<GlobalId, Value>,
+}
 
 pub struct ExecutionMachine<'m, T> {
+    //pub environ: &Environment,
     pub nifs_binds: Bindings<NifId>,
-    pub nifs: Vec<NIF<'m, T>>,
+    pub nifs: IdVec<NifId, NIF<'m, T>>,
+    pub globals: IdVec<GlobalId, Value>,
     pub module: &'m lir::Module,
     pub local: BindingsStack<BindingValue>,
     pub stacktrace: Vec<Location>,
-    pub rets: Vec<(InstructionAddress, CallArity)>,
+    pub rets: Vec<(InstructionAddress, StackPointer, LocalStackSize, CallArity)>,
     pub stack: ExecutionStack<'m>,
     pub stack2: ValueStack,
     pub userdata: T,
     pub ip: ir::InstructionAddress,
-    pub sp: usize,
+    pub sp: StackPointer,
+    pub current_stack_size: LocalStackSize,
 }
+
+#[derive(Clone, Copy, Default)]
+pub struct StackPointer(usize);
 
 pub struct ValueStack {
     values: Vec<Value>,
@@ -42,6 +54,10 @@ pub struct ValueStack {
 impl ValueStack {
     pub fn new() -> Self {
         Self { values: Vec::new() }
+    }
+
+    pub fn top(&self) -> StackPointer {
+        StackPointer(self.values.len())
     }
 
     pub fn push_call(&mut self, call: Value, args: &[Value]) {
@@ -55,9 +71,22 @@ impl ValueStack {
         }
     }
 
+    pub fn truncate(&mut self, n: usize) {
+        self.values.truncate(n)
+    }
+
     pub fn get_call(&self, arity: CallArity) -> &Value {
         let top = self.values.len();
         &self.values[top - (arity.0 as usize) - 1]
+    }
+
+    pub fn set_at(&mut self, index: usize, value: Value) {
+        self.values[index] = value;
+    }
+
+    pub fn get_and_push(&mut self, index: usize) {
+        let value = self.values[index].clone();
+        self.push_value(value)
     }
 
     pub fn push_value(&mut self, arg: Value) {
@@ -80,10 +109,11 @@ impl ValueStack {
 pub type BindingValue = Value;
 
 impl<'m, T> ExecutionMachine<'m, T> {
-    pub fn new(module: &'m lir::Module, userdata: T) -> Self {
+    pub fn new(module: &'m lir::Module, env: ExecutionEnviron<'m, T>, userdata: T) -> Self {
         Self {
-            nifs_binds: Bindings::new(),
-            nifs: Vec::new(),
+            nifs_binds: env.nifs_binds,
+            nifs: env.nifs,
+            globals: env.globals,
             module,
             local: BindingsStack::new(),
             stacktrace: Vec::new(),
@@ -92,7 +122,8 @@ impl<'m, T> ExecutionMachine<'m, T> {
             rets: Vec::new(),
             userdata,
             ip: InstructionAddress::default(),
-            sp: 0,
+            sp: StackPointer::default(),
+            current_stack_size: LocalStackSize(0),
         }
     }
 
@@ -104,6 +135,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
         self.local.add(ident, value)
     }
 
+    /*
     pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
         let id = NifId(self.nifs.len() as u32);
         self.nifs_binds.add(ir::Ident::from(ident), id);
@@ -128,6 +160,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
     ) {
         self.add_native_call(ident, NIFCall::Pure(f))
     }
+    */
 
     pub fn resolve_fun(&self, ident: &ir::Ident) -> Option<&'m lir::FunDef> {
         self.module
@@ -181,8 +214,41 @@ impl<'m, T> ExecutionMachine<'m, T> {
     }
 
     #[inline]
-    pub fn sp_unwind(&mut self, arity: CallArity) {
-        //
+    pub fn sp_unwind(&mut self, sp: StackPointer, local_stack_size: LocalStackSize) {
+        self.stack2.truncate(sp.0 + local_stack_size.0 as usize);
+    }
+
+    #[inline]
+    pub fn sp_set_value_at(&mut self, bind_index: LocalBindIndex, value: Value) {
+        let index = self.sp.0 + bind_index.0 as usize;
+        self.stack2.set_at(index, value);
+    }
+
+    #[inline]
+    pub fn sp_push_value_from_global(&mut self, bind_index: GlobalId) {
+        let val = self.globals[bind_index].clone();
+        self.stack2.push_value(val);
+    }
+
+    #[inline]
+    pub fn sp_push_value_from_local(&mut self, bind_index: LocalBindIndex) {
+        let index = self.sp.0 + bind_index.0 as usize;
+        self.stack2.get_and_push(index);
+    }
+
+    #[inline]
+    pub fn sp_push_value_from_param(&mut self, bind_index: ParamBindIndex) {
+        let index = self.sp.0 - 1 - bind_index.0 as usize;
+        self.stack2.get_and_push(index);
+    }
+
+    #[inline]
+    pub fn sp_set(&mut self, local_stack_size: LocalStackSize) {
+        self.sp = self.stack2.top();
+        for _ in 0..local_stack_size.0 {
+            self.stack2.push_value(Value::Unit);
+        }
+        self.current_stack_size = local_stack_size;
     }
 }
 
@@ -276,7 +342,7 @@ fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m lir::Expr) -> Result<(),
         }
         lir::Expr::Field(expr, ident) => em.stack.push_work1(ExecutionAtom::Field(ident), expr),
         lir::Expr::Lambda(_span, fundef) => {
-            let val = Value::Fun(value::ValueFun::Fun(*fundef));
+            let val = Value::Fun(ValueFun::Fun(*fundef));
             em.stack.push_value(val)
         }
         lir::Expr::Let(ident, e1, e2) => em
@@ -407,7 +473,7 @@ fn process_call<'m, T>(
         ValueFun::Native(nifid) => {
             em.scope_enter(&location);
             let args = values.collect::<Vec<_>>();
-            let res = match &em.nifs[nifid.0 as usize].call {
+            let res = match &em.nifs[nifid].call {
                 NIFCall::Pure(nif) => nif(&args)?,
                 NIFCall::Mut(nif) => nif(em, &args)?,
             };

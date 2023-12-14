@@ -9,14 +9,16 @@ mod environ;
 mod id;
 mod ir;
 mod location;
-mod symbols;
+pub mod symbols;
 
 pub mod lir;
 
 pub use basic::*;
 pub use code::{InstructionAddress, InstructionDiff};
-pub use id::{ConstrId, FunId, Id, LitId};
+pub use environ::{Environment, ValueFun};
+pub use id::{ConstrId, FunId, GlobalId, Id, LitId, NifId};
 pub use ir::*;
+use lir::ParamBindIndex;
 pub use location::*;
 
 use alloc::boxed::Box;
@@ -35,11 +37,59 @@ struct RewriteState {
     bindings: BindingsStack<BindingType>,
 }
 
-#[derive(Clone)]
+pub struct LocalBindings {
+    bindings: BindingsStack<BindingType>,
+    local: Vec<u32>,
+    max_local: u32,
+}
+
+impl LocalBindings {
+    pub fn new() -> Self {
+        Self {
+            bindings: BindingsStack::new(),
+            local: vec![0],
+            max_local: 0,
+        }
+    }
+
+    pub fn add_param(&mut self, ident: Ident, n: u32) {
+        self.bindings
+            .add(ident, BindingType::Param(ParamBindIndex(n)))
+    }
+
+    pub fn add_local(&mut self, ident: Ident) -> lir::LocalBindIndex {
+        match self.local.last_mut() {
+            None => panic!("cannot happen"),
+            Some(x) => {
+                let local = *x;
+                *x += 1;
+
+                let local = lir::LocalBindIndex(local as u32);
+                self.bindings.add(ident, BindingType::Local(local));
+                local
+            }
+        }
+    }
+
+    pub fn scope_enter(&mut self) {
+        let top = self.local.last().unwrap();
+        self.local.push(*top);
+        self.bindings.scope_enter();
+    }
+
+    pub fn scope_leave(&mut self) {
+        let _x = self.bindings.scope_pop();
+        let local = self.local.pop().unwrap();
+        self.max_local = core::cmp::max(self.max_local, local);
+    }
+}
+
+#[derive(Clone, Copy)]
 pub enum BindingType {
-    Global,
-    Param(usize),
-    Local(usize),
+    Global(id::GlobalId),
+    Fun(id::FunId),
+    Param(lir::ParamBindIndex),
+    Local(lir::LocalBindIndex),
 }
 
 #[derive(Clone, Copy, Default)]
@@ -79,10 +129,14 @@ impl RewriteState {
 #[derive(Debug)]
 pub enum CompilationError {
     DuplicateSymbol(Ident),
+    MissingSymbol(Span, Ident),
 }
 
 /// Compile a IR Module into an optimised-for-execution LIR Module
-pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
+pub fn compile(
+    module: ir::Module,
+    environ: &mut Environment,
+) -> Result<lir::Module, CompilationError> {
     let mut funs = SymbolsTableData::new();
     let mut constrs = SymbolsTableData::new();
 
@@ -100,6 +154,15 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 
     let SymbolsTableData { table, vecdata } = funs;
 
+    let mut bindings = BindingsStack::new();
+    for (_id, (ident, idx)) in environ.symbols.vecdata.iter() {
+        bindings.add(ident.clone(), BindingType::Global(*idx))
+    }
+
+    for (ident, fun_id) in table.iter() {
+        bindings.add(ident.clone(), BindingType::Fun(fun_id))
+    }
+
     let mut state = RewriteState {
         funs_tbl: table,
         funs_vec: IdVec::new(),
@@ -109,7 +172,7 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
         constrs: SymbolsTableData::new(),
         lits: UniqueTableBuilder::new(),
         in_lambda: CodeState::default(),
-        bindings: BindingsStack::new(),
+        bindings,
     };
 
     for (funid, fundef) in vecdata.into_iter() {
@@ -140,10 +203,10 @@ pub fn compile(module: ir::Module) -> Result<lir::Module, CompilationError> {
 fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, CompilationError> {
     let FunDef { name, vars, body } = fundef;
 
-    let mut local = BindingsStack::new();
+    let mut local = LocalBindings::new();
 
     for (var_i, var) in vars.iter().enumerate() {
-        local.add(var.0.clone().unspan(), BindingType::Param(var_i));
+        local.add_param(var.0.clone().unspan(), var_i as u32);
     }
 
     let code_pos = state.get_instruction_address();
@@ -158,6 +221,7 @@ fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, 
         vars: lir_vars,
         body: lir_body,
         code_pos,
+        stack_size: lir::LocalStackSize(local.max_local as u32),
     })
 }
 
@@ -264,9 +328,27 @@ fn rewrite_binder(binder: Binder) -> lir::Binder {
     }
 }
 
+fn fetch_ident(
+    state: &RewriteState,
+    local: &LocalBindings,
+    span: Span,
+    ident: Ident,
+) -> Result<BindingType, CompilationError> {
+    local
+        .bindings
+        .get(&ident)
+        .or_else(|| state.bindings.get(&ident))
+        .map(|x| *x)
+        .ok_or(CompilationError::MissingSymbol(span, ident))
+}
+
+fn append_ident(local: &mut LocalBindings, ident: &Ident) -> lir::LocalBindIndex {
+    local.add_local(ident.clone())
+}
+
 fn rewrite_expr2(
     state: &mut RewriteState,
-    local: &mut BindingsStack<BindingType>,
+    local: &mut LocalBindings,
     expr: Expr,
 ) -> Result<(), CompilationError> {
     match expr {
@@ -275,8 +357,26 @@ fn rewrite_expr2(
             state.write_code().push(lir::Statement::PushLiteral(lit_id));
             Ok(())
         }
-        Expr::Ident(_span, ident) => {
-            state.write_code().push(lir::Statement::FetchIdent(ident));
+        Expr::Ident(span, ident) => {
+            let x = fetch_ident(state, local, span, ident.clone())?;
+            match x {
+                BindingType::Global(idx) => {
+                    state.write_code().push(lir::Statement::FetchGlobal(idx));
+                }
+                BindingType::Fun(idx) => {
+                    state.write_code().push(lir::Statement::FetchFun(idx));
+                }
+                BindingType::Local(idx) => {
+                    state
+                        .write_code()
+                        .push(lir::Statement::FetchStackLocal(idx));
+                }
+                BindingType::Param(idx) => {
+                    state
+                        .write_code()
+                        .push(lir::Statement::FetchStackParam(idx));
+                }
+            }
             Ok(())
         }
         Expr::List(_span, l) => {
@@ -286,7 +386,8 @@ fn rewrite_expr2(
             rewrite_expr2(state, local, *body)?;
             match binder {
                 Binder::Ident(ident) => {
-                    state.write_code().push(lir::Statement::LocalBind(ident));
+                    let bind = append_ident(local, &ident);
+                    state.write_code().push(lir::Statement::LocalBind(bind));
                 }
                 Binder::Ignore => {
                     state.write_code().push(lir::Statement::IgnoreOne);
@@ -333,11 +434,16 @@ fn rewrite_expr2(
             let cond_jump_ref = state.write_code().push_temp();
             let cond_pos = state.get_instruction_address();
 
+            local.scope_enter();
             rewrite_expr2(state, local, (*then_expr).unspan())?;
+            local.scope_leave();
 
             let jump_else_ref = state.write_code().push_temp();
             let else_pos = state.get_instruction_address();
+
+            local.scope_enter();
             rewrite_expr2(state, local, (*else_expr).unspan())?;
+            local.scope_leave();
 
             let end_pos = state.get_instruction_address();
 

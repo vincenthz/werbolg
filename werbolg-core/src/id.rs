@@ -29,6 +29,14 @@ pub struct LitId(Id);
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ConstrId(Id);
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct NifId(Id);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct GlobalId(Id);
+
 define_id_remapper!(FunId);
 define_id_remapper!(LitId);
 define_id_remapper!(ConstrId);
+define_id_remapper!(NifId);
+define_id_remapper!(GlobalId);

@@ -25,6 +25,10 @@ impl<ID: IdRemapper> SymbolsTable<ID> {
     pub fn get(&self, ident: &Ident) -> Option<ID> {
         self.tbl.get(ident).map(|i| ID::cat(*i))
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Ident, ID)> {
+        self.tbl.iter().map(|(ident, id)| (ident, ID::cat(*id)))
+    }
 }
 
 pub struct IdVec<ID, T> {
@@ -94,6 +98,18 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
     pub fn concat(&mut self, after: &mut IdVecAfter<ID, T>) {
         assert!(self.vec.len() == after.ofs as usize);
         self.vec.append(&mut after.id_vec.vec)
+    }
+
+    pub fn remap<F, U>(self, f: F) -> IdVec<ID, U>
+    where
+        F: Fn(T) -> U,
+    {
+        let mut new = IdVec::<ID, U>::new();
+        for (id, t) in self.into_iter() {
+            let new_id = new.push(f(t));
+            assert_eq!(new_id.uncat(), id.uncat());
+        }
+        new
     }
 }
 

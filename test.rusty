@@ -12,6 +12,6 @@ fn factorial(x) {
 }
 
 fn main() {
-    let x = factorial(4);
-    mul(10, x)
+    let z = factorial(4);
+    mul(10, z)
 }

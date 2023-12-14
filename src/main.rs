@@ -1,8 +1,8 @@
 mod lang;
 
 use hashbrown::HashMap;
-use werbolg_core::{code::code_dump, compile, Ident, Number};
-use werbolg_exec::{ExecutionError, ExecutionMachine, Value};
+use werbolg_core::{code::code_dump, compile, symbols::IdVec, Environment, Ident, NifId, Number};
+use werbolg_exec::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
 use werbolg_lang_common::FileUnit;
 
 fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
@@ -110,22 +110,86 @@ fn main() -> Result<(), ()> {
     };
 
     let module = lang::parse(lang, &fileunit).expect("no parse error");
-    let exec_module = compile(module).expect("no compilation error");
+
+    pub struct Env<'m, T> {
+        environment: Environment,
+        nifs: IdVec<NifId, NIF<'m, T>>,
+        nifs_binds: werbolg_exec::Bindings<NifId>,
+    }
+
+    impl<'m, T> Env<'m, T> {
+        pub fn new() -> Self {
+            Self {
+                environment: Environment::new(),
+                nifs: IdVec::new(),
+                nifs_binds: werbolg_exec::Bindings::new(),
+            }
+        }
+        pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
+            let id = self.environment.add(werbolg_core::Ident::from(ident));
+            let id2 = self.nifs.push(NIF {
+                name: ident,
+                call: f,
+            });
+            self.nifs_binds.add(werbolg_core::Ident::from(ident), id);
+            assert_eq!(id, id2)
+        }
+
+        pub fn add_native_mut_fun(
+            &mut self,
+            ident: &'static str,
+            f: fn(&mut ExecutionMachine<'m, T>, &[Value]) -> Result<Value, ExecutionError>,
+        ) {
+            self.add_native_call(ident, NIFCall::Mut(f))
+        }
+
+        pub fn add_native_pure_fun(
+            &mut self,
+            ident: &'static str,
+            f: fn(&[Value]) -> Result<Value, ExecutionError>,
+        ) {
+            self.add_native_call(ident, NIFCall::Pure(f))
+        }
+
+        pub fn finalize(self) -> ExecutionEnviron<'m, T> {
+            let globals = self.environment.global.remap(|f| Value::Fun(f));
+
+            ExecutionEnviron {
+                nifs_binds: self.nifs_binds,
+                nifs: self.nifs,
+                globals: globals,
+            }
+        }
+    }
+
+    let mut env = Env::new();
+    env.add_native_pure_fun("+", nif_plus);
+    env.add_native_pure_fun("-", nif_sub);
+    env.add_native_pure_fun("*", nif_mul);
+    env.add_native_pure_fun("==", nif_eq);
+    env.add_native_pure_fun("table_new", nif_hashtable);
+    env.add_native_pure_fun("table_get", nif_hashtable_get);
+    //environment.add(ident);
+
+    let exec_module = compile(module, &mut env.environment).expect("no compilation error");
 
     //exec_module.print();
     code_dump(&exec_module.code, &exec_module.funs);
 
-    let mut em = ExecutionMachine::new(&exec_module, ());
+    let ee = env.finalize();
+    let mut em = ExecutionMachine::new(&exec_module, ee, ());
+    /*
     em.add_native_pure_fun("+", nif_plus);
     em.add_native_pure_fun("-", nif_sub);
     em.add_native_pure_fun("*", nif_mul);
     em.add_native_pure_fun("==", nif_eq);
     em.add_native_pure_fun("table_new", nif_hashtable);
     em.add_native_pure_fun("table_get", nif_hashtable_get);
+    */
 
-    let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
+    //let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
 
-    println!("{:?}", val);
+    //println!("{:?}", val);
 
     match werbolg_exec::exec2::exec(&mut em, Ident::from("main"), &[]) {
         Err(e) => {

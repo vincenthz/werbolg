@@ -4,7 +4,7 @@ use super::{ExecutionError, ExecutionMachine};
 use alloc::{boxed::Box, rc::Rc};
 use core::any::Any;
 use core::cell::RefCell;
-use werbolg_core::{self as ir, ConstrId, Decimal, FunId, Literal, Number};
+use werbolg_core::{self as ir, ConstrId, Decimal, FunId, Literal, NifId, Number, ValueFun};
 
 /// Execution Machine Value
 #[derive(Clone, Debug)]
@@ -25,15 +25,6 @@ pub enum Value {
     // Functions
     Fun(ValueFun),
 }
-
-#[derive(Clone, Copy, Debug)]
-pub enum ValueFun {
-    Native(NifId),
-    Fun(FunId),
-}
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NifId(pub(crate) u32);
 
 #[derive(Debug, Clone)]
 pub enum ValueKind {
