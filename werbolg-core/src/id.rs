@@ -40,3 +40,9 @@ define_id_remapper!(LitId);
 define_id_remapper!(ConstrId);
 define_id_remapper!(NifId);
 define_id_remapper!(GlobalId);
+
+#[derive(Clone, Copy, Debug)]
+pub enum ValueFun {
+    Native(NifId),
+    Fun(FunId),
+}

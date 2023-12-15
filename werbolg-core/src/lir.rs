@@ -1,9 +1,9 @@
 //! lowlevel IR
 
-use crate::code::InstructionDiff;
+//use crate::code::InstructionDiff;
 
 use super::basic::*;
-use super::code::InstructionAddress;
+//use super::code::InstructionAddress;
 use super::id::{ConstrId, FunId, GlobalId, LitId, NifId};
 use super::location::*;
 use super::symbols::{IdVec, SymbolsTable, SymbolsTableData};
@@ -15,7 +15,7 @@ pub struct Module {
     pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
     pub funs_tbl: SymbolsTable<FunId>,
     pub funs: IdVec<FunId, FunDef>,
-    pub code: IdVec<InstructionAddress, Statement>,
+    //pub code: IdVec<InstructionAddress, Statement>,
 }
 
 /*
@@ -37,16 +37,13 @@ impl Module {
 }
 */
 
-#[derive(Copy, Clone, Debug)]
-pub struct LocalStackSize(pub u32);
-
 #[derive(Clone, Debug)]
 pub struct FunDef {
     pub name: Option<Ident>,
     pub vars: Vec<Variable>,
-    pub stack_size: LocalStackSize,
+    //pub stack_size: LocalStackSize,
     pub body: Expr,
-    pub code_pos: InstructionAddress,
+    //pub code_pos: InstructionAddress,
 }
 
 #[derive(Clone, Debug)]
@@ -96,47 +93,6 @@ pub enum Expr {
         else_expr: Box<Spanned<Expr>>,
     },
 }
-
-#[derive(Clone, Debug)]
-pub enum Statement {
-    /// Push a literal value on the stack
-    PushLiteral(LitId),
-    /// Fetch from the global values array
-    FetchGlobal(GlobalId),
-    /// Fetch from the nifs array
-    FetchNif(NifId),
-    /// Fetch from the fun array
-    FetchFun(FunId),
-    /// Fetch from the callstack param (which is relative and before SP)
-    FetchStackParam(ParamBindIndex),
-    /// Fetch from the localstack values (which is relative and after SP)
-    FetchStackLocal(LocalBindIndex),
-    /// Access a field in a structure value as stack[top]
-    AccessField(Ident),
-    /// Bind Locally a value
-    LocalBind(LocalBindIndex),
-    /// Ignore a value from the stack
-    IgnoreOne,
-    /// Call the function on the stack with the N value in arguments.
-    ///
-    /// expecting N+1 value on the value stack
-    Call(CallArity),
-    /// Jump by N instructions
-    Jump(InstructionDiff),
-    /// Jump by N instructions if stack[top] is true
-    CondJump(InstructionDiff),
-    /// Return from call
-    Ret,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct LocalBindIndex(pub u32);
-
-#[derive(Clone, Copy, Debug)]
-pub struct ParamBindIndex(pub u32);
-
-#[derive(Clone, Copy, Debug)]
-pub struct CallArity(pub u32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Variable(pub Spanned<Ident>);

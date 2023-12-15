@@ -1,8 +1,7 @@
 use super::NIFCall;
 use super::{ExecutionError, ExecutionMachine, Value, ValueKind};
-use ir::InstructionAddress;
+use werbolg_compile::{CallArity, Instruction, InstructionAddress, LocalStackSize};
 use werbolg_core as ir;
-use werbolg_core::lir::{CallArity, LocalStackSize};
 use werbolg_core::ValueFun;
 
 pub fn exec<'module, T>(
@@ -65,42 +64,42 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
     );
     */
     match instr {
-        ir::lir::Statement::PushLiteral(lit) => {
+        Instruction::PushLiteral(lit) => {
             let literal = &em.module.lits[*lit];
             em.stack2.push_value(Value::from(literal));
             em.ip_next();
         }
-        ir::lir::Statement::FetchGlobal(global_id) => {
+        Instruction::FetchGlobal(global_id) => {
             em.sp_push_value_from_global(*global_id);
             em.ip_next();
         }
-        ir::lir::Statement::FetchNif(nif_id) => {
+        Instruction::FetchNif(nif_id) => {
             em.stack2.push_value(Value::Fun(ValueFun::Native(*nif_id)));
             em.ip_next();
         }
-        ir::lir::Statement::FetchFun(fun_id) => {
+        Instruction::FetchFun(fun_id) => {
             em.stack2.push_value(Value::Fun(ValueFun::Fun(*fun_id)));
             em.ip_next();
         }
-        ir::lir::Statement::FetchStackLocal(local_bind) => {
+        Instruction::FetchStackLocal(local_bind) => {
             em.sp_push_value_from_local(*local_bind);
             em.ip_next()
         }
-        ir::lir::Statement::FetchStackParam(param_bind) => {
+        Instruction::FetchStackParam(param_bind) => {
             em.sp_push_value_from_param(*param_bind);
             em.ip_next()
         }
-        ir::lir::Statement::AccessField(_) => todo!(),
-        ir::lir::Statement::LocalBind(local_bind) => {
+        Instruction::AccessField(_) => todo!(),
+        Instruction::LocalBind(local_bind) => {
             let val = em.stack2.pop_value();
             em.sp_set_value_at(*local_bind, val);
             em.ip_next();
         }
-        ir::lir::Statement::IgnoreOne => {
+        Instruction::IgnoreOne => {
             let _ = em.stack2.pop_value();
             em.ip_next();
         }
-        ir::lir::Statement::Call(arity) => {
+        Instruction::Call(arity) => {
             let val = process_call(em, *arity)?;
             match val {
                 CallResult::Jump(fun_ip, local_stack_size) => {
@@ -116,8 +115,8 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
                 }
             }
         }
-        ir::lir::Statement::Jump(d) => em.ip_jump(*d),
-        ir::lir::Statement::CondJump(d) => {
+        Instruction::Jump(d) => em.ip_jump(*d),
+        Instruction::CondJump(d) => {
             let val = em.stack2.pop_value();
             let b = val.bool()?;
             if b {
@@ -126,7 +125,7 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
                 em.ip_jump(*d)
             }
         }
-        ir::lir::Statement::Ret => {
+        Instruction::Ret => {
             let val = em.stack2.pop_value();
             match em.rets.pop() {
                 None => return Ok(Some(val)),

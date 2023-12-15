@@ -1,8 +1,6 @@
-use hashbrown::HashMap;
-
-use super::id::IdRemapper;
-use super::lir;
+use super::instructions::Instruction;
 use super::symbols::{IdVec, IdVecAfter};
+use werbolg_core::id::{Id, IdRemapper};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct InstructionAddress(u32);
@@ -14,11 +12,11 @@ impl InstructionAddress {
 }
 
 impl IdRemapper for InstructionAddress {
-    fn uncat(self) -> crate::Id {
-        crate::Id(self.0)
+    fn uncat(self) -> Id {
+        Id(self.0)
     }
 
-    fn cat(id: crate::Id) -> Self {
+    fn cat(id: Id) -> Self {
         InstructionAddress(id.0)
     }
 }
@@ -44,7 +42,7 @@ impl core::fmt::Display for InstructionAddress {
 }
 
 pub struct Code {
-    stmts: IdVec<InstructionAddress, lir::Statement>,
+    stmts: IdVec<InstructionAddress, Instruction>,
     temps: usize,
 }
 
@@ -62,7 +60,7 @@ impl Code {
         }
     }
 
-    pub fn push(&mut self, stmt: lir::Statement) {
+    pub fn push(&mut self, stmt: Instruction) {
         self.stmts.push(stmt);
     }
 
@@ -72,12 +70,12 @@ impl Code {
 
     pub fn push_temp(&mut self) -> CodeRef {
         let r = self.position();
-        self.stmts.push(lir::Statement::IgnoreOne);
+        self.stmts.push(Instruction::IgnoreOne);
         self.temps += 1;
         CodeRef(r)
     }
 
-    pub fn resolve_temp(&mut self, r: CodeRef, stmt: lir::Statement) {
+    pub fn resolve_temp(&mut self, r: CodeRef, stmt: Instruction) {
         self.stmts[r.0] = stmt;
         self.temps -= 1;
     }
@@ -89,32 +87,7 @@ impl Code {
         InstructionDiff(ofs.0)
     }
 
-    pub fn finalize(self) -> IdVec<InstructionAddress, lir::Statement> {
+    pub fn finalize(self) -> IdVec<InstructionAddress, Instruction> {
         self.stmts
-    }
-}
-
-use crate::{lir::FunDef, FunId};
-
-pub fn code_dump(code: &IdVec<InstructionAddress, lir::Statement>, fundefs: &IdVec<FunId, FunDef>) {
-    let mut place = HashMap::new();
-    for (funid, fundef) in fundefs.iter() {
-        place.insert(fundef.code_pos, funid);
-    }
-
-    for (ia, stmt) in code.iter() {
-        if let Some(funid) = place.get(&ia) {
-            let fundef = &fundefs[*funid];
-            println!(
-                "[{} local-stack={}]",
-                fundef
-                    .name
-                    .as_ref()
-                    .map(|n| format!("{:?}", n))
-                    .unwrap_or(format!("{:?}", funid)),
-                fundef.stack_size.0
-            );
-        }
-        println!("{}  {:?}", ia, stmt)
     }
 }

@@ -1,15 +1,6 @@
-use crate::symbols::SymbolsTableData;
-
-use super::basic::Ident;
-use super::bindings::Bindings;
-use super::id::{FunId, GlobalId, NifId};
 use super::symbols::IdVec;
-
-#[derive(Clone, Copy, Debug)]
-pub enum ValueFun {
-    Native(NifId),
-    Fun(FunId),
-}
+use crate::symbols::SymbolsTableData;
+use werbolg_core::{FunId, GlobalId, Ident, NifId, ValueFun};
 
 pub struct Environment {
     pub global: IdVec<GlobalId, ValueFun>,

@@ -1,7 +1,8 @@
 mod lang;
 
 use hashbrown::HashMap;
-use werbolg_core::{code::code_dump, compile, symbols::IdVec, Environment, Ident, NifId, Number};
+use werbolg_compile::{code_dump, compile, symbols::IdVec, Environment};
+use werbolg_core::{Ident, NifId, Number};
 use werbolg_exec2::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
 use werbolg_lang_common::FileUnit;
 
@@ -184,14 +185,6 @@ fn main() -> Result<(), ()> {
         .expect("existing function as entry point");
 
     let mut em = werbolg_exec2::ExecutionMachine::new(&exec_module, ee, ());
-    /*
-    em.add_native_pure_fun("+", nif_plus);
-    em.add_native_pure_fun("-", nif_sub);
-    em.add_native_pure_fun("*", nif_mul);
-    em.add_native_pure_fun("==", nif_eq);
-    em.add_native_pure_fun("table_new", nif_hashtable);
-    em.add_native_pure_fun("table_get", nif_hashtable_get);
-    */
 
     //let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
 

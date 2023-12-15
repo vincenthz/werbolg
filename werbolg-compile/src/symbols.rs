@@ -1,9 +1,9 @@
-use super::basic::Ident;
-use super::id::{Id, IdRemapper};
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
+use werbolg_core::id::{Id, IdRemapper};
+use werbolg_core::Ident;
 
 pub struct SymbolsTable<ID: IdRemapper> {
     pub(crate) tbl: HashMap<Ident, Id>,

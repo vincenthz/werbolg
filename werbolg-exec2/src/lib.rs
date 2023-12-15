@@ -3,11 +3,11 @@
 
 extern crate alloc;
 
-use ir::{GlobalId, InstructionAddress, InstructionDiff, NifId};
+use ir::{GlobalId, NifId};
+use werbolg_compile::symbols::IdVec;
+use werbolg_compile::{CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex};
+use werbolg_compile::{CompilationUnit, InstructionAddress, InstructionDiff};
 use werbolg_core as ir;
-use werbolg_core::lir;
-use werbolg_core::lir::{CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex};
-use werbolg_core::symbols::IdVec;
 
 mod exec2;
 mod value;
@@ -25,11 +25,11 @@ pub struct ExecutionEnviron<'m, T> {
 pub struct ExecutionMachine<'m, T> {
     pub nifs: IdVec<NifId, NIF<'m, T>>,
     pub globals: IdVec<GlobalId, Value>,
-    pub module: &'m lir::Module,
+    pub module: &'m CompilationUnit,
     pub rets: Vec<(InstructionAddress, StackPointer, LocalStackSize, CallArity)>,
     pub stack2: ValueStack,
     pub userdata: T,
-    pub ip: ir::InstructionAddress,
+    pub ip: InstructionAddress,
     pub sp: StackPointer,
     pub current_stack_size: LocalStackSize,
 }
@@ -106,7 +106,7 @@ impl ValueStack {
 pub type BindingValue = Value;
 
 impl<'m, T> ExecutionMachine<'m, T> {
-    pub fn new(module: &'m lir::Module, env: ExecutionEnviron<'m, T>, userdata: T) -> Self {
+    pub fn new(module: &'m CompilationUnit, env: ExecutionEnviron<'m, T>, userdata: T) -> Self {
         Self {
             nifs: env.nifs,
             globals: env.globals,
@@ -122,65 +122,6 @@ impl<'m, T> ExecutionMachine<'m, T> {
 
     pub fn aborted(&self) -> bool {
         false
-    }
-
-    /*
-    pub fn add_local_binding(&mut self, ident: ir::Ident, value: Value) {
-        self.local.add(ident, value)
-    }
-
-    pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
-        let id = NifId(self.nifs.len() as u32);
-        self.nifs_binds.add(ir::Ident::from(ident), id);
-        self.nifs.push(NIF {
-            name: ident,
-            call: f,
-        });
-    }
-
-    pub fn add_native_mut_fun(
-        &mut self,
-        ident: &'static str,
-        f: fn(&mut ExecutionMachine<'m, T>, &[Value]) -> Result<Value, ExecutionError>,
-    ) {
-        self.add_native_call(ident, NIFCall::Mut(f))
-    }
-
-    pub fn add_native_pure_fun(
-        &mut self,
-        ident: &'static str,
-        f: fn(&[Value]) -> Result<Value, ExecutionError>,
-    ) {
-        self.add_native_call(ident, NIFCall::Pure(f))
-    }
-    */
-
-    pub fn resolve_fun(&self, ident: &ir::Ident) -> Option<&'m lir::FunDef> {
-        self.module
-            .funs_tbl
-            .get(ident)
-            .map(|funid| &self.module.funs[funid])
-    }
-
-    pub fn get_binding(&self, ident: &ir::Ident) -> Result<Value, ExecutionError> {
-        todo!()
-        /*
-        let bind = self
-            .local
-            .get(ident)
-            .map(|e| e.clone())
-            .or_else(|| {
-                self.module
-                    .funs_tbl
-                    .get(ident)
-                    .map(|symbolic| Value::from(symbolic))
-            })
-            .or_else(|| self.nifs_binds.get(ident).map(|e| Value::from(*e)));
-        match bind {
-            None => Err(ExecutionError::MissingBinding(ident.clone())),
-            Some(val) => Ok(val),
-        }
-        */
     }
 
     #[inline]

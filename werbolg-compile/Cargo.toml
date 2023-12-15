@@ -1,5 +1,5 @@
 [package]
-name = "werbolg-exec2"
+name = "werbolg-compile"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,4 +8,3 @@ edition = "2021"
 [dependencies]
 hashbrown = "0.14"
 werbolg-core = { path = "../werbolg-core" }
-werbolg-compile = { path = "../werbolg-compile" }
