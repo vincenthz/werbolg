@@ -1,35 +1,6 @@
-use super::basic::Ident;
 use super::id::{Id, IdRemapper};
 use alloc::vec::Vec;
-use core::hash::Hash;
 use core::marker::PhantomData;
-use hashbrown::HashMap;
-
-pub struct SymbolsTable<ID: IdRemapper> {
-    pub(crate) tbl: HashMap<Ident, Id>,
-    phantom: PhantomData<ID>,
-}
-
-impl<ID: IdRemapper> SymbolsTable<ID> {
-    pub fn new() -> Self {
-        Self {
-            tbl: Default::default(),
-            phantom: PhantomData,
-        }
-    }
-
-    pub fn insert(&mut self, ident: Ident, id: ID) {
-        self.tbl.insert(ident, id.uncat());
-    }
-
-    pub fn get(&self, ident: &Ident) -> Option<ID> {
-        self.tbl.get(ident).map(|i| ID::cat(*i))
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&Ident, ID)> {
-        self.tbl.iter().map(|(ident, id)| (ident, ID::cat(*id)))
-    }
-}
 
 pub struct IdVec<ID, T> {
     vec: Vec<T>,
@@ -95,11 +66,6 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
             .map(|(i, t)| (ID::cat(Id(i as u32)), t))
     }
 
-    pub fn concat(&mut self, after: &mut IdVecAfter<ID, T>) {
-        assert!(self.vec.len() == after.ofs as usize);
-        self.vec.append(&mut after.id_vec.vec)
-    }
-
     pub fn remap<F, U>(self, f: F) -> IdVec<ID, U>
     where
         F: Fn(T) -> U,
@@ -110,98 +76,5 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
             assert_eq!(new_id.uncat(), id.uncat());
         }
         new
-    }
-}
-
-pub struct IdVecAfter<ID, T> {
-    id_vec: IdVec<ID, T>,
-    ofs: u32,
-}
-
-impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
-    pub fn new(first_id: ID) -> Self {
-        Self {
-            id_vec: IdVec::new(),
-            ofs: first_id.uncat().0,
-        }
-    }
-
-    pub fn from_idvec(id_vec: IdVec<ID, T>, first: ID) -> Self {
-        Self {
-            id_vec,
-            ofs: first.uncat().0,
-        }
-    }
-
-    pub fn push(&mut self, v: T) -> ID {
-        let id = self.id_vec.push(v).uncat();
-        let new_id = Id(id.0 + self.ofs as u32);
-        ID::cat(new_id)
-    }
-
-    pub fn remap<F>(&mut self, f: F)
-    where
-        F: Fn(&mut T) -> (),
-    {
-        for elem in self.id_vec.iter_mut() {
-            f(elem)
-        }
-    }
-}
-
-pub struct SymbolsTableData<ID: IdRemapper, T> {
-    pub table: SymbolsTable<ID>,
-    pub vecdata: IdVec<ID, T>,
-}
-
-impl<ID: IdRemapper, T> SymbolsTableData<ID, T> {
-    pub fn new() -> Self {
-        Self {
-            table: SymbolsTable::new(),
-            vecdata: IdVec::new(),
-        }
-    }
-
-    pub fn add(&mut self, ident: Ident, v: T) -> Option<ID> {
-        if self.table.get(&ident).is_some() {
-            return None;
-        }
-        let id = self.vecdata.push(v);
-        self.table.insert(ident, id);
-        Some(id)
-    }
-
-    pub fn add_anon(&mut self, v: T) -> ID {
-        self.vecdata.push(v)
-    }
-}
-
-pub struct UniqueTableBuilder<ID: IdRemapper, T: Eq + Hash> {
-    pub symtbl: HashMap<T, ID>,
-    pub syms: IdVec<ID, T>,
-    pub phantom: PhantomData<ID>,
-}
-
-impl<ID: IdRemapper, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
-    pub fn new() -> Self {
-        Self {
-            symtbl: HashMap::new(),
-            syms: IdVec::new(),
-            phantom: PhantomData,
-        }
-    }
-
-    pub fn add(&mut self, data: T) -> ID {
-        if let Some(id) = self.symtbl.get(&data) {
-            *id
-        } else {
-            let id = self.syms.push(data.clone());
-            self.symtbl.insert(data, id);
-            id
-        }
-    }
-
-    pub fn finalize(self) -> IdVec<ID, T> {
-        self.syms
     }
 }

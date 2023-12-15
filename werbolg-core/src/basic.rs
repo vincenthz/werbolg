@@ -1,7 +1,13 @@
 use alloc::{boxed::Box, string::String};
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ident(pub String);
+
+impl core::fmt::Debug for Ident {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "@{}", self.0)
+    }
+}
 
 impl From<&str> for Ident {
     fn from(s: &str) -> Self {
@@ -21,12 +27,35 @@ impl Ident {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Literal {
     String(String),
     Number(Number),
     Decimal(Decimal),
     Bytes(Box<[u8]>),
+}
+
+impl core::fmt::Debug for Literal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Literal::String(s) => {
+                write!(f, "\"{}\"", s)
+            }
+            Literal::Number(n) => {
+                write!(f, "{:?}", n)
+            }
+            Literal::Decimal(d) => {
+                write!(f, "{:?}", d)
+            }
+            Literal::Bytes(bytes) => {
+                write!(f, "#")?;
+                for b in bytes.iter() {
+                    write!(f, "{:02X}", b)?;
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 #[cfg(feature = "backend-bignum")]
@@ -41,8 +70,14 @@ pub type NumberInner = Box<num_bigint::BigInt>;
 #[cfg(feature = "backend-smallnum")]
 pub type NumberInner = u64;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Number(pub NumberInner);
+
+impl core::fmt::Debug for Number {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl Number {
     #[cfg(feature = "backend-bignum")]

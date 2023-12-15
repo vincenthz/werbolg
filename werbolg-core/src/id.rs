@@ -1,5 +1,11 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub u32);
+
+impl core::fmt::Debug for Id {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 pub trait IdRemapper: Copy {
     fn uncat(self) -> Id;
