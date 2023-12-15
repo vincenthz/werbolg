@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 hashbrown = "0.14"
 werbolg-core = { path = "../werbolg-core" }
+werbolg-compile = { path = "../werbolg-compile" }

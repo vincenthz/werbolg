@@ -39,7 +39,6 @@ pub enum ValueKind {
     List,
     Struct,
     Enum,
-    NativeFun,
     Fun,
 }
 

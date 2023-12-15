@@ -3,7 +3,7 @@ mod lang;
 use hashbrown::HashMap;
 use werbolg_compile::{code_dump, compile, symbols::IdVec, Environment};
 use werbolg_core::{Ident, NifId, Number};
-use werbolg_exec2::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
+use werbolg_exec::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
 use werbolg_lang_common::FileUnit;
 
 fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
@@ -115,7 +115,7 @@ fn main() -> Result<(), ()> {
     pub struct Env<'m, T> {
         environment: Environment,
         nifs: IdVec<NifId, NIF<'m, T>>,
-        nifs_binds: werbolg_exec::Bindings<NifId>,
+        nifs_binds: werbolg_interpret::Bindings<NifId>,
     }
 
     impl<'m, T> Env<'m, T> {
@@ -123,7 +123,7 @@ fn main() -> Result<(), ()> {
             Self {
                 environment: Environment::new(),
                 nifs: IdVec::new(),
-                nifs_binds: werbolg_exec::Bindings::new(),
+                nifs_binds: werbolg_interpret::Bindings::new(),
             }
         }
         pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
@@ -156,7 +156,7 @@ fn main() -> Result<(), ()> {
         pub fn finalize(self) -> ExecutionEnviron<'m, T> {
             let globals = self.environment.global.remap(|f| Value::Fun(f));
 
-            werbolg_exec2::ExecutionEnviron {
+            werbolg_exec::ExecutionEnviron {
                 nifs: self.nifs,
                 globals: globals,
             }
@@ -185,13 +185,13 @@ fn main() -> Result<(), ()> {
         .get(&Ident::from("main"))
         .expect("existing function as entry point");
 
-    let mut em = werbolg_exec2::ExecutionMachine::new(&exec_module, ee, ());
+    let mut em = ExecutionMachine::new(&exec_module, ee, ());
 
     //let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
 
     //println!("{:?}", val);
 
-    match werbolg_exec2::exec(&mut em, entry_point, &[]) {
+    match werbolg_exec::exec(&mut em, entry_point, &[]) {
         Err(e) => {
             println!("error: {:?} at {}", e, em.ip);
             return Err(());
