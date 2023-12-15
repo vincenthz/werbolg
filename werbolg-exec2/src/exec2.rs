@@ -9,7 +9,7 @@ pub fn exec<'module, T>(
     call: ir::FunId,
     args: &[Value],
 ) -> Result<Value, ExecutionError> {
-    em.stack2.push_call(Value::Fun(ValueFun::Fun(call)), args);
+    em.stack.push_call(Value::Fun(ValueFun::Fun(call)), args);
 
     match process_call(em, CallArity(args.len() as u32))? {
         CallResult::Jump(ip, local) => {
@@ -66,7 +66,7 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
     match instr {
         Instruction::PushLiteral(lit) => {
             let literal = &em.module.lits[*lit];
-            em.stack2.push_value(Value::from(literal));
+            em.stack.push_value(Value::from(literal));
             em.ip_next();
         }
         Instruction::FetchGlobal(global_id) => {
@@ -74,11 +74,11 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             em.ip_next();
         }
         Instruction::FetchNif(nif_id) => {
-            em.stack2.push_value(Value::Fun(ValueFun::Native(*nif_id)));
+            em.stack.push_value(Value::Fun(ValueFun::Native(*nif_id)));
             em.ip_next();
         }
         Instruction::FetchFun(fun_id) => {
-            em.stack2.push_value(Value::Fun(ValueFun::Fun(*fun_id)));
+            em.stack.push_value(Value::Fun(ValueFun::Fun(*fun_id)));
             em.ip_next();
         }
         Instruction::FetchStackLocal(local_bind) => {
@@ -91,12 +91,12 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
         }
         Instruction::AccessField(_) => todo!(),
         Instruction::LocalBind(local_bind) => {
-            let val = em.stack2.pop_value();
+            let val = em.stack.pop_value();
             em.sp_set_value_at(*local_bind, val);
             em.ip_next();
         }
         Instruction::IgnoreOne => {
-            let _ = em.stack2.pop_value();
+            let _ = em.stack.pop_value();
             em.ip_next();
         }
         Instruction::Call(arity) => {
@@ -109,15 +109,15 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
                     em.ip_set(fun_ip);
                 }
                 CallResult::Value(nif_val) => {
-                    em.stack2.pop_call(*arity);
-                    em.stack2.push_value(nif_val);
+                    em.stack.pop_call(*arity);
+                    em.stack.push_value(nif_val);
                     em.ip_next()
                 }
             }
         }
         Instruction::Jump(d) => em.ip_jump(*d),
         Instruction::CondJump(d) => {
-            let val = em.stack2.pop_value();
+            let val = em.stack.pop_value();
             let b = val.bool()?;
             if b {
                 em.ip_next()
@@ -126,15 +126,15 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             }
         }
         Instruction::Ret => {
-            let val = em.stack2.pop_value();
+            let val = em.stack.pop_value();
             match em.rets.pop() {
                 None => return Ok(Some(val)),
                 Some((ret, sp, stack_size, arity)) => {
                     em.sp_unlocal(em.current_stack_size);
                     em.current_stack_size = stack_size;
-                    em.stack2.pop_call(arity);
+                    em.stack.pop_call(arity);
                     em.sp = sp;
-                    em.stack2.push_value(val);
+                    em.stack.push_value(val);
                     em.ip_set(ret)
                 }
             }
@@ -153,7 +153,7 @@ fn process_call<'m, T>(
     em: &mut ExecutionMachine<'m, T>,
     arity: CallArity,
 ) -> Result<CallResult, ExecutionError> {
-    let first = em.stack2.get_call(arity);
+    let first = em.stack.get_call(arity);
     let Value::Fun(fun) = first else {
         em.debug_state();
         let kind = first.into();
@@ -167,7 +167,7 @@ fn process_call<'m, T>(
         ValueFun::Native(nifid) => {
             let res = match &em.nifs[*nifid].call {
                 NIFCall::Pure(nif) => {
-                    let (_first, args) = em.stack2.get_call_and_args(arity);
+                    let (_first, args) = em.stack.get_call_and_args(arity);
                     nif(args)?
                 }
                 NIFCall::Mut(_nif) => {

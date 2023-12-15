@@ -27,11 +27,11 @@ pub struct ExecutionMachine<'m, T> {
     pub globals: IdVec<GlobalId, Value>,
     pub module: &'m CompilationUnit,
     pub rets: Vec<(InstructionAddress, StackPointer, LocalStackSize, CallArity)>,
-    pub stack2: ValueStack,
-    pub userdata: T,
+    pub stack: ValueStack,
     pub ip: InstructionAddress,
     pub sp: StackPointer,
     pub current_stack_size: LocalStackSize,
+    pub userdata: T,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -111,7 +111,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
             nifs: env.nifs,
             globals: env.globals,
             module,
-            stack2: ValueStack::new(),
+            stack: ValueStack::new(),
             rets: Vec::new(),
             userdata,
             ip: InstructionAddress::default(),
@@ -142,45 +142,45 @@ impl<'m, T> ExecutionMachine<'m, T> {
 
     #[inline]
     pub fn sp_unwind(&mut self, sp: StackPointer, local_stack_size: LocalStackSize) {
-        self.stack2.truncate(sp.0 + local_stack_size.0 as usize);
+        self.stack.truncate(sp.0 + local_stack_size.0 as usize);
     }
 
     #[inline]
     pub fn sp_unlocal(&mut self, current_stack_size: LocalStackSize) {
         for _ in 0..current_stack_size.0 {
-            self.stack2.values.pop();
+            self.stack.values.pop();
         }
     }
 
     #[inline]
     pub fn sp_set_value_at(&mut self, bind_index: LocalBindIndex, value: Value) {
         let index = self.sp.0 + bind_index.0 as usize;
-        self.stack2.set_at(index, value);
+        self.stack.set_at(index, value);
     }
 
     #[inline]
     pub fn sp_push_value_from_global(&mut self, bind_index: GlobalId) {
         let val = self.globals[bind_index].clone();
-        self.stack2.push_value(val);
+        self.stack.push_value(val);
     }
 
     #[inline]
     pub fn sp_push_value_from_local(&mut self, bind_index: LocalBindIndex) {
         let index = self.sp.0 + bind_index.0 as usize;
-        self.stack2.get_and_push(index);
+        self.stack.get_and_push(index);
     }
 
     #[inline]
     pub fn sp_push_value_from_param(&mut self, bind_index: ParamBindIndex) {
         let index = self.sp.0 - 1 - bind_index.0 as usize;
-        self.stack2.get_and_push(index);
+        self.stack.get_and_push(index);
     }
 
     #[inline]
     pub fn sp_set(&mut self, local_stack_size: LocalStackSize) {
-        self.sp = self.stack2.top();
+        self.sp = self.stack.top();
         for _ in 0..local_stack_size.0 {
-            self.stack2.push_value(Value::Unit);
+            self.stack.push_value(Value::Unit);
         }
         self.current_stack_size = local_stack_size;
         //println!("SP={} local={}", self.sp.0, local_stack_size.0)
@@ -189,7 +189,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
     pub fn debug_state(&self) {
         println!("ip={} sp={:?}", self.ip, self.sp.0);
 
-        for (stack_index, value) in self.stack2.iter_pos() {
+        for (stack_index, value) in self.stack.iter_pos() {
             match stack_index.cmp(&self.sp) {
                 core::cmp::Ordering::Less => {
                     let diff = self.sp.0 - stack_index.0;
