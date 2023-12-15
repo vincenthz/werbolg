@@ -136,6 +136,7 @@ fn main() -> Result<(), ()> {
             assert_eq!(id, id2)
         }
 
+        #[allow(unused)]
         pub fn add_native_mut_fun(
             &mut self,
             ident: &'static str,
