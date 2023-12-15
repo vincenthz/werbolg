@@ -8,7 +8,6 @@ pub struct LocalStackSize(pub u32);
 #[derive(Clone, Debug)]
 pub struct FunDef {
     pub name: Option<Ident>,
-    //pub vars: Vec<Variable>,
     pub arity: CallArity,
     pub stack_size: LocalStackSize,
     pub code_pos: InstructionAddress,
