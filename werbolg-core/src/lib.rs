@@ -87,6 +87,7 @@ impl LocalBindings {
 #[derive(Clone, Copy)]
 pub enum BindingType {
     Global(id::GlobalId),
+    Nif(id::NifId),
     Fun(id::FunId),
     Param(lir::ParamBindIndex),
     Local(lir::LocalBindIndex),
@@ -156,7 +157,7 @@ pub fn compile(
 
     let mut bindings = BindingsStack::new();
     for (_id, (ident, idx)) in environ.symbols.vecdata.iter() {
-        bindings.add(ident.clone(), BindingType::Global(*idx))
+        bindings.add(ident.clone(), BindingType::Nif(_id))
     }
 
     for (ident, fun_id) in table.iter() {
@@ -211,6 +212,8 @@ fn rewrite_fun(state: &mut RewriteState, fundef: FunDef) -> Result<lir::FunDef, 
 
     let code_pos = state.get_instruction_address();
     rewrite_expr2(state, &mut local, body.clone())?;
+
+    local.scope_leave();
 
     let lir_vars = vars.into_iter().map(|v| lir::Variable(v.0)).collect();
 
@@ -362,6 +365,9 @@ fn rewrite_expr2(
             match x {
                 BindingType::Global(idx) => {
                     state.write_code().push(lir::Statement::FetchGlobal(idx));
+                }
+                BindingType::Nif(idx) => {
+                    state.write_code().push(lir::Statement::FetchNif(idx));
                 }
                 BindingType::Fun(idx) => {
                     state.write_code().push(lir::Statement::FetchFun(idx));

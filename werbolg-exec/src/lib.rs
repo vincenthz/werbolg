@@ -1,5 +1,5 @@
 //! Werbolg Execution machine
-#![no_std]
+//#![no_std]
 
 extern crate alloc;
 
@@ -28,7 +28,6 @@ pub struct ExecutionEnviron<'m, T> {
 }
 
 pub struct ExecutionMachine<'m, T> {
-    //pub environ: &Environment,
     pub nifs_binds: Bindings<NifId>,
     pub nifs: IdVec<NifId, NIF<'m, T>>,
     pub globals: IdVec<GlobalId, Value>,
@@ -44,7 +43,7 @@ pub struct ExecutionMachine<'m, T> {
     pub current_stack_size: LocalStackSize,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StackPointer(usize);
 
 pub struct ValueStack {
@@ -103,6 +102,13 @@ impl ValueStack {
             &self.values[top - (arity.0 as usize) - 1],
             &self.values[top - (arity.0 as usize)..top],
         )
+    }
+
+    pub fn iter_pos(&self) -> impl Iterator<Item = (StackPointer, &Value)> {
+        self.values
+            .iter()
+            .enumerate()
+            .map(|(pos, v)| (StackPointer(pos), v))
     }
 }
 
@@ -219,6 +225,13 @@ impl<'m, T> ExecutionMachine<'m, T> {
     }
 
     #[inline]
+    pub fn sp_unlocal(&mut self, current_stack_size: LocalStackSize) {
+        for _ in 0..current_stack_size.0 {
+            self.stack2.values.pop();
+        }
+    }
+
+    #[inline]
     pub fn sp_set_value_at(&mut self, bind_index: LocalBindIndex, value: Value) {
         let index = self.sp.0 + bind_index.0 as usize;
         self.stack2.set_at(index, value);
@@ -249,6 +262,28 @@ impl<'m, T> ExecutionMachine<'m, T> {
             self.stack2.push_value(Value::Unit);
         }
         self.current_stack_size = local_stack_size;
+        //println!("SP={} local={}", self.sp.0, local_stack_size.0)
+    }
+
+    pub fn debug_state(&self) {
+        println!("ip={} sp={:?}", self.ip, self.sp.0);
+
+        for (stack_index, value) in self.stack2.iter_pos() {
+            match stack_index.cmp(&self.sp) {
+                core::cmp::Ordering::Less => {
+                    let diff = self.sp.0 - stack_index.0;
+                    println!("[-{}] {:?}", diff, value);
+                }
+                core::cmp::Ordering::Greater => {
+                    let diff = stack_index.0 - self.sp.0;
+                    println!("[{}] {:?}", 1 + diff, value);
+                }
+                core::cmp::Ordering::Equal => {
+                    println!("@ {:?}", value);
+                }
+            }
+        }
+        println!("")
     }
 }
 

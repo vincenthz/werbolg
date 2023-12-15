@@ -4,7 +4,7 @@ use crate::code::InstructionDiff;
 
 use super::basic::*;
 use super::code::InstructionAddress;
-use super::id::{ConstrId, FunId, GlobalId, LitId};
+use super::id::{ConstrId, FunId, GlobalId, LitId, NifId};
 use super::location::*;
 use super::symbols::{IdVec, SymbolsTable, SymbolsTableData};
 
@@ -101,9 +101,11 @@ pub enum Expr {
 pub enum Statement {
     /// Push a literal value on the stack
     PushLiteral(LitId),
-    /// Fetch from the callstack param (which is relative and before SP)
+    /// Fetch from the global values array
     FetchGlobal(GlobalId),
-    /// Fetch from the callstack param (which is relative and before SP)
+    /// Fetch from the nifs array
+    FetchNif(NifId),
+    /// Fetch from the fun array
     FetchFun(FunId),
     /// Fetch from the callstack param (which is relative and before SP)
     FetchStackParam(ParamBindIndex),

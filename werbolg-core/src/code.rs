@@ -106,12 +106,13 @@ pub fn code_dump(code: &IdVec<InstructionAddress, lir::Statement>, fundefs: &IdV
         if let Some(funid) = place.get(&ia) {
             let fundef = &fundefs[*funid];
             println!(
-                "[{}]",
+                "[{} local-stack={}]",
                 fundef
                     .name
                     .as_ref()
                     .map(|n| format!("{:?}", n))
-                    .unwrap_or(format!("{:?}", funid))
+                    .unwrap_or(format!("{:?}", funid)),
+                fundef.stack_size.0
             );
         }
         println!("{}  {:?}", ia, stmt)

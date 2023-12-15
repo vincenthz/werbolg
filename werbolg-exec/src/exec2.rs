@@ -1,6 +1,5 @@
 use super::NIFCall;
-use super::{ExecutionError, ExecutionMachine, Value};
-use ir::code::InstructionDiff;
+use super::{ExecutionError, ExecutionMachine, Value, ValueKind};
 use ir::InstructionAddress;
 use werbolg_core as ir;
 use werbolg_core::lir::{CallArity, LocalStackSize};
@@ -22,6 +21,10 @@ pub fn exec<'module, T>(
         }
         CallResult::Value(value) => return Ok(value),
     };
+
+    println!("===== initial =====");
+    em.debug_state();
+    println!("===================");
 
     exec_loop(em)
 }
@@ -54,6 +57,15 @@ type StepResult = Result<Option<Value>, ExecutionError>;
 /// The step function need to update the execution IP
 pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
     let instr = &em.module.code[em.ip];
+    /*
+    print!(
+        "exec IP={} SP={} STACK={} INSTR={:?} => ",
+        em.ip,
+        em.sp.0,
+        em.stack2.top().0,
+        instr
+    );
+    */
     match instr {
         ir::lir::Statement::PushLiteral(lit) => {
             let literal = &em.module.lits[*lit];
@@ -62,6 +74,10 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
         }
         ir::lir::Statement::FetchGlobal(global_id) => {
             em.sp_push_value_from_global(*global_id);
+            em.ip_next();
+        }
+        ir::lir::Statement::FetchNif(nif_id) => {
+            em.stack2.push_value(Value::Fun(ValueFun::Native(*nif_id)));
             em.ip_next();
         }
         ir::lir::Statement::FetchFun(fun_id) => {
@@ -90,12 +106,12 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             let val = process_call(em, *arity)?;
             match val {
                 CallResult::Jump(fun_ip, local_stack_size) => {
-                    em.rets.push((em.ip, em.sp, local_stack_size, *arity));
-                    em.ip_set(fun_ip);
+                    em.rets
+                        .push((em.ip.next(), em.sp, local_stack_size, *arity));
                     em.sp_set(local_stack_size);
+                    em.ip_set(fun_ip);
                 }
                 CallResult::Value(nif_val) => {
-                    //em.sp_set(em.sp);
                     em.stack2.pop_call(*arity);
                     em.stack2.push_value(nif_val);
                     em.ip_next()
@@ -107,9 +123,9 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             let val = em.stack2.pop_value();
             let b = val.bool()?;
             if b {
-                em.ip_jump(*d)
-            } else {
                 em.ip_next()
+            } else {
+                em.ip_jump(*d)
             }
         }
         ir::lir::Statement::Ret => {
@@ -117,15 +133,17 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             match em.rets.pop() {
                 None => return Ok(Some(val)),
                 Some((ret, sp, stack_size, arity)) => {
+                    em.sp_unlocal(em.current_stack_size);
                     em.current_stack_size = stack_size;
-                    em.sp_unwind(sp, stack_size);
-                    //em.stack2.pop_call(arity);
+                    em.stack2.pop_call(arity);
+                    em.sp = sp;
                     em.stack2.push_value(val);
                     em.ip_set(ret)
                 }
             }
         }
     }
+    //println!("IP={} SP={} STACK={}", em.ip, em.sp.0, em.stack2.top().0);
     Ok(None)
 }
 
@@ -139,10 +157,18 @@ fn process_call<'m, T>(
     arity: CallArity,
 ) -> Result<CallResult, ExecutionError> {
     let first = em.stack2.get_call(arity);
-    let fun = first.fun()?;
+    let Value::Fun(fun) = first else {
+        em.debug_state();
+        let kind = first.into();
+        return Err(ExecutionError::ValueKindUnexpected {
+            value_expected: ValueKind::Fun,
+            value_got: kind,
+        });
+    };
+
     match fun {
         ValueFun::Native(nifid) => {
-            let res = match &em.nifs[nifid].call {
+            let res = match &em.nifs[*nifid].call {
                 NIFCall::Pure(nif) => {
                     let (_first, args) = em.stack2.get_call_and_args(arity);
                     nif(args)?
@@ -154,7 +180,7 @@ fn process_call<'m, T>(
             Ok(CallResult::Value(res))
         }
         ValueFun::Fun(funid) => {
-            let call_def = &em.module.funs[funid];
+            let call_def = &em.module.funs[*funid];
             Ok(CallResult::Jump(call_def.code_pos, call_def.stack_size))
         }
     }
