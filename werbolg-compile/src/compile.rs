@@ -68,6 +68,7 @@ impl LocalBindings {
 
 #[derive(Clone, Copy)]
 pub enum BindingType {
+    #[allow(unused)]
     Global(GlobalId),
     Nif(NifId),
     Fun(FunId),
@@ -213,7 +214,7 @@ fn rewrite_expr2(
             }
             Ok(())
         }
-        ir::Expr::List(_span, l) => {
+        ir::Expr::List(_span, _l) => {
             todo!()
         }
         ir::Expr::Let(binder, body, in_expr) => {

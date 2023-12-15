@@ -3,11 +3,8 @@
 
 extern crate alloc;
 
-use ir::{GlobalId, NifId};
 use werbolg_core as ir;
-use werbolg_core::lir;
-//use werbolg_core::lir::{CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex};
-use werbolg_core::{symbols::IdVec, ValueFun};
+use werbolg_core::{symbols::IdVec, FunDef, FunId, NifId, ValueFun};
 
 mod bindings;
 mod location;
@@ -20,19 +17,13 @@ pub use location::Location;
 use stack::{ExecutionAtom, ExecutionNext, ExecutionStack};
 pub use value::{NIFCall, Value, ValueKind, NIF};
 
-pub struct ExecutionEnviron<'m, T> {
-    pub nifs_binds: Bindings<NifId>,
-    pub nifs: IdVec<NifId, NIF<'m, T>>,
-    pub globals: IdVec<GlobalId, Value>,
-}
-
 pub struct ExecutionMachine<'m, T> {
-    pub nifs_binds: Bindings<NifId>,
+    //pub nifs_binds: Bindings<NifId>,
     pub nifs: IdVec<NifId, NIF<'m, T>>,
-    pub globals: IdVec<GlobalId, Value>,
-    pub module: &'m lir::Module,
+    pub funs: IdVec<FunId, &'m FunDef>,
+    pub global: Bindings<BindingValue>,
+    pub module: &'m ir::Module,
     pub local: BindingsStack<BindingValue>,
-    pub stacktrace: Vec<Location>,
     pub stack: ExecutionStack<'m>,
     pub userdata: T,
 }
@@ -40,14 +31,29 @@ pub struct ExecutionMachine<'m, T> {
 pub type BindingValue = Value;
 
 impl<'m, T> ExecutionMachine<'m, T> {
-    pub fn new(module: &'m lir::Module, env: ExecutionEnviron<'m, T>, userdata: T) -> Self {
+    pub fn new(module: &'m ir::Module, userdata: T) -> Self {
+        let mut b = Bindings::new();
+        let mut funs = IdVec::new();
+        for stat in module.statements.iter() {
+            match stat {
+                ir::Statement::Function(_, fundef) => {
+                    let fun_id = funs.push(fundef);
+                    if let Some(name) = &fundef.name {
+                        b.add(name.clone(), Value::Fun(ValueFun::Fun(fun_id)));
+                    }
+                }
+                ir::Statement::Struct(_, _) => {
+                    todo!()
+                }
+                ir::Statement::Expr(_) => (),
+            }
+        }
         Self {
-            nifs_binds: env.nifs_binds,
-            nifs: env.nifs,
-            globals: env.globals,
+            nifs: IdVec::new(),
+            funs,
+            global: b,
             module,
             local: BindingsStack::new(),
-            stacktrace: Vec::new(),
             stack: ExecutionStack::new(),
             userdata,
         }
@@ -86,40 +92,32 @@ impl<'m, T> ExecutionMachine<'m, T> {
     ) {
         self.add_native_call(ident, NIFCall::Pure(f))
     }
-    */
 
-    pub fn resolve_fun(&self, ident: &ir::Ident) -> Option<&'m lir::FunDef> {
+    pub fn resolve_fun(&self, ident: &ir::Ident) -> Option<&'m ir::FunDef> {
         self.module
             .funs_tbl
             .get(ident)
             .map(|funid| &self.module.funs[funid])
     }
+    */
 
     pub fn get_binding(&self, ident: &ir::Ident) -> Result<Value, ExecutionError> {
         let bind = self
             .local
             .get(ident)
             .map(|e| e.clone())
-            .or_else(|| {
-                self.module
-                    .funs_tbl
-                    .get(ident)
-                    .map(|symbolic| Value::from(symbolic))
-            })
-            .or_else(|| self.nifs_binds.get(ident).map(|e| Value::from(*e)));
+            .or_else(|| self.global.get(ident).map(|x| x.clone()));
         match bind {
             None => Err(ExecutionError::MissingBinding(ident.clone())),
             Some(val) => Ok(val),
         }
     }
 
-    pub fn scope_enter(&mut self, location: &Location) {
+    pub fn scope_enter(&mut self) {
         self.local.scope_enter();
-        self.stacktrace.push(location.clone())
     }
 
     pub fn scope_leave(&mut self) {
-        self.stacktrace.pop().unwrap();
         self.local.scope_leave();
     }
 }
@@ -160,14 +158,7 @@ pub fn exec<'module, T>(
     let mut values = vec![em.get_binding(&call)?];
     values.extend_from_slice(args);
 
-    match process_call(
-        em,
-        &Location {
-            module: String::from(""),
-            span: ir::Span { start: 0, end: 0 },
-        },
-        values,
-    )? {
+    match process_call(em, values)? {
         None => (),
         Some(_) => {
             panic!("NIF cannot be used as entry point")
@@ -198,32 +189,31 @@ pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, E
 /// * Push a value when the work doesn't need further evaluation
 /// * Push expressions to evaluate on the work stack and the action to complete
 ///   when all the evaluation of those expression is commplete
-fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m lir::Expr) -> Result<(), ExecutionError> {
+fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m ir::Expr) -> Result<(), ExecutionError> {
     match e {
-        lir::Expr::Literal(_, lit) => {
-            let literal = &em.module.lits[*lit];
-            em.stack.push_value(Value::from(literal))
-        }
-        lir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
-        lir::Expr::List(_, l) => {
+        ir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
+        ir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
+        ir::Expr::List(_, l) => {
             if l.is_empty() {
                 em.stack.push_value(Value::Unit);
             } else {
                 em.stack.push_work(ExecutionAtom::List(l.len()), l)
             }
         }
-        lir::Expr::Field(expr, ident) => em.stack.push_work1(ExecutionAtom::Field(ident), expr),
-        lir::Expr::Lambda(_span, fundef) => {
-            let val = Value::Fun(ValueFun::Fun(*fundef));
-            em.stack.push_value(val)
+        ir::Expr::Field(expr, ident) => em.stack.push_work1(ExecutionAtom::Field(ident), expr),
+        ir::Expr::Lambda(_span, _fundef) => {
+            //em.global.get()
+            //let val = Value::Fun(ValueFun::Fun(*fundef));
+            //em.stack.push_value(val)
+            todo!()
         }
-        lir::Expr::Let(ident, e1, e2) => em
+        ir::Expr::Let(ident, e1, e2) => em
             .stack
             .push_work1(ExecutionAtom::Let(ident.clone(), e2.as_ref()), e1),
-        lir::Expr::Call(span, v) => em
+        ir::Expr::Call(span, v) => em
             .stack
             .push_work(ExecutionAtom::Call(v.len(), Location::from_span(span)), v),
-        lir::Expr::If {
+        ir::Expr::If {
             span: _,
             cond,
             then_expr,
@@ -247,32 +237,13 @@ fn eval<'m, T>(
         }
         ExecutionAtom::Field(field) => {
             assert_eq!(args.len(), 1);
-            let Value::Struct(constrid, inner_vals) = &args[0] else {
+            let Value::Struct(_constrid, _inner_vals) = &args[0] else {
                 return Err(ExecutionError::AccessingFieldNotAStruct(
                     field.clone(),
                     (&args[0]).into(),
                 ));
             };
-
-            match &em.module.constrs.vecdata[*constrid] {
-                lir::ConstrDef::Enum(_) => {
-                    return Err(ExecutionError::AccessingFieldNotAStruct(
-                        field.clone(),
-                        (&args[0]).into(),
-                    ));
-                }
-                lir::ConstrDef::Struct(defs) => {
-                    let Some(idx) = defs.fields.iter().position(|r| r == field) else {
-                        return Err(ExecutionError::AccessingInexistentField(
-                            field.clone(),
-                            defs.name.clone(),
-                        ));
-                    };
-                    em.stack.push_value(inner_vals[idx].clone());
-                }
-            };
-
-            Ok(())
+            todo!();
         }
         ExecutionAtom::ThenElse(then_expr, else_expr) => {
             let cond_val = args.into_iter().next().unwrap();
@@ -285,7 +256,7 @@ fn eval<'m, T>(
             }
             Ok(())
         }
-        ExecutionAtom::Call(_, loc) => match process_call(em, &loc, args)? {
+        ExecutionAtom::Call(_, _loc) => match process_call(em, args)? {
             None => Ok(()),
             Some(value) => {
                 em.stack.push_value(value);
@@ -301,9 +272,9 @@ fn eval<'m, T>(
         ExecutionAtom::Let(ident, then) => {
             let bind_val = args.into_iter().next().unwrap();
             match ident {
-                lir::Binder::Unit => bind_val.unit()?,
-                lir::Binder::Ignore => {}
-                lir::Binder::Ident(ident) => {
+                ir::Binder::Unit => bind_val.unit()?,
+                ir::Binder::Ignore => {}
+                ir::Binder::Ident(ident) => {
                     em.add_local_binding(ident, bind_val);
                 }
             }
@@ -315,7 +286,6 @@ fn eval<'m, T>(
 
 fn process_call<'m, T>(
     em: &mut ExecutionMachine<'m, T>,
-    location: &Location,
     args: Vec<Value>,
 ) -> Result<Option<Value>, ExecutionError> {
     let number_args = args.len();
@@ -328,9 +298,9 @@ fn process_call<'m, T>(
     let first_call = first.fun()?;
 
     match first_call {
-        ValueFun::Fun(funid) => match em.module.funs.get(funid) {
+        ValueFun::Fun(funid) => match em.funs.get(funid).map(|f| *f) {
             Some(fundef) => {
-                em.scope_enter(&location);
+                em.scope_enter();
                 check_arity(fundef.vars.len(), number_args - 1)?;
                 for (bind_name, arg_value) in fundef.vars.iter().zip(values) {
                     em.add_local_binding(bind_name.0.clone().unspan(), arg_value.clone())
@@ -343,7 +313,7 @@ fn process_call<'m, T>(
             }
         },
         ValueFun::Native(nifid) => {
-            em.scope_enter(&location);
+            em.scope_enter();
             let args = values.collect::<Vec<_>>();
             let res = match &em.nifs[nifid].call {
                 NIFCall::Pure(nif) => nif(&args)?,

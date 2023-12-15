@@ -1,7 +1,7 @@
 use super::location::Location;
 use super::value::Value;
 use alloc::vec::Vec;
-use werbolg_core::{lir, Ident};
+use werbolg_core::{self as ir, Ident};
 
 pub struct ExecutionStack<'m> {
     pub values: Vec<Value>,
@@ -11,8 +11,8 @@ pub struct ExecutionStack<'m> {
 
 pub enum Work<'m> {
     Empty,
-    One(&'m lir::Expr),
-    Many(&'m [lir::Expr]),
+    One(&'m ir::Expr),
+    Many(&'m [ir::Expr]),
 }
 
 impl<'m> ExecutionStack<'m> {
@@ -24,12 +24,12 @@ impl<'m> ExecutionStack<'m> {
         }
     }
 
-    pub fn push_work1(&mut self, constr: ExecutionAtom<'m>, expr: &'m lir::Expr) {
+    pub fn push_work1(&mut self, constr: ExecutionAtom<'m>, expr: &'m ir::Expr) {
         self.work.push(Work::One(expr));
         self.constr.push(constr);
     }
 
-    pub fn push_work(&mut self, constr: ExecutionAtom<'m>, exprs: &'m [lir::Expr]) {
+    pub fn push_work(&mut self, constr: ExecutionAtom<'m>, exprs: &'m [ir::Expr]) {
         if exprs.len() == 0 {
             self.work.push(Work::Empty)
         } else if exprs.len() == 1 {
@@ -97,9 +97,9 @@ impl<'m> ExecutionStack<'m> {
 pub enum ExecutionAtom<'m> {
     List(usize),
     Field(&'m Ident),
-    ThenElse(&'m lir::Expr, &'m lir::Expr),
+    ThenElse(&'m ir::Expr, &'m ir::Expr),
     Call(usize, Location),
-    Let(lir::Binder, &'m lir::Expr),
+    Let(ir::Binder, &'m ir::Expr),
     PopScope,
 }
 
@@ -117,7 +117,7 @@ impl<'m> ExecutionAtom<'m> {
 }
 
 pub enum ExecutionNext<'m> {
-    Shift(&'m lir::Expr),
+    Shift(&'m ir::Expr),
     Reduce(ExecutionAtom<'m>, Vec<Value>),
     Finish(Value),
 }

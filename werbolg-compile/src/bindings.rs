@@ -21,6 +21,7 @@ impl<T> Bindings<T> {
         self.0.insert(name, value);
     }
 
+    #[allow(unused)]
     pub fn remove(&mut self, name: BindingName) {
         self.0.remove(&name);
     }
@@ -45,6 +46,7 @@ impl<T> BindingsStack<T> {
         self.stack.pop().unwrap()
     }
 
+    #[allow(unused)]
     pub fn scope_leave(&mut self) {
         self.stack.pop();
     }

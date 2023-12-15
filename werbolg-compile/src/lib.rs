@@ -57,7 +57,7 @@ pub fn compile(
     let SymbolsTableData { table, vecdata } = funs;
 
     let mut bindings = BindingsStack::new();
-    for (_id, (ident, idx)) in environ.symbols.vecdata.iter() {
+    for (_id, (ident, _idx)) in environ.symbols.vecdata.iter() {
         bindings.add(ident.clone(), BindingType::Nif(_id))
     }
 

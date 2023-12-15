@@ -170,7 +170,7 @@ fn process_call<'m, T>(
                     let (_first, args) = em.stack2.get_call_and_args(arity);
                     nif(args)?
                 }
-                NIFCall::Mut(nif) => {
+                NIFCall::Mut(_nif) => {
                     todo!()
                 }
             };
@@ -183,7 +183,7 @@ fn process_call<'m, T>(
     }
 }
 
-fn check_arity(expected: usize, got: usize) -> Result<(), ExecutionError> {
+fn _check_arity(expected: usize, got: usize) -> Result<(), ExecutionError> {
     if expected == got {
         Ok(())
     } else {
