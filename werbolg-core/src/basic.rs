@@ -79,6 +79,20 @@ impl core::fmt::Debug for Number {
     }
 }
 
+#[cfg(feature = "backend-bignum")]
+impl AsRef<num_bigint::BigInt> for Number {
+    fn as_ref(&self) -> &num_bigint::BigInt {
+        self.0.as_ref()
+    }
+}
+
+#[cfg(feature = "backend-smallnum")]
+impl AsRef<NumberInner> for Number {
+    fn as_ref(&self) -> &NumberInner {
+        &self.0
+    }
+}
+
 impl Number {
     #[cfg(feature = "backend-bignum")]
     pub fn new(num: num_bigint::BigInt) -> Self {
@@ -196,7 +210,7 @@ impl TryFrom<&Number> for u128 {
 pub type DecimalInner = Box<bigdecimal::BigDecimal>;
 
 #[cfg(feature = "backend-smallnum")]
-pub type DecimalInner = f64;
+pub type DecimalInner = Box<str>;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decimal(pub DecimalInner);
@@ -211,8 +225,7 @@ impl Decimal {
         }
         #[cfg(feature = "backend-smallnum")]
         {
-            use core::str::FromStr;
-            DecimalInner::from_str(s).map(|n| Self(n)).map_err(|_| ())
+            Ok(Decimal(s.to_string().into_boxed_str()))
         }
     }
 }
