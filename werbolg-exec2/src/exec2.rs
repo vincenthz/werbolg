@@ -7,12 +7,10 @@ use werbolg_core::ValueFun;
 
 pub fn exec<'module, T>(
     em: &mut ExecutionMachine<'module, T>,
-    call: ir::Ident,
+    call: ir::FunId,
     args: &[Value],
 ) -> Result<Value, ExecutionError> {
-    // setup the initial value stack, where we inject a dummy function call and then
-    // the arguments to this function
-    em.stack2.push_call(em.get_binding(&call)?, args);
+    em.stack2.push_call(Value::Fun(ValueFun::Fun(call)), args);
 
     match process_call(em, CallArity(args.len() as u32))? {
         CallResult::Jump(ip, local) => {

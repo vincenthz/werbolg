@@ -2,7 +2,7 @@ mod lang;
 
 use hashbrown::HashMap;
 use werbolg_core::{code::code_dump, compile, symbols::IdVec, Environment, Ident, NifId, Number};
-use werbolg_exec::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
+use werbolg_exec2::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
 use werbolg_lang_common::FileUnit;
 
 fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
@@ -154,8 +154,7 @@ fn main() -> Result<(), ()> {
         pub fn finalize(self) -> ExecutionEnviron<'m, T> {
             let globals = self.environment.global.remap(|f| Value::Fun(f));
 
-            ExecutionEnviron {
-                nifs_binds: self.nifs_binds,
+            werbolg_exec2::ExecutionEnviron {
                 nifs: self.nifs,
                 globals: globals,
             }
@@ -177,7 +176,14 @@ fn main() -> Result<(), ()> {
     code_dump(&exec_module.code, &exec_module.funs);
 
     let ee = env.finalize();
-    let mut em = ExecutionMachine::new(&exec_module, ee, ());
+    //let mut em = ExecutionMachine::new(&exec_module, ee, ());
+
+    let entry_point = exec_module
+        .funs_tbl
+        .get(&Ident::from("main"))
+        .expect("existing function as entry point");
+
+    let mut em = werbolg_exec2::ExecutionMachine::new(&exec_module, ee, ());
     /*
     em.add_native_pure_fun("+", nif_plus);
     em.add_native_pure_fun("-", nif_sub);
@@ -191,7 +197,7 @@ fn main() -> Result<(), ()> {
 
     //println!("{:?}", val);
 
-    match werbolg_exec::exec2::exec(&mut em, Ident::from("main"), &[]) {
+    match werbolg_exec2::exec(&mut em, entry_point, &[]) {
         Err(e) => {
             println!("error: {:?} at {}", e, em.ip);
             return Err(());

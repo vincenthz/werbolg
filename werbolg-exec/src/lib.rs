@@ -10,7 +10,6 @@ use werbolg_core::lir::{CallArity, LocalBindIndex, LocalStackSize, ParamBindInde
 use werbolg_core::{symbols::IdVec, ValueFun};
 
 mod bindings;
-pub mod exec2;
 mod location;
 mod stack;
 mod value;
