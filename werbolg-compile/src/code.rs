@@ -2,28 +2,34 @@ use super::instructions::Instruction;
 use super::symbols::{IdVec, IdVecAfter};
 use werbolg_core::id::{Id, IdRemapper};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-pub struct InstructionAddress(u32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct InstructionAddress(Id);
+
+impl Default for InstructionAddress {
+    fn default() -> Self {
+        Self(Id::from_collection_len(0))
+    }
+}
 
 impl InstructionAddress {
     pub fn next(self) -> Self {
-        Self(self.0 + 1)
+        Self(Id::add(self.0, 1))
     }
 }
 
 impl IdRemapper for InstructionAddress {
     fn uncat(self) -> Id {
-        Id(self.0)
+        self.0
     }
 
     fn cat(id: Id) -> Self {
-        InstructionAddress(id.0)
+        Self(id)
     }
 }
 
 impl core::ops::AddAssign<InstructionDiff> for InstructionAddress {
     fn add_assign(&mut self, rhs: InstructionDiff) {
-        self.0 += rhs.0
+        self.0 = Id::add(self.0, rhs.0)
     }
 }
 
@@ -31,13 +37,14 @@ impl core::ops::Sub for InstructionAddress {
     type Output = InstructionDiff;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        InstructionDiff(self.0 - rhs.0)
+        InstructionDiff(Id::diff(self.0, rhs.0))
     }
 }
 
 impl core::fmt::Display for InstructionAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:04x}_{:04x}", self.0 >> 16, self.0 & 0xffff)
+        let idx = self.0.as_index();
+        write!(f, "{:04x}_{:04x}", idx >> 16, idx & 0xffff)
     }
 }
 
@@ -84,7 +91,7 @@ impl Code {
         let ofs = self.stmts.next_id();
         self.stmts
             .concat(&mut IdVecAfter::from_idvec(later.stmts, ofs));
-        InstructionDiff(ofs.0)
+        InstructionDiff(ofs.uncat().as_index() as u32)
     }
 
     pub fn finalize(self) -> IdVec<InstructionAddress, Instruction> {

@@ -40,13 +40,13 @@ impl<ID: IdRemapper, T> core::ops::Index<ID> for IdVec<ID, T> {
     type Output = T;
 
     fn index(&self, index: ID) -> &Self::Output {
-        &self.vec[index.uncat().0 as usize]
+        &self.vec[index.uncat().as_index()]
     }
 }
 
 impl<ID: IdRemapper, T> core::ops::IndexMut<ID> for IdVec<ID, T> {
     fn index_mut(&mut self, index: ID) -> &mut T {
-        &mut self.vec[index.uncat().0 as usize]
+        &mut self.vec[index.uncat().as_index()]
     }
 }
 
@@ -59,20 +59,20 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
     }
 
     pub fn get(&self, id: ID) -> Option<&T> {
-        let idx = id.uncat().0 as usize;
+        let idx = id.uncat().as_index();
         if self.vec.len() > idx {
-            Some(&self.vec[id.uncat().0 as usize])
+            Some(&self.vec[idx])
         } else {
             None
         }
     }
 
     pub fn next_id(&self) -> ID {
-        ID::cat(Id(self.vec.len() as u32))
+        ID::cat(Id::from_slice_len(&self.vec))
     }
 
     pub fn push(&mut self, v: T) -> ID {
-        let id = Id(self.vec.len() as u32);
+        let id = Id::from_slice_len(&self.vec);
         self.vec.push(v);
         ID::cat(id)
     }
@@ -85,18 +85,18 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
         self.vec
             .iter()
             .enumerate()
-            .map(|(i, t)| (ID::cat(Id(i as u32)), t))
+            .map(|(i, t)| (ID::cat(Id::from_collection_len(i)), t))
     }
 
     pub fn into_iter(self) -> impl Iterator<Item = (ID, T)> {
         self.vec
             .into_iter()
             .enumerate()
-            .map(|(i, t)| (ID::cat(Id(i as u32)), t))
+            .map(|(i, t)| (ID::cat(Id::from_collection_len(i)), t))
     }
 
     pub fn concat(&mut self, after: &mut IdVecAfter<ID, T>) {
-        assert!(self.vec.len() == after.ofs as usize);
+        assert!(self.vec.len() == after.ofs.uncat().as_index());
         self.vec.append(&mut after.id_vec.vec)
     }
 
@@ -115,27 +115,27 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
 
 pub struct IdVecAfter<ID, T> {
     id_vec: IdVec<ID, T>,
-    ofs: u32,
+    ofs: ID,
 }
 
 impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
     pub fn new(first_id: ID) -> Self {
         Self {
             id_vec: IdVec::new(),
-            ofs: first_id.uncat().0,
+            ofs: first_id,
         }
     }
 
-    pub fn from_idvec(id_vec: IdVec<ID, T>, first: ID) -> Self {
+    pub fn from_idvec(id_vec: IdVec<ID, T>, first_id: ID) -> Self {
         Self {
             id_vec,
-            ofs: first.uncat().0,
+            ofs: first_id,
         }
     }
 
     pub fn push(&mut self, v: T) -> ID {
         let id = self.id_vec.push(v).uncat();
-        let new_id = Id(id.0 + self.ofs as u32);
+        let new_id = Id::remap(id, self.ofs.uncat());
         ID::cat(new_id)
     }
 

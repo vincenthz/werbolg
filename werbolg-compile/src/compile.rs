@@ -244,7 +244,7 @@ fn rewrite_expr2(
             rewrite_expr2(state, local, *in_expr)?;
             Ok(())
         }
-        ir::Expr::Field(expr, ident) => {
+        ir::Expr::Field(expr, _ident) => {
             rewrite_expr2(state, local, *expr)?;
             //state.write_code().push(Instruction::AccessField(ident));
             todo!()
