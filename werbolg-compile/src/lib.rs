@@ -24,6 +24,7 @@ use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
 pub enum CompilationError {
     DuplicateSymbol(Ident),
     MissingSymbol(Span, Ident),
+    FunctionParamsMoreThanLimit(usize),
 }
 
 pub struct CompilationUnit {

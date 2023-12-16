@@ -9,9 +9,15 @@ pub fn exec<'module, T>(
     call: ir::FunId,
     args: &[Value],
 ) -> Result<Value, ExecutionError> {
+    let arity = args
+        .len()
+        .try_into()
+        .map(CallArity)
+        .map_err(|_| ExecutionError::ArityOverflow { got: args.len() })?;
+
     em.stack.push_call(Value::Fun(ValueFun::Fun(call)), args);
 
-    match process_call(em, CallArity(args.len() as u32))? {
+    match process_call(em, arity)? {
         CallResult::Jump(ip, local) => {
             em.ip_set(ip);
             em.sp_set(local);

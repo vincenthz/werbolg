@@ -214,6 +214,9 @@ pub enum ExecutionError {
         expected: usize,
         got: usize,
     },
+    ArityOverflow {
+        got: usize,
+    },
     AccessingInexistentField(ir::Ident, ir::Ident),
     AccessingFieldNotAStruct(ir::Ident, ValueKind),
     MissingBinding(ir::Ident),

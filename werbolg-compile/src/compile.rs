@@ -34,7 +34,7 @@ impl LocalBindings {
         }
     }
 
-    pub fn add_param(&mut self, ident: Ident, n: u32) {
+    pub fn add_param(&mut self, ident: Ident, n: u8) {
         self.bindings
             .add(ident, BindingType::Param(ParamBindIndex(n)))
     }
@@ -46,7 +46,7 @@ impl LocalBindings {
                 let local = *x;
                 *x += 1;
 
-                let local = LocalBindIndex(local as u32);
+                let local = LocalBindIndex(local as u8);
                 self.bindings.add(ident, BindingType::Local(local));
                 local
             }
@@ -164,8 +164,17 @@ pub(crate) fn rewrite_fun(
 
     let mut local = LocalBindings::new();
 
+    let arity = vars
+        .len()
+        .try_into()
+        .map(|n| CallArity(n))
+        .map_err(|_| CompilationError::FunctionParamsMoreThanLimit(vars.len()))?;
+
     for (var_i, var) in vars.iter().enumerate() {
-        local.add_param(var.0.clone().unspan(), var_i as u32);
+        let var_i = var_i
+            .try_into()
+            .map_err(|_| CompilationError::FunctionParamsMoreThanLimit(vars.len()))?;
+        local.add_param(var.0.clone().unspan(), var_i);
     }
 
     let code_pos = state.get_instruction_address();
@@ -176,7 +185,7 @@ pub(crate) fn rewrite_fun(
     state.write_code().push(Instruction::Ret);
     Ok(FunDef {
         name,
-        arity: CallArity(vars.len() as u32),
+        arity,
         code_pos,
         stack_size: LocalStackSize(local.max_local as u32),
     })
@@ -255,7 +264,7 @@ fn rewrite_expr2(
             }
             state
                 .write_code()
-                .push(Instruction::Call(CallArity(len as u32)));
+                .push(Instruction::Call(CallArity(len as u8)));
             Ok(())
         }
         ir::Expr::If {

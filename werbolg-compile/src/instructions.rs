@@ -35,10 +35,10 @@ pub enum Instruction {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct LocalBindIndex(pub u32);
+pub struct LocalBindIndex(pub u16);
 
 #[derive(Clone, Copy, Debug)]
-pub struct ParamBindIndex(pub u32);
+pub struct ParamBindIndex(pub u8);
 
 #[derive(Clone, Copy, Debug)]
-pub struct CallArity(pub u32);
+pub struct CallArity(pub u8);
