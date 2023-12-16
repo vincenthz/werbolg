@@ -95,7 +95,31 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             em.sp_push_value_from_param(*param_bind);
             em.ip_next()
         }
-        Instruction::AccessField(_) => todo!(),
+        Instruction::AccessField(expected_cid, idx) => {
+            let val = em.stack.pop_value();
+            let Value::Struct(got_cid, inner) = val else {
+                return Err(ExecutionError::ValueKindUnexpected {
+                    value_expected: ValueKind::Struct,
+                    value_got: (&val).into(),
+                });
+            };
+
+            if got_cid != *expected_cid {
+                return Err(ExecutionError::StructMismatch {
+                    constr_expected: *expected_cid,
+                    constr_got: got_cid,
+                });
+            }
+            if idx.0 as usize >= inner.len() {
+                return Err(ExecutionError::StructFieldOutOfBound {
+                    constr: got_cid,
+                    field_index: *idx,
+                    struct_len: inner.len(),
+                });
+            }
+            em.stack.push_value(inner[idx.0 as usize].clone());
+            em.ip_next()
+        }
         Instruction::LocalBind(local_bind) => {
             let val = em.stack.pop_value();
             em.sp_set_value_at(*local_bind, val);

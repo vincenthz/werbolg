@@ -1,6 +1,5 @@
 use super::code::InstructionDiff;
-use werbolg_core::Ident;
-use werbolg_core::{FunId, GlobalId, LitId, NifId};
+use werbolg_core::{ConstrId, FunId, GlobalId, LitId, NifId};
 
 #[derive(Clone, Debug)]
 pub enum Instruction {
@@ -17,7 +16,7 @@ pub enum Instruction {
     /// Fetch from the localstack values (which is relative and after SP)
     FetchStackLocal(LocalBindIndex),
     /// Access a field in a structure value as stack[top]
-    AccessField(Ident),
+    AccessField(ConstrId, StructFieldIndex),
     /// Bind Locally a value
     LocalBind(LocalBindIndex),
     /// Ignore a value from the stack
@@ -39,6 +38,9 @@ pub struct LocalBindIndex(pub u16);
 
 #[derive(Clone, Copy, Debug)]
 pub struct ParamBindIndex(pub u8);
+
+#[derive(Clone, Copy, Debug)]
+pub struct StructFieldIndex(pub u8);
 
 #[derive(Clone, Copy, Debug)]
 pub struct CallArity(pub u8);

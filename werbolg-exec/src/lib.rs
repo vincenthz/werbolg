@@ -3,9 +3,11 @@
 
 extern crate alloc;
 
-use ir::{GlobalId, NifId};
+use ir::{ConstrId, GlobalId, NifId};
 use werbolg_compile::symbols::IdVec;
-use werbolg_compile::{CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex};
+use werbolg_compile::{
+    CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex, StructFieldIndex,
+};
 use werbolg_compile::{CompilationUnit, InstructionAddress, InstructionDiff};
 use werbolg_core as ir;
 
@@ -221,6 +223,15 @@ pub enum ExecutionError {
     AccessingFieldNotAStruct(ir::Ident, ValueKind),
     MissingBinding(ir::Ident),
     InternalErrorFunc(ir::FunId),
+    StructMismatch {
+        constr_expected: ConstrId,
+        constr_got: ConstrId,
+    },
+    StructFieldOutOfBound {
+        constr: ConstrId,
+        field_index: StructFieldIndex,
+        struct_len: usize,
+    },
     CallingNotFunc {
         value_is: ValueKind,
     },

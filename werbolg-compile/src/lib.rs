@@ -9,7 +9,7 @@ mod instructions;
 pub mod symbols;
 
 pub use code::{InstructionAddress, InstructionDiff};
-pub use instructions::{CallArity, Instruction, LocalBindIndex, ParamBindIndex};
+pub use instructions::{CallArity, Instruction, LocalBindIndex, ParamBindIndex, StructFieldIndex};
 
 use compile::*;
 pub use defs::*;

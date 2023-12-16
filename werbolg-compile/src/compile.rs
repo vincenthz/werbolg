@@ -21,8 +21,8 @@ pub(crate) struct RewriteState {
 
 pub struct LocalBindings {
     bindings: BindingsStack<BindingType>,
-    local: Vec<u32>,
-    max_local: u32,
+    local: Vec<u16>,
+    max_local: u16,
 }
 
 impl LocalBindings {
@@ -46,7 +46,7 @@ impl LocalBindings {
                 let local = *x;
                 *x += 1;
 
-                let local = LocalBindIndex(local as u8);
+                let local = LocalBindIndex(local);
                 self.bindings.add(ident, BindingType::Local(local));
                 local
             }
@@ -246,8 +246,9 @@ fn rewrite_expr2(
         }
         ir::Expr::Field(expr, ident) => {
             rewrite_expr2(state, local, *expr)?;
-            state.write_code().push(Instruction::AccessField(ident));
-            Ok(())
+            //state.write_code().push(Instruction::AccessField(ident));
+            todo!()
+            //Ok(())
         }
         ir::Expr::Lambda(_span, fundef) => {
             let prev = state.set_in_lambda();
