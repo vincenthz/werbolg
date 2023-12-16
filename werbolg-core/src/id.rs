@@ -39,7 +39,7 @@ pub trait IdRemapper: Copy {
 }
 
 macro_rules! define_id_remapper {
-    ($constr:ident) => {
+    ($constr:ident, $c:expr) => {
         impl IdRemapper for $constr {
             fn uncat(self) -> Id {
                 self.0
@@ -49,29 +49,35 @@ macro_rules! define_id_remapper {
                 Self(id)
             }
         }
+
+        impl core::fmt::Debug for $constr {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                write!(f, "{}{:?}", $c, self.0)
+            }
+        }
     };
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct FunId(Id);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct LitId(Id);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ConstrId(Id);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct NifId(Id);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct GlobalId(Id);
 
-define_id_remapper!(FunId);
-define_id_remapper!(LitId);
-define_id_remapper!(ConstrId);
-define_id_remapper!(NifId);
-define_id_remapper!(GlobalId);
+define_id_remapper!(FunId, 'F');
+define_id_remapper!(LitId, 'L');
+define_id_remapper!(ConstrId, 'C');
+define_id_remapper!(NifId, 'N');
+define_id_remapper!(GlobalId, 'G');
 
 #[derive(Clone, Copy, Debug)]
 pub enum ValueFun {
