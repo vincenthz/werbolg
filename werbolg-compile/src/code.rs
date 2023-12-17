@@ -1,35 +1,51 @@
 use super::instructions::Instruction;
 use super::symbols::{IdVec, IdVecAfter};
-use werbolg_core::id::{Id, IdRemapper};
+use werbolg_core::id::IdF;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct InstructionAddress(Id);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InstructionAddress(u32);
 
 impl Default for InstructionAddress {
     fn default() -> Self {
-        Self(Id::from_collection_len(0))
+        Self::from_collection_len(0)
     }
 }
 
 impl InstructionAddress {
     pub fn next(self) -> Self {
-        Self(Id::add(self.0, 1))
+        InstructionAddress::add(self, 1)
     }
 }
 
-impl IdRemapper for InstructionAddress {
-    fn uncat(self) -> Id {
-        self.0
+impl IdF for InstructionAddress {
+    fn as_index(self) -> usize {
+        self.0 as usize
     }
 
-    fn cat(id: Id) -> Self {
-        Self(id)
+    fn from_slice_len<T>(slice: &[T]) -> Self {
+        Self(slice.len() as u32)
+    }
+
+    fn from_collection_len(len: usize) -> Self {
+        Self(len as u32)
+    }
+
+    fn remap(left: Self, right: Self) -> Self {
+        Self(left.0 + right.0)
+    }
+
+    fn add(left: Self, right: u32) -> Self {
+        Self(left.0.checked_add(right).expect("ID valid add"))
+    }
+
+    fn diff(left: Self, right: Self) -> u32 {
+        left.0.checked_sub(right.0).expect("ID valid diff")
     }
 }
 
 impl core::ops::AddAssign<InstructionDiff> for InstructionAddress {
     fn add_assign(&mut self, rhs: InstructionDiff) {
-        self.0 = Id::add(self.0, rhs.0)
+        *self = InstructionAddress::add(*self, rhs.0)
     }
 }
 
@@ -37,13 +53,13 @@ impl core::ops::Sub for InstructionAddress {
     type Output = InstructionDiff;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        InstructionDiff(Id::diff(self.0, rhs.0))
+        InstructionDiff(InstructionAddress::diff(self, rhs))
     }
 }
 
 impl core::fmt::Display for InstructionAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let idx = self.0.as_index();
+        let idx = self.as_index();
         write!(f, "{:04x}_{:04x}", idx >> 16, idx & 0xffff)
     }
 }
@@ -91,7 +107,7 @@ impl Code {
         let ofs = self.stmts.next_id();
         self.stmts
             .concat(&mut IdVecAfter::from_idvec(later.stmts, ofs));
-        InstructionDiff(ofs.uncat().as_index() as u32)
+        InstructionDiff(ofs.as_index() as u32)
     }
 
     pub fn finalize(self) -> IdVec<InstructionAddress, Instruction> {

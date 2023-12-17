@@ -2,15 +2,15 @@ use alloc::vec::Vec;
 use core::hash::Hash;
 use core::marker::PhantomData;
 use hashbrown::HashMap;
-use werbolg_core::id::{Id, IdRemapper};
+use werbolg_core::id::IdF;
 use werbolg_core::Ident;
 
-pub struct SymbolsTable<ID: IdRemapper> {
-    pub(crate) tbl: HashMap<Ident, Id>,
+pub struct SymbolsTable<ID: IdF> {
+    pub(crate) tbl: HashMap<Ident, ID>,
     phantom: PhantomData<ID>,
 }
 
-impl<ID: IdRemapper> SymbolsTable<ID> {
+impl<ID: IdF> SymbolsTable<ID> {
     pub fn new() -> Self {
         Self {
             tbl: Default::default(),
@@ -19,15 +19,15 @@ impl<ID: IdRemapper> SymbolsTable<ID> {
     }
 
     pub fn insert(&mut self, ident: Ident, id: ID) {
-        self.tbl.insert(ident, id.uncat());
+        self.tbl.insert(ident, id);
     }
 
     pub fn get(&self, ident: &Ident) -> Option<ID> {
-        self.tbl.get(ident).map(|i| ID::cat(*i))
+        self.tbl.get(ident).map(|i| *i)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&Ident, ID)> {
-        self.tbl.iter().map(|(ident, id)| (ident, ID::cat(*id)))
+        self.tbl.iter().map(|(ident, id)| (ident, *id))
     }
 }
 
@@ -36,21 +36,21 @@ pub struct IdVec<ID, T> {
     phantom: PhantomData<ID>,
 }
 
-impl<ID: IdRemapper, T> core::ops::Index<ID> for IdVec<ID, T> {
+impl<ID: IdF, T> core::ops::Index<ID> for IdVec<ID, T> {
     type Output = T;
 
     fn index(&self, index: ID) -> &Self::Output {
-        &self.vec[index.uncat().as_index()]
+        &self.vec[index.as_index()]
     }
 }
 
-impl<ID: IdRemapper, T> core::ops::IndexMut<ID> for IdVec<ID, T> {
+impl<ID: IdF, T> core::ops::IndexMut<ID> for IdVec<ID, T> {
     fn index_mut(&mut self, index: ID) -> &mut T {
-        &mut self.vec[index.uncat().as_index()]
+        &mut self.vec[index.as_index()]
     }
 }
 
-impl<ID: IdRemapper, T> IdVec<ID, T> {
+impl<ID: IdF, T> IdVec<ID, T> {
     pub fn new() -> Self {
         Self {
             vec: Vec::new(),
@@ -59,7 +59,7 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
     }
 
     pub fn get(&self, id: ID) -> Option<&T> {
-        let idx = id.uncat().as_index();
+        let idx = id.as_index();
         if self.vec.len() > idx {
             Some(&self.vec[idx])
         } else {
@@ -68,13 +68,13 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
     }
 
     pub fn next_id(&self) -> ID {
-        ID::cat(Id::from_slice_len(&self.vec))
+        ID::from_slice_len(&self.vec)
     }
 
     pub fn push(&mut self, v: T) -> ID {
-        let id = Id::from_slice_len(&self.vec);
+        let id = ID::from_slice_len(&self.vec);
         self.vec.push(v);
-        ID::cat(id)
+        id
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
@@ -85,18 +85,18 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
         self.vec
             .iter()
             .enumerate()
-            .map(|(i, t)| (ID::cat(Id::from_collection_len(i)), t))
+            .map(|(i, t)| (ID::from_collection_len(i), t))
     }
 
     pub fn into_iter(self) -> impl Iterator<Item = (ID, T)> {
         self.vec
             .into_iter()
             .enumerate()
-            .map(|(i, t)| (ID::cat(Id::from_collection_len(i)), t))
+            .map(|(i, t)| (ID::from_collection_len(i), t))
     }
 
     pub fn concat(&mut self, after: &mut IdVecAfter<ID, T>) {
-        assert!(self.vec.len() == after.ofs.uncat().as_index());
+        assert!(self.vec.len() == after.ofs.as_index());
         self.vec.append(&mut after.id_vec.vec)
     }
 
@@ -107,7 +107,7 @@ impl<ID: IdRemapper, T> IdVec<ID, T> {
         let mut new = IdVec::<ID, U>::new();
         for (id, t) in self.into_iter() {
             let new_id = new.push(f(t));
-            assert_eq!(new_id.uncat(), id.uncat());
+            assert_eq!(new_id, id);
         }
         new
     }
@@ -118,7 +118,7 @@ pub struct IdVecAfter<ID, T> {
     ofs: ID,
 }
 
-impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
+impl<ID: IdF, T> IdVecAfter<ID, T> {
     pub fn new(first_id: ID) -> Self {
         Self {
             id_vec: IdVec::new(),
@@ -134,9 +134,9 @@ impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
     }
 
     pub fn push(&mut self, v: T) -> ID {
-        let id = self.id_vec.push(v).uncat();
-        let new_id = Id::remap(id, self.ofs.uncat());
-        ID::cat(new_id)
+        let id = self.id_vec.push(v);
+        let new_id = ID::remap(id, self.ofs);
+        new_id
     }
 
     pub fn remap<F>(&mut self, f: F)
@@ -149,12 +149,12 @@ impl<ID: IdRemapper, T> IdVecAfter<ID, T> {
     }
 }
 
-pub struct SymbolsTableData<ID: IdRemapper, T> {
+pub struct SymbolsTableData<ID: IdF, T> {
     pub table: SymbolsTable<ID>,
     pub vecdata: IdVec<ID, T>,
 }
 
-impl<ID: IdRemapper, T> SymbolsTableData<ID, T> {
+impl<ID: IdF, T> SymbolsTableData<ID, T> {
     pub fn new() -> Self {
         Self {
             table: SymbolsTable::new(),
@@ -176,13 +176,13 @@ impl<ID: IdRemapper, T> SymbolsTableData<ID, T> {
     }
 }
 
-pub struct UniqueTableBuilder<ID: IdRemapper, T: Eq + Hash> {
+pub struct UniqueTableBuilder<ID: IdF, T: Eq + Hash> {
     pub symtbl: HashMap<T, ID>,
     pub syms: IdVec<ID, T>,
     pub phantom: PhantomData<ID>,
 }
 
-impl<ID: IdRemapper, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
+impl<ID: IdF, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
     pub fn new() -> Self {
         Self {
             symtbl: HashMap::new(),

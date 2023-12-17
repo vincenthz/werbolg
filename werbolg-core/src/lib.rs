@@ -9,6 +9,6 @@ mod location;
 pub mod symbols;
 
 pub use basic::*;
-pub use id::{ConstrId, FunId, GlobalId, Id, LitId, NifId, ValueFun};
+pub use id::{ConstrId, FunId, GlobalId, LitId, NifId, ValueFun};
 pub use ir::*;
 pub use location::*;
