@@ -9,4 +9,3 @@ edition = "2021"
 default = []
 
 [dependencies]
-hashbrown = "0.14"
