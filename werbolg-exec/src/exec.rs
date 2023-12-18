@@ -1,11 +1,26 @@
 use crate::Valuable;
 
-use super::NIFCall;
 use super::{ExecutionError, ExecutionMachine};
 use werbolg_compile::{CallArity, Instruction, InstructionAddress, LocalStackSize};
 use werbolg_core as ir;
 use werbolg_core::ValueFun;
 
+/// Native Implemented Function
+pub struct NIF<'m, L, T, V> {
+    pub name: &'static str,
+    pub call: NIFCall<'m, L, T, V>,
+}
+
+/// 2 Variants of Native calls
+///
+/// * "Pure" function that don't have access to the execution machine
+/// * "Mut" function that have access to the execution machine and have more power / responsability.
+pub enum NIFCall<'m, L, T, V> {
+    Pure(fn(&[V]) -> Result<V, ExecutionError>),
+    Mut(fn(&mut ExecutionMachine<'m, L, T, V>, &[V]) -> Result<V, ExecutionError>),
+}
+
+/// Execute the module, calling function identified by FunId, with the arguments in parameters
 pub fn exec<'module, L, T, V: Valuable>(
     em: &mut ExecutionMachine<'module, L, T, V>,
     call: ir::FunId,

@@ -13,13 +13,11 @@ use werbolg_core as ir;
 
 mod exec;
 mod valuable;
-mod value;
 
 use alloc::{string::String, vec::Vec};
 pub use valuable::{Valuable, ValueKind};
-pub use value::{NIFCall, NIF};
 
-pub use exec::{exec, exec_continue, step};
+pub use exec::{exec, exec_continue, step, NIFCall, NIF};
 
 pub struct ExecutionEnviron<'m, L, T, V> {
     pub nifs: IdVec<NifId, NIF<'m, L, T, V>>,
