@@ -1,11 +1,11 @@
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
 mod basic;
 pub mod id;
 pub mod idvec;
-mod ir;
+pub mod ir;
 mod location;
 
 pub use basic::*;

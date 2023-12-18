@@ -7,11 +7,6 @@ edition = "2021"
 
 [features]
 default = []
-backend-smallnum = []
-backend-bignum = ["num-bigint", "num-traits", "bigdecimal"]
 
 [dependencies]
-num-bigint = { version = "0.4", optional = true }
-num-traits = { version = "0.2", optional = true }
-bigdecimal = { version = "0.4", optional = true }
 hashbrown = "0.14"

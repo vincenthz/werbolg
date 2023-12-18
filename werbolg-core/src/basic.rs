@@ -29,23 +29,27 @@ impl Ident {
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Literal {
-    String(String),
-    Number(Number),
-    Decimal(Decimal),
+    Bool(Box<str>),
+    String(Box<str>),
+    Number(Box<str>),
+    Decimal(Box<str>),
     Bytes(Box<[u8]>),
 }
 
 impl core::fmt::Debug for Literal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Literal::Bool(s) => {
+                write!(f, "\"{}\"", s)
+            }
             Literal::String(s) => {
                 write!(f, "\"{}\"", s)
             }
             Literal::Number(n) => {
-                write!(f, "{:?}", n)
+                write!(f, "{}", n)
             }
             Literal::Decimal(d) => {
-                write!(f, "{:?}", d)
+                write!(f, "{}", d)
             }
             Literal::Bytes(bytes) => {
                 write!(f, "#")?;
@@ -58,6 +62,7 @@ impl core::fmt::Debug for Literal {
     }
 }
 
+/*
 #[cfg(feature = "backend-bignum")]
 use num_traits::{Num, ToPrimitive};
 
@@ -229,3 +234,5 @@ impl Decimal {
         }
     }
 }
+
+*/

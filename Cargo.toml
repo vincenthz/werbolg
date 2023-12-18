@@ -7,11 +7,9 @@ description = "a multi language high level dynamic platform to execute in a safe
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["lang-lispy", "lang-rusty", "backend-bignum"]
+default = ["lang-lispy", "lang-rusty"]
 lang-lispy = ["werbolg-lang-lispy"]
 lang-rusty = ["werbolg-lang-rusty"]
-backend-smallnum = ["werbolg-core/backend-smallnum"]
-backend-bignum = ["werbolg-core/backend-bignum"]
 
 [profile.release]
 panic = 'abort'

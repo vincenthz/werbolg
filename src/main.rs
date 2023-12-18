@@ -1,43 +1,47 @@
 mod lang;
+mod value;
 
 use hashbrown::HashMap;
+use value::Value;
 use werbolg_compile::{code_dump, compile, symbols::IdVec, Environment};
-use werbolg_core::{Ident, NifId, Number};
-use werbolg_exec::{ExecutionEnviron, ExecutionError, ExecutionMachine, NIFCall, Value, NIF};
+use werbolg_core::{ConstrId, Ident, Literal, NifId, ValueFun};
+use werbolg_exec::{
+    ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable, NIF,
+};
 use werbolg_lang_common::FileUnit;
 
 fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
-    let n1 = args[0].number()?;
-    let n2 = args[1].number()?;
+    let n1 = args[0].int()?;
+    let n2 = args[1].int()?;
 
-    let ret = Number::new(n1.as_ref() + n2.as_ref());
+    let ret = Value::Integral(n1 + n2);
 
-    Ok(Value::Number(ret))
+    Ok(ret)
 }
 
 fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
-    let n1 = args[0].number()?;
-    let n2 = args[1].number()?;
+    let n1 = args[0].int()?;
+    let n2 = args[1].int()?;
 
-    let ret = Number::new(n1.as_ref() - n2.as_ref());
+    let ret = Value::Integral(n1 - n2);
 
-    Ok(Value::Number(ret))
+    Ok(ret)
 }
 
 fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
-    let n1 = args[0].number()?;
-    let n2 = args[1].number()?;
+    let n1 = args[0].int()?;
+    let n2 = args[1].int()?;
 
-    let ret = Number::new(n1.as_ref() * n2.as_ref());
+    let ret = Value::Integral(n1 * n2);
 
-    Ok(Value::Number(ret))
+    Ok(ret)
 }
 
 fn nif_eq(args: &[Value]) -> Result<Value, ExecutionError> {
-    let n1 = args[0].number()?;
-    let n2 = args[1].number()?;
+    let n1 = args[0].int()?;
+    let n2 = args[1].int()?;
 
-    let ret = n1.0 == n2.0;
+    let ret = n1 == n2;
 
     Ok(Value::Bool(ret))
 }
@@ -46,22 +50,41 @@ fn nif_hashtable(_args: &[Value]) -> Result<Value, ExecutionError> {
     let mut h = HashMap::<u32, u64>::new();
     h.insert(10, 20);
     h.insert(20, 40);
-    Ok(Value::make_opaque(h))
+    Ok(Value::HashMap(h))
 }
 
 fn nif_hashtable_get(args: &[Value]) -> Result<Value, ExecutionError> {
-    let h: &HashMap<u32, u64> = args[0].opaque()?;
-    let index_bignum = args[1].number()?;
+    let Value::HashMap(h) = &args[0] else {
+        return Err(ExecutionError::ValueKindUnexpected {
+            value_expected: Value::Integral(0).descriptor(),
+            value_got: Value::Integral(0).descriptor(),
+        });
+    };
+    let index_bignum = args[1].int()?;
     let index: u32 = index_bignum
         .try_into()
-        .map_err(|()| ExecutionError::UserPanic {
-            message: String::from("cannot convert number to u64"),
+        .map_err(|_| ExecutionError::UserPanic {
+            message: String::from("cannot convert Integral to u32"),
         })?;
 
     match h.get(&index) {
         None => Ok(Value::Unit),
-        Some(value) => Ok(Value::Number(Number::from_u64(*value))),
+        Some(value) => Ok(Value::Integral(*value)),
     }
+}
+
+fn literal_to_value(lit: &Literal) -> Value {
+    match lit {
+        Literal::Bool(b) => Value::Bool(true),
+        Literal::String(_) => Value::Unit,
+        Literal::Number(_) => Value::Integral(0),
+        Literal::Decimal(_) => Value::Unit,
+        Literal::Bytes(_) => Value::Unit,
+    }
+}
+
+fn literal_mapper(lit: Literal) -> Literal {
+    lit
 }
 
 fn get_content(args: &[String]) -> Result<(FileUnit, lang::Lang), ()> {
@@ -112,13 +135,13 @@ fn main() -> Result<(), ()> {
 
     let module = lang::parse(lang, &fileunit).expect("no parse error");
 
-    pub struct Env<'m, T> {
+    pub struct Env<'m, L, T, V> {
         environment: Environment,
-        nifs: IdVec<NifId, NIF<'m, T>>,
+        nifs: IdVec<NifId, NIF<'m, L, T, V>>,
         nifs_binds: werbolg_interpret::Bindings<NifId>,
     }
 
-    impl<'m, T> Env<'m, T> {
+    impl<'m, L, T, V: Valuable> Env<'m, L, T, V> {
         pub fn new() -> Self {
             Self {
                 environment: Environment::new(),
@@ -126,7 +149,7 @@ fn main() -> Result<(), ()> {
                 nifs_binds: werbolg_interpret::Bindings::new(),
             }
         }
-        pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, T>) {
+        pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, L, T, V>) {
             let id = self.environment.add(werbolg_core::Ident::from(ident));
             let id2 = self.nifs.push(NIF {
                 name: ident,
@@ -140,7 +163,7 @@ fn main() -> Result<(), ()> {
         pub fn add_native_mut_fun(
             &mut self,
             ident: &'static str,
-            f: fn(&mut ExecutionMachine<'m, T>, &[Value]) -> Result<Value, ExecutionError>,
+            f: fn(&mut ExecutionMachine<'m, L, T, V>, &[V]) -> Result<V, ExecutionError>,
         ) {
             self.add_native_call(ident, NIFCall::Mut(f))
         }
@@ -148,13 +171,13 @@ fn main() -> Result<(), ()> {
         pub fn add_native_pure_fun(
             &mut self,
             ident: &'static str,
-            f: fn(&[Value]) -> Result<Value, ExecutionError>,
+            f: fn(&[V]) -> Result<V, ExecutionError>,
         ) {
             self.add_native_call(ident, NIFCall::Pure(f))
         }
 
-        pub fn finalize(self) -> ExecutionEnviron<'m, T> {
-            let globals = self.environment.global.remap(|f| Value::Fun(f));
+        pub fn finalize(self) -> ExecutionEnviron<'m, L, T, V> {
+            let globals = self.environment.global.remap(|f| V::make_fun(f));
 
             werbolg_exec::ExecutionEnviron {
                 nifs: self.nifs,
@@ -172,7 +195,9 @@ fn main() -> Result<(), ()> {
     env.add_native_pure_fun("table_get", nif_hashtable_get);
     //environment.add(ident);
 
-    let exec_module = compile(module, &mut env.environment).expect("no compilation error");
+    let compilation_params = werbolg_compile::CompilationParams { literal_mapper };
+    let exec_module =
+        compile(&compilation_params, module, &mut env.environment).expect("no compilation error");
 
     //exec_module.print();
     code_dump(&exec_module.code, &exec_module.funs);
@@ -185,7 +210,8 @@ fn main() -> Result<(), ()> {
         .get(&Ident::from("main"))
         .expect("existing function as entry point");
 
-    let mut em = ExecutionMachine::new(&exec_module, ee, ());
+    let execution_params = ExecutionParams { literal_to_value };
+    let mut em = ExecutionMachine::new(&exec_module, ee, execution_params, ());
 
     //let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
 

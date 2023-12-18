@@ -1,13 +1,26 @@
+//! AST for werbolg
+//!
+//! This try to remain generic to allow multiple different language (existing or new)
+//! to target werbolg and be interpreted through it
+
 use super::basic::*;
 use super::location::*;
 
 use alloc::{boxed::Box, vec::Vec};
 
+/// AST for a module / source code unit
 #[derive(Clone, Debug)]
 pub struct Module {
     pub statements: Vec<Statement>,
 }
 
+/// AST for a high level statement
+///
+/// Current known types are:
+///
+/// * Function definition
+/// * Struct definition
+/// * Naked expression
 #[derive(Clone, Debug)]
 pub enum Statement {
     Function(Span, FunDef),
@@ -15,6 +28,14 @@ pub enum Statement {
     Expr(Expr),
 }
 
+/// AST for function definition
+///
+/// Function definitions are something like:
+///
+/// ```text
+/// function $name ( $vars ) { $body }
+/// ```
+///
 #[derive(Clone, Debug)]
 pub struct FunDef {
     pub name: Option<Ident>,
@@ -22,12 +43,28 @@ pub struct FunDef {
     pub body: Expr,
 }
 
+/// AST for Structure definition
+///
+/// Structure definitions are something like
+///
+/// ```text
+/// struct $name { $fields }
+/// ```
+///
 #[derive(Clone, Debug)]
 pub struct StructDef {
     pub name: Spanned<Ident>,
     pub fields: Vec<Spanned<Ident>>,
 }
 
+/// AST for Enum definition
+///
+/// Enum definitions are something like
+///
+/// ```text
+/// enum $name { $variants }
+/// ```
+///
 #[derive(Clone, Debug)]
 pub struct EnumDef {
     pub name: Spanned<Ident>,

@@ -5,14 +5,14 @@ use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{prelude::*, stream::Stream};
 use core::fmt;
 
-use werbolg_core::{self as ir, Literal, Number, Variable};
+use werbolg_core::{self as ir, Literal, Variable};
 
 pub type Span = core::ops::Range<usize>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 enum Token {
     Null,
-    Bool(bool),
+    Bool(String),
     Num(String),
     Str(String),
     Op(String),
@@ -72,8 +72,8 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
         "let" => Token::Let,
         "if" => Token::If,
         "else" => Token::Else,
-        "true" => Token::Bool(true),
-        "false" => Token::Bool(false),
+        "true" => Token::Bool(ident),
+        "false" => Token::Bool(ident),
         "null" => Token::Null,
         _ => Token::Ident(ident),
     });
@@ -146,9 +146,9 @@ fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + C
         let raw_expr = recursive(|raw_expr| {
             let val = select! {
                 //Token::Null => todo!(),
-                //Token::Bool(x) => todo!(), //Expr::Literal(Value::Bool(x)),
-                Token::Num(n) => Expr::Literal(Literal::Number(Number::from_str_radix(&n, 10).unwrap())),
-                Token::Str(s) => Expr::Literal(Literal::String(s)),
+                Token::Bool(s) => Expr::Literal(Literal::Bool(s.into_boxed_str())),
+                Token::Num(s) => Expr::Literal(Literal::Number(s.into_boxed_str())),
+                Token::Str(s) => Expr::Literal(Literal::String(s.into_boxed_str())),
             }
             .labelled("value");
 

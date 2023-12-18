@@ -12,38 +12,46 @@ use werbolg_compile::{CompilationUnit, InstructionAddress, InstructionDiff};
 use werbolg_core as ir;
 
 mod exec;
+mod valuable;
 mod value;
 
 use alloc::{string::String, vec::Vec};
-pub use value::{NIFCall, Value, ValueKind, NIF};
+pub use valuable::{Valuable, ValueKind};
+pub use value::{NIFCall, NIF};
 
 pub use exec::{exec, exec_continue, step};
 
-pub struct ExecutionEnviron<'m, T> {
-    pub nifs: IdVec<NifId, NIF<'m, T>>,
-    pub globals: IdVec<GlobalId, Value>,
+pub struct ExecutionEnviron<'m, L, T, V> {
+    pub nifs: IdVec<NifId, NIF<'m, L, T, V>>,
+    pub globals: IdVec<GlobalId, V>,
 }
 
-pub struct ExecutionMachine<'m, T> {
-    pub nifs: IdVec<NifId, NIF<'m, T>>,
-    pub globals: IdVec<GlobalId, Value>,
-    pub module: &'m CompilationUnit,
+#[derive(Clone)]
+pub struct ExecutionParams<L, V> {
+    pub literal_to_value: fn(&L) -> V,
+}
+
+pub struct ExecutionMachine<'m, L, T, V> {
+    pub nifs: IdVec<NifId, NIF<'m, L, T, V>>,
+    pub globals: IdVec<GlobalId, V>,
+    pub module: &'m CompilationUnit<L>,
     pub rets: Vec<(InstructionAddress, StackPointer, LocalStackSize, CallArity)>,
-    pub stack: ValueStack,
+    pub stack: ValueStack<V>,
     pub ip: InstructionAddress,
     pub sp: StackPointer,
     pub current_stack_size: LocalStackSize,
+    pub params: ExecutionParams<L, V>,
     pub userdata: T,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StackPointer(usize);
 
-pub struct ValueStack {
-    values: Vec<Value>,
+pub struct ValueStack<V> {
+    values: Vec<V>,
 }
 
-impl ValueStack {
+impl<V: Valuable> ValueStack<V> {
     pub fn new() -> Self {
         Self { values: Vec::new() }
     }
@@ -52,7 +60,7 @@ impl ValueStack {
         StackPointer(self.values.len())
     }
 
-    pub fn push_call(&mut self, call: Value, args: &[Value]) {
+    pub fn push_call(&mut self, call: V, args: &[V]) {
         self.values.push(call);
         self.values.extend_from_slice(args);
     }
@@ -67,12 +75,12 @@ impl ValueStack {
         self.values.truncate(n)
     }
 
-    pub fn get_call(&self, arity: CallArity) -> &Value {
+    pub fn get_call(&self, arity: CallArity) -> &V {
         let top = self.values.len();
         &self.values[top - (arity.0 as usize) - 1]
     }
 
-    pub fn set_at(&mut self, index: usize, value: Value) {
+    pub fn set_at(&mut self, index: usize, value: V) {
         self.values[index] = value;
     }
 
@@ -81,15 +89,15 @@ impl ValueStack {
         self.push_value(value)
     }
 
-    pub fn push_value(&mut self, arg: Value) {
+    pub fn push_value(&mut self, arg: V) {
         self.values.push(arg);
     }
 
-    pub fn pop_value(&mut self) -> Value {
+    pub fn pop_value(&mut self) -> V {
         self.values.pop().expect("can be popped")
     }
 
-    pub fn get_call_and_args(&self, arity: CallArity) -> (&Value, &[Value]) {
+    pub fn get_call_and_args(&self, arity: CallArity) -> (&V, &[V]) {
         let top = self.values.len();
         (
             &self.values[top - (arity.0 as usize) - 1],
@@ -97,7 +105,7 @@ impl ValueStack {
         )
     }
 
-    pub fn iter_pos(&self) -> impl Iterator<Item = (StackPointer, &Value)> {
+    pub fn iter_pos(&self) -> impl Iterator<Item = (StackPointer, &V)> {
         self.values
             .iter()
             .enumerate()
@@ -105,10 +113,13 @@ impl ValueStack {
     }
 }
 
-pub type BindingValue = Value;
-
-impl<'m, T> ExecutionMachine<'m, T> {
-    pub fn new(module: &'m CompilationUnit, env: ExecutionEnviron<'m, T>, userdata: T) -> Self {
+impl<'m, L, T, V: Valuable> ExecutionMachine<'m, L, T, V> {
+    pub fn new(
+        module: &'m CompilationUnit<L>,
+        env: ExecutionEnviron<'m, L, T, V>,
+        params: ExecutionParams<L, V>,
+        userdata: T,
+    ) -> Self {
         Self {
             nifs: env.nifs,
             globals: env.globals,
@@ -118,6 +129,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
             userdata,
             ip: InstructionAddress::default(),
             sp: StackPointer::default(),
+            params,
             current_stack_size: LocalStackSize(0),
         }
     }
@@ -155,7 +167,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
     }
 
     #[inline]
-    pub fn sp_set_value_at(&mut self, bind_index: LocalBindIndex, value: Value) {
+    pub fn sp_set_value_at(&mut self, bind_index: LocalBindIndex, value: V) {
         let index = self.sp.0 + bind_index.0 as usize;
         self.stack.set_at(index, value);
     }
@@ -182,12 +194,14 @@ impl<'m, T> ExecutionMachine<'m, T> {
     pub fn sp_set(&mut self, local_stack_size: LocalStackSize) {
         self.sp = self.stack.top();
         for _ in 0..local_stack_size.0 {
-            self.stack.push_value(Value::Unit);
+            self.stack.push_value(V::make_dummy());
         }
         self.current_stack_size = local_stack_size;
         //println!("SP={} local={}", self.sp.0, local_stack_size.0)
     }
+}
 
+impl<'m, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, L, T, V> {
     pub fn debug_state(&self) {
         println!("ip={} sp={:?}", self.ip, self.sp.0);
 
@@ -219,8 +233,8 @@ pub enum ExecutionError {
     ArityOverflow {
         got: usize,
     },
-    AccessingInexistentField(ir::Ident, ir::Ident),
-    AccessingFieldNotAStruct(ir::Ident, ValueKind),
+    //AccessingInexistentField(ir::Ident, ir::Ident),
+    //AccessingFieldNotAStruct(ir::Ident, ValueKind),
     MissingBinding(ir::Ident),
     InternalErrorFunc(ir::FunId),
     StructMismatch {
@@ -233,6 +247,12 @@ pub enum ExecutionError {
         struct_len: usize,
     },
     CallingNotFunc {
+        value_is: ValueKind,
+    },
+    ValueNotStruct {
+        value_is: ValueKind,
+    },
+    ValueNotConditional {
         value_is: ValueKind,
     },
     ValueKindUnexpected {

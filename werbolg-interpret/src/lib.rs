@@ -4,7 +4,7 @@
 extern crate alloc;
 
 use werbolg_core as ir;
-use werbolg_core::{idvec::IdVec, FunDef, FunId, NifId, ValueFun};
+use werbolg_core::{idvec::IdVec, FunDef, FunId, Literal, NifId, ValueFun};
 
 mod bindings;
 mod location;
@@ -17,6 +17,12 @@ pub use location::Location;
 use stack::{ExecutionAtom, ExecutionNext, ExecutionStack};
 pub use value::{NIFCall, Value, ValueKind, NIF};
 
+#[derive(Clone)]
+pub struct ExecutionParams {
+    pub literal_to_value: fn(&Literal) -> Value,
+    pub literal_to_condition: fn(&Literal) -> bool,
+}
+
 pub struct ExecutionMachine<'m, T> {
     //pub nifs_binds: Bindings<NifId>,
     pub nifs: IdVec<NifId, NIF<'m, T>>,
@@ -25,13 +31,14 @@ pub struct ExecutionMachine<'m, T> {
     pub module: &'m ir::Module,
     pub local: BindingsStack<BindingValue>,
     pub stack: ExecutionStack<'m>,
+    pub params: ExecutionParams,
     pub userdata: T,
 }
 
 pub type BindingValue = Value;
 
 impl<'m, T> ExecutionMachine<'m, T> {
-    pub fn new(module: &'m ir::Module, userdata: T) -> Self {
+    pub fn new(params: ExecutionParams, module: &'m ir::Module, userdata: T) -> Self {
         let mut b = Bindings::new();
         let mut funs = IdVec::new();
         for stat in module.statements.iter() {
@@ -49,6 +56,7 @@ impl<'m, T> ExecutionMachine<'m, T> {
             }
         }
         Self {
+            params,
             nifs: IdVec::new(),
             funs,
             global: b,
@@ -191,7 +199,7 @@ pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, E
 ///   when all the evaluation of those expression is commplete
 fn work<'m, T>(em: &mut ExecutionMachine<'m, T>, e: &'m ir::Expr) -> Result<(), ExecutionError> {
     match e {
-        ir::Expr::Literal(_, lit) => em.stack.push_value(Value::from(lit)),
+        ir::Expr::Literal(_, lit) => em.stack.push_value((em.params.literal_to_value)(lit)),
         ir::Expr::Ident(_, ident) => em.stack.push_value(em.get_binding(ident)?),
         ir::Expr::List(_, l) => {
             if l.is_empty() {
@@ -247,7 +255,7 @@ fn eval<'m, T>(
         }
         ExecutionAtom::ThenElse(then_expr, else_expr) => {
             let cond_val = args.into_iter().next().unwrap();
-            let cond_bool = cond_val.bool()?;
+            let cond_bool = (em.params.literal_to_condition)(cond_val.literal()?);
 
             if cond_bool {
                 work(em, &then_expr)?

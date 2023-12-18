@@ -1,21 +1,23 @@
+use crate::Valuable;
+
 use super::NIFCall;
-use super::{ExecutionError, ExecutionMachine, Value, ValueKind};
+use super::{ExecutionError, ExecutionMachine};
 use werbolg_compile::{CallArity, Instruction, InstructionAddress, LocalStackSize};
 use werbolg_core as ir;
 use werbolg_core::ValueFun;
 
-pub fn exec<'module, T>(
-    em: &mut ExecutionMachine<'module, T>,
+pub fn exec<'module, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'module, L, T, V>,
     call: ir::FunId,
-    args: &[Value],
-) -> Result<Value, ExecutionError> {
+    args: &[V],
+) -> Result<V, ExecutionError> {
     let arity = args
         .len()
         .try_into()
         .map(CallArity)
         .map_err(|_| ExecutionError::ArityOverflow { got: args.len() })?;
 
-    em.stack.push_call(Value::Fun(ValueFun::Fun(call)), args);
+    em.stack.push_call(V::make_fun(ValueFun::Fun(call)), args);
 
     match process_call(em, arity)? {
         CallResult::Jump(ip, local) => {
@@ -25,20 +27,25 @@ pub fn exec<'module, T>(
         CallResult::Value(value) => return Ok(value),
     };
 
-    println!("===== initial =====");
-    em.debug_state();
-    println!("===================");
+    //println!("===== initial =====");
+    //em.debug_state();
+    //println!("===================");
 
     exec_loop(em)
 }
-pub fn exec_continue<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, ExecutionError> {
+
+pub fn exec_continue<'m, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, L, T, V>,
+) -> Result<V, ExecutionError> {
     if em.rets.is_empty() {
         return Err(ExecutionError::ExecutionFinished);
     }
     exec_loop(em)
 }
 
-fn exec_loop<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, ExecutionError> {
+fn exec_loop<'m, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, L, T, V>,
+) -> Result<V, ExecutionError> {
     loop {
         if em.aborted() {
             return Err(ExecutionError::Abort);
@@ -50,7 +57,7 @@ fn exec_loop<'m, T>(em: &mut ExecutionMachine<'m, T>) -> Result<Value, Execution
     }
 }
 
-type StepResult = Result<Option<Value>, ExecutionError>;
+type StepResult<V> = Result<Option<V>, ExecutionError>;
 
 /// Step through 1 single instruction, and returning a Step Result which is either:
 ///
@@ -58,7 +65,7 @@ type StepResult = Result<Option<Value>, ExecutionError>;
 /// * not an error : Either no value or a value if the execution of the program is finished
 ///
 /// The step function need to update the execution IP
-pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
+pub fn step<'m, L, T, V: Valuable>(em: &mut ExecutionMachine<'m, L, T, V>) -> StepResult<V> {
     let instr = &em.module.code[em.ip];
     /*
     print!(
@@ -72,7 +79,7 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
     match instr {
         Instruction::PushLiteral(lit) => {
             let literal = &em.module.lits[*lit];
-            em.stack.push_value(Value::from(literal));
+            em.stack.push_value((em.params.literal_to_value)(literal));
             em.ip_next();
         }
         Instruction::FetchGlobal(global_id) => {
@@ -80,11 +87,11 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
             em.ip_next();
         }
         Instruction::FetchNif(nif_id) => {
-            em.stack.push_value(Value::Fun(ValueFun::Native(*nif_id)));
+            em.stack.push_value(V::make_fun(ValueFun::Native(*nif_id)));
             em.ip_next();
         }
         Instruction::FetchFun(fun_id) => {
-            em.stack.push_value(Value::Fun(ValueFun::Fun(*fun_id)));
+            em.stack.push_value(V::make_fun(ValueFun::Fun(*fun_id)));
             em.ip_next();
         }
         Instruction::FetchStackLocal(local_bind) => {
@@ -97,10 +104,9 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
         }
         Instruction::AccessField(expected_cid, idx) => {
             let val = em.stack.pop_value();
-            let Value::Struct(got_cid, inner) = val else {
-                return Err(ExecutionError::ValueKindUnexpected {
-                    value_expected: ValueKind::Struct,
-                    value_got: (&val).into(),
+            let Some((got_cid, inner)) = val.structure() else {
+                return Err(ExecutionError::ValueNotStruct {
+                    value_is: val.descriptor(),
                 });
             };
 
@@ -148,7 +154,11 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
         Instruction::Jump(d) => em.ip_jump(*d),
         Instruction::CondJump(d) => {
             let val = em.stack.pop_value();
-            let b = val.bool()?;
+            let Some(b) = val.conditional() else {
+                return Err(ExecutionError::ValueNotConditional {
+                    value_is: val.descriptor(),
+                });
+            };
             if b {
                 em.ip_next()
             } else {
@@ -174,28 +184,26 @@ pub fn step<'m, T>(em: &mut ExecutionMachine<'m, T>) -> StepResult {
     Ok(None)
 }
 
-enum CallResult {
+enum CallResult<V> {
     Jump(InstructionAddress, LocalStackSize),
-    Value(Value),
+    Value(V),
 }
 
-fn process_call<'m, T>(
-    em: &mut ExecutionMachine<'m, T>,
+fn process_call<'m, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, L, T, V>,
     arity: CallArity,
-) -> Result<CallResult, ExecutionError> {
+) -> Result<CallResult<V>, ExecutionError> {
     let first = em.stack.get_call(arity);
-    let Value::Fun(fun) = first else {
-        em.debug_state();
-        let kind = first.into();
-        return Err(ExecutionError::ValueKindUnexpected {
-            value_expected: ValueKind::Fun,
-            value_got: kind,
+    let Some(fun) = first.fun() else {
+        //em.debug_state();
+        return Err(ExecutionError::CallingNotFunc {
+            value_is: first.descriptor(),
         });
     };
 
     match fun {
         ValueFun::Native(nifid) => {
-            let res = match &em.nifs[*nifid].call {
+            let res = match &em.nifs[nifid].call {
                 NIFCall::Pure(nif) => {
                     let (_first, args) = em.stack.get_call_and_args(arity);
                     nif(args)?
@@ -207,7 +215,7 @@ fn process_call<'m, T>(
             Ok(CallResult::Value(res))
         }
         ValueFun::Fun(funid) => {
-            let call_def = &em.module.funs[*funid];
+            let call_def = &em.module.funs[funid];
             Ok(CallResult::Jump(call_def.code_pos, call_def.stack_size))
         }
     }

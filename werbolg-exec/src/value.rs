@@ -1,21 +1,18 @@
 //! Execution machine value - define the Value type
 
 use super::{ExecutionError, ExecutionMachine};
-use alloc::{boxed::Box, rc::Rc};
+use alloc::rc::Rc;
 use core::any::Any;
 use core::cell::RefCell;
-use werbolg_core::{self as ir, ConstrId, Decimal, FunId, Literal, NifId, Number, ValueFun};
 
+/*
 /// Execution Machine Value
 #[derive(Clone, Debug)]
 pub enum Value {
     Unit,
     // Simple values
-    Bool(bool),
-    Number(Number),
-    Decimal(Decimal),
-    String(Box<str>),
-    Bytes(Box<[u8]>),
+    Small(u64),
+    Binary(Box<[u8]>),
     Opaque(Opaque),
     OpaqueMut(OpaqueMut),
     // Composite
@@ -29,11 +26,8 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub enum ValueKind {
     Unit,
-    Bool,
-    Number,
-    Decimal,
-    String,
-    Bytes,
+    Small,
+    Binary,
     Opaque,
     OpaqueMut,
     List,
@@ -58,11 +52,8 @@ impl<'a> From<&'a Value> for ValueKind {
     fn from(value: &'a Value) -> Self {
         match value {
             Value::Unit => ValueKind::Unit,
-            Value::Bool(_) => ValueKind::Bool,
-            Value::Number(_) => ValueKind::Number,
-            Value::Decimal(_) => ValueKind::Decimal,
-            Value::String(_) => ValueKind::String,
-            Value::Bytes(_) => ValueKind::Bytes,
+            Value::Small(_) => ValueKind::Small,
+            Value::Binary(_) => ValueKind::Binary,
             Value::Opaque(_) => ValueKind::Opaque,
             Value::OpaqueMut(_) => ValueKind::OpaqueMut,
             Value::List(_) => ValueKind::List,
@@ -72,22 +63,24 @@ impl<'a> From<&'a Value> for ValueKind {
         }
     }
 }
+*/
 
 /// Native Implemented Function
-pub struct NIF<'m, T> {
+pub struct NIF<'m, L, T, V> {
     pub name: &'static str,
-    pub call: NIFCall<'m, T>,
+    pub call: NIFCall<'m, L, T, V>,
 }
 
 /// 2 Variants of Native calls
 ///
 /// * "Pure" function that don't have access to the execution machine
 /// * "Mut" function that have access to the execution machine and have more power / responsability.
-pub enum NIFCall<'m, T> {
-    Pure(fn(&[Value]) -> Result<Value, ExecutionError>),
-    Mut(fn(&mut ExecutionMachine<'m, T>, &[Value]) -> Result<Value, ExecutionError>),
+pub enum NIFCall<'m, L, T, V> {
+    Pure(fn(&[V]) -> Result<V, ExecutionError>),
+    Mut(fn(&mut ExecutionMachine<'m, L, T, V>, &[V]) -> Result<V, ExecutionError>),
 }
 
+/*
 #[derive(Clone)]
 pub struct Opaque(Rc<dyn Any>);
 
@@ -145,9 +138,11 @@ impl core::fmt::Debug for OpaqueMut {
     }
 }
 
+/*
 impl<'a> From<&'a Literal> for Value {
     fn from(literal: &'a Literal) -> Value {
         match literal {
+            Literal::Bool(b) =>
             Literal::String(s) => Value::String(s.clone().into_boxed_str()),
             Literal::Number(n) => Value::Number(n.clone()),
             Literal::Decimal(d) => Value::Decimal(d.clone()),
@@ -155,6 +150,7 @@ impl<'a> From<&'a Literal> for Value {
         }
     }
 }
+*/
 
 impl Value {
     pub fn make_opaque<T: Any + Send + Sync>(t: T) -> Self {
@@ -163,6 +159,26 @@ impl Value {
 
     pub fn make_opaque_mut<T: Any + Send + Sync>(t: T) -> Self {
         Value::OpaqueMut(OpaqueMut::new(t))
+    }
+
+    pub fn small<T: Any + Send + Sync>(&self) -> Result<u64, ExecutionError> {
+        match self {
+            Value::Small(o) => Ok(*o),
+            _ => Err(ExecutionError::ValueKindUnexpected {
+                value_expected: ValueKind::Small,
+                value_got: self.into(),
+            }),
+        }
+    }
+
+    pub fn binary<T: Any + Send + Sync>(&self) -> Result<Box<[u8]>, ExecutionError> {
+        match self {
+            Value::Binary(o) => Ok(*o),
+            _ => Err(ExecutionError::ValueKindUnexpected {
+                value_expected: ValueKind::Small,
+                value_got: self.into(),
+            }),
+        }
     }
 
     pub fn opaque<T: Any + Send + Sync>(&self) -> Result<&T, ExecutionError> {
@@ -195,56 +211,6 @@ impl Value {
         }
     }
 
-    pub fn bool(&self) -> Result<bool, ExecutionError> {
-        match self {
-            Value::Bool(v) => Ok(*v),
-            _ => Err(ExecutionError::ValueKindUnexpected {
-                value_expected: ValueKind::Bool,
-                value_got: self.into(),
-            }),
-        }
-    }
-
-    pub fn number(&self) -> Result<&ir::Number, ExecutionError> {
-        match self {
-            Value::Number(v) => Ok(v),
-            _ => Err(ExecutionError::ValueKindUnexpected {
-                value_expected: ValueKind::Number,
-                value_got: self.into(),
-            }),
-        }
-    }
-
-    pub fn decimal(&self) -> Result<&ir::Decimal, ExecutionError> {
-        match self {
-            Value::Decimal(v) => Ok(v),
-            _ => Err(ExecutionError::ValueKindUnexpected {
-                value_expected: ValueKind::Decimal,
-                value_got: self.into(),
-            }),
-        }
-    }
-
-    pub fn string(&self) -> Result<&str, ExecutionError> {
-        match self {
-            Value::String(v) => Ok(v),
-            _ => Err(ExecutionError::ValueKindUnexpected {
-                value_expected: ValueKind::String,
-                value_got: self.into(),
-            }),
-        }
-    }
-
-    pub fn bytes(&self) -> Result<&Box<[u8]>, ExecutionError> {
-        match self {
-            Value::Bytes(v) => Ok(v),
-            _ => Err(ExecutionError::ValueKindUnexpected {
-                value_expected: ValueKind::Bytes,
-                value_got: self.into(),
-            }),
-        }
-    }
-
     pub fn list(&self) -> Result<&[Value], ExecutionError> {
         match self {
             Value::List(v) => Ok(v),
@@ -255,3 +221,4 @@ impl Value {
         }
     }
 }
+*/

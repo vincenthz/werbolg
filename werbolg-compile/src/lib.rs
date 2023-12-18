@@ -6,15 +6,17 @@ mod compile;
 mod defs;
 mod environ;
 mod instructions;
+mod params;
 pub mod symbols;
 
 pub use code::{InstructionAddress, InstructionDiff};
 pub use instructions::{CallArity, Instruction, LocalBindIndex, ParamBindIndex, StructFieldIndex};
+pub use params::CompilationParams;
 
 use compile::*;
 pub use defs::*;
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, Ident, LitId, Literal, Span};
+use werbolg_core::{ConstrId, FunId, Ident, LitId, Span};
 
 use bindings::BindingsStack;
 pub use environ::Environment;
@@ -27,8 +29,8 @@ pub enum CompilationError {
     FunctionParamsMoreThanLimit(usize),
 }
 
-pub struct CompilationUnit {
-    pub lits: IdVec<LitId, Literal>,
+pub struct CompilationUnit<L> {
+    pub lits: IdVec<LitId, L>,
     pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
     pub funs_tbl: SymbolsTable<FunId>,
     pub funs: IdVec<FunId, FunDef>,
@@ -36,10 +38,11 @@ pub struct CompilationUnit {
 }
 
 /// Compile a IR Module into an optimised-for-execution LIR Module
-pub fn compile(
+pub fn compile<'a, L: Clone + Eq + core::hash::Hash>(
+    params: &'a CompilationParams<L>,
     module: ir::Module,
     environ: &mut Environment,
-) -> Result<CompilationUnit, CompilationError> {
+) -> Result<CompilationUnit<L>, CompilationError> {
     let mut funs = SymbolsTableData::new();
     let mut constrs = SymbolsTableData::new();
 
@@ -66,7 +69,8 @@ pub fn compile(
         bindings.add(ident.clone(), BindingType::Fun(fun_id))
     }
 
-    let mut state = compile::RewriteState::new(table, IdVecAfter::new(vecdata.next_id()), bindings);
+    let mut state =
+        compile::RewriteState::new(params, table, IdVecAfter::new(vecdata.next_id()), bindings);
 
     for (funid, fundef) in vecdata.into_iter() {
         let lirdef = compile::rewrite_fun(&mut state, fundef)?;

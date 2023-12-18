@@ -4,14 +4,16 @@ use super::defs::*;
 use super::instructions::*;
 use super::symbols::*;
 use super::CompilationError;
+use super::CompilationParams;
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, GlobalId, Ident, LitId, Literal, NifId, Span};
+use werbolg_core::{ConstrId, FunId, GlobalId, Ident, LitId, NifId, Span};
 
-pub(crate) struct RewriteState {
+pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
+    pub(crate) params: &'a CompilationParams<L>,
     pub(crate) funs_tbl: SymbolsTable<FunId>,
     pub(crate) funs_vec: IdVec<FunId, FunDef>,
     pub(crate) constrs: SymbolsTableData<ConstrId, ConstrDef>,
-    pub(crate) lits: UniqueTableBuilder<LitId, Literal>,
+    pub(crate) lits: UniqueTableBuilder<LitId, L>,
     pub(crate) main_code: Code,
     pub(crate) lambdas: IdVecAfter<FunId, FunDef>,
     pub(crate) lambdas_code: Code,
@@ -83,13 +85,15 @@ pub enum CodeState {
     InLambda,
 }
 
-impl RewriteState {
+impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
     pub fn new(
+        params: &'a CompilationParams<L>,
         funs_tbl: SymbolsTable<FunId>,
         lambdas: IdVecAfter<FunId, FunDef>,
         bindings: BindingsStack<BindingType>,
     ) -> Self {
         Self {
+            params,
             funs_tbl,
             funs_vec: IdVec::new(),
             main_code: Code::new(),
@@ -156,8 +160,8 @@ pub(crate) fn alloc_struct(
         .ok_or_else(|| CompilationError::DuplicateSymbol(name))
 }
 
-pub(crate) fn rewrite_fun(
-    state: &mut RewriteState,
+pub(crate) fn rewrite_fun<'a, L: Clone + Eq + core::hash::Hash>(
+    state: &mut RewriteState<'a, L>,
     fundef: ir::FunDef,
 ) -> Result<FunDef, CompilationError> {
     let ir::FunDef { name, vars, body } = fundef;
@@ -191,14 +195,14 @@ pub(crate) fn rewrite_fun(
     })
 }
 
-fn rewrite_expr2(
-    state: &mut RewriteState,
+fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
+    state: &mut RewriteState<'a, L>,
     local: &mut LocalBindings,
     expr: ir::Expr,
 ) -> Result<(), CompilationError> {
     match expr {
         ir::Expr::Literal(_span, lit) => {
-            let lit_id = state.lits.add(lit);
+            let lit_id = state.lits.add((state.params.literal_mapper)(lit));
             state.write_code().push(Instruction::PushLiteral(lit_id));
             Ok(())
         }
@@ -304,8 +308,8 @@ fn rewrite_expr2(
     }
 }
 
-fn fetch_ident(
-    state: &RewriteState,
+fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
+    state: &RewriteState<'a, L>,
     local: &LocalBindings,
     span: Span,
     ident: Ident,

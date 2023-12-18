@@ -210,9 +210,9 @@ fn exprs(span: Span, exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
 
 fn literal(lit: ast::Literal) -> ir::Literal {
     match lit {
-        ast::Literal::Bytes(b) => ir::Literal::Bytes(b.into()),
-        ast::Literal::Number(n) => ir::Literal::Number(ir::Number::from_str_radix(&n, 10).unwrap()),
-        ast::Literal::String(s) => ir::Literal::String(s),
+        ast::Literal::Bytes(b) => ir::Literal::Bytes(b.into_boxed_slice()),
+        ast::Literal::Number(n) => ir::Literal::Number(n.into_boxed_str()),
+        ast::Literal::String(s) => ir::Literal::String(s.into_boxed_str()),
     }
 }
 
