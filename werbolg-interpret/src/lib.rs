@@ -4,7 +4,7 @@
 extern crate alloc;
 
 use werbolg_core as ir;
-use werbolg_core::{symbols::IdVec, FunDef, FunId, NifId, ValueFun};
+use werbolg_core::{idvec::IdVec, FunDef, FunId, NifId, ValueFun};
 
 mod bindings;
 mod location;

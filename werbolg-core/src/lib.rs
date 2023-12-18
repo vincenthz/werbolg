@@ -4,9 +4,9 @@ extern crate alloc;
 
 mod basic;
 pub mod id;
+pub mod idvec;
 mod ir;
 mod location;
-pub mod symbols;
 
 pub use basic::*;
 pub use id::{ConstrId, FunId, GlobalId, LitId, NifId, ValueFun};

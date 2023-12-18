@@ -66,6 +66,11 @@ impl<ID: IdF, T> IdVec<ID, T> {
             .map(|(i, t)| (ID::from_collection_len(i), t))
     }
 
+    pub fn concat(&mut self, after: &mut IdVecAfter<ID, T>) {
+        assert!(self.vec.len() == after.ofs.as_index());
+        self.vec.append(&mut after.id_vec.vec)
+    }
+
     pub fn remap<F, U>(self, f: F) -> IdVec<ID, U>
     where
         F: Fn(T) -> U,
@@ -76,5 +81,41 @@ impl<ID: IdF, T> IdVec<ID, T> {
             assert_eq!(new_id, id);
         }
         new
+    }
+}
+
+pub struct IdVecAfter<ID, T> {
+    id_vec: IdVec<ID, T>,
+    ofs: ID,
+}
+
+impl<ID: IdF, T> IdVecAfter<ID, T> {
+    pub fn new(first_id: ID) -> Self {
+        Self {
+            id_vec: IdVec::new(),
+            ofs: first_id,
+        }
+    }
+
+    pub fn from_idvec(id_vec: IdVec<ID, T>, first_id: ID) -> Self {
+        Self {
+            id_vec,
+            ofs: first_id,
+        }
+    }
+
+    pub fn push(&mut self, v: T) -> ID {
+        let id = self.id_vec.push(v);
+        let new_id = ID::remap(id, self.ofs);
+        new_id
+    }
+
+    pub fn remap<F>(&mut self, f: F)
+    where
+        F: Fn(&mut T) -> (),
+    {
+        for elem in self.id_vec.iter_mut() {
+            f(elem)
+        }
     }
 }
