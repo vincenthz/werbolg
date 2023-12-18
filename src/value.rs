@@ -5,16 +5,9 @@ use werbolg_exec::{ExecutionError, Valuable, ValueKind};
 #[derive(Clone, Debug)]
 pub enum Value {
     Unit,
-    // Simple values
     Bool(bool),
     Integral(u64),
-    //Binary(Box<[u8]>),
     HashMap(HashMap<u32, u64>),
-    // Composite
-    //List(Box<[Value]>),
-    //Struct(ConstrId, Box<[Value]>),
-    //Enum(u32, Box<[Value]>),
-    // Functions
     Fun(ValueFun),
 }
 
@@ -25,10 +18,6 @@ impl Value {
             Value::Bool(_) => b"    bool",
             Value::HashMap(_) => b" hashmap",
             Value::Integral(_) => b"     int",
-            //Value::Binary(_) => b"  binary",
-            //Value::List(_) => b"    list",
-            //Value::Struct(_, _) => b"  struct",
-            //Value::Enum(_, _) => b"    enum",
             Value::Fun(_) => b"     fun",
         }
     }

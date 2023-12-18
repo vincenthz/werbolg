@@ -211,17 +211,14 @@ fn main() -> Result<(), ()> {
     env.add_native_pure_fun("==", nif_eq);
     env.add_native_pure_fun("table_new", nif_hashtable);
     env.add_native_pure_fun("table_get", nif_hashtable_get);
-    //environment.add(ident);
 
     let compilation_params = werbolg_compile::CompilationParams { literal_mapper };
     let exec_module =
         compile(&compilation_params, module, &mut env.environment).expect("no compilation error");
 
-    //exec_module.print();
     code_dump(&exec_module.code, &exec_module.funs);
 
     let ee = env.finalize();
-    //let mut em = ExecutionMachine::new(&exec_module, ee, ());
 
     let entry_point = exec_module
         .funs_tbl
@@ -230,10 +227,6 @@ fn main() -> Result<(), ()> {
 
     let execution_params = ExecutionParams { literal_to_value };
     let mut em = ExecutionMachine::new(&exec_module, ee, execution_params, ());
-
-    //let val = werbolg_exec::exec(&mut em, Ident::from("main"), &[]).expect("no execution error");
-
-    //println!("{:?}", val);
 
     match werbolg_exec::exec(&mut em, entry_point, &[]) {
         Err(e) => {

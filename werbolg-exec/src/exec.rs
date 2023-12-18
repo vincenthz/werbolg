@@ -20,12 +20,25 @@ pub enum NIFCall<'m, L, T, V> {
     Mut(fn(&mut ExecutionMachine<'m, L, T, V>, &[V]) -> Result<V, ExecutionError>),
 }
 
-/// Execute the module, calling function identified by FunId, with the arguments in parameters
+/// Execute the module, calling function identified by FunId, with the arguments in parameters.
 pub fn exec<'module, L, T, V: Valuable>(
     em: &mut ExecutionMachine<'module, L, T, V>,
     call: ir::FunId,
     args: &[V],
 ) -> Result<V, ExecutionError> {
+    match initialize(em, call, args)? {
+        None => (),
+        Some(v) => return Ok(v),
+    };
+
+    exec_loop(em)
+}
+
+pub fn initialize<'module, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'module, L, T, V>,
+    call: ir::FunId,
+    args: &[V],
+) -> Result<Option<V>, ExecutionError> {
     let arity = args
         .len()
         .try_into()
@@ -39,14 +52,9 @@ pub fn exec<'module, L, T, V: Valuable>(
             em.ip_set(ip);
             em.sp_set(local);
         }
-        CallResult::Value(value) => return Ok(value),
+        CallResult::Value(value) => return Ok(Some(value)),
     };
-
-    //println!("===== initial =====");
-    //em.debug_state();
-    //println!("===================");
-
-    exec_loop(em)
+    Ok(None)
 }
 
 pub fn exec_continue<'m, L, T, V: Valuable>(

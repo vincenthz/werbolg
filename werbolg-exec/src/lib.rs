@@ -231,8 +231,6 @@ pub enum ExecutionError {
     ArityOverflow {
         got: usize,
     },
-    //AccessingInexistentField(ir::Ident, ir::Ident),
-    //AccessingFieldNotAStruct(ir::Ident, ValueKind),
     MissingBinding(ir::Ident),
     InternalErrorFunc(ir::FunId),
     StructMismatch {
