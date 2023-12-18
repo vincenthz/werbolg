@@ -2,7 +2,7 @@ mod lang;
 mod value;
 
 use hashbrown::HashMap;
-use value::Value;
+use value::{Value, HASHMAP_KIND};
 use werbolg_compile::{code_dump, compile, symbols::IdVec, CompilationError, Environment};
 use werbolg_core::{Ident, Literal, NifId};
 use werbolg_exec::{
@@ -56,8 +56,8 @@ fn nif_hashtable(_args: &[Value]) -> Result<Value, ExecutionError> {
 fn nif_hashtable_get(args: &[Value]) -> Result<Value, ExecutionError> {
     let Value::HashMap(h) = &args[0] else {
         return Err(ExecutionError::ValueKindUnexpected {
-            value_expected: Value::Integral(0).descriptor(),
-            value_got: Value::Integral(0).descriptor(),
+            value_expected: HASHMAP_KIND,
+            value_got: args[0].descriptor(),
         });
     };
     let index_bignum = args[1].int()?;
@@ -156,7 +156,7 @@ fn main() -> Result<(), ()> {
     pub struct Env<'m, L, T, V> {
         environment: Environment,
         nifs: IdVec<NifId, NIF<'m, L, T, V>>,
-        nifs_binds: werbolg_interpret::Bindings<NifId>,
+        //nifs_binds: werbolg_interpret::Bindings<NifId>,
     }
 
     impl<'m, L, T, V: Valuable> Env<'m, L, T, V> {
@@ -164,7 +164,7 @@ fn main() -> Result<(), ()> {
             Self {
                 environment: Environment::new(),
                 nifs: IdVec::new(),
-                nifs_binds: werbolg_interpret::Bindings::new(),
+                //nifs_binds: werbolg_interpret::Bindings::new(),
             }
         }
         pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, L, T, V>) {
@@ -173,7 +173,7 @@ fn main() -> Result<(), ()> {
                 name: ident,
                 call: f,
             });
-            self.nifs_binds.add(werbolg_core::Ident::from(ident), id);
+            //self.nifs_binds.add(werbolg_core::Ident::from(ident), id);
             assert_eq!(id, id2)
         }
 

@@ -14,14 +14,20 @@ pub enum Value {
 impl Value {
     fn desc(&self) -> ValueKind {
         match self {
-            Value::Unit => b"    unit",
-            Value::Bool(_) => b"    bool",
-            Value::HashMap(_) => b" hashmap",
-            Value::Integral(_) => b"     int",
-            Value::Fun(_) => b"     fun",
+            Value::Unit => UNIT_KIND,
+            Value::Bool(_) => BOOL_KIND,
+            Value::HashMap(_) => HASHMAP_KIND,
+            Value::Integral(_) => INT_KIND,
+            Value::Fun(_) => FUN_KIND,
         }
     }
 }
+
+pub const UNIT_KIND: ValueKind = b"    unit";
+pub const BOOL_KIND: ValueKind = b"    bool";
+pub const HASHMAP_KIND: ValueKind = b" hashmap";
+pub const INT_KIND: ValueKind = b"     int";
+pub const FUN_KIND: ValueKind = b"     fun";
 
 impl Valuable for Value {
     fn descriptor(&self) -> werbolg_exec::ValueKind {
@@ -64,7 +70,7 @@ impl Value {
         match self {
             Value::Integral(o) => Ok(*o),
             _ => Err(ExecutionError::ValueKindUnexpected {
-                value_expected: Value::Integral(0).descriptor(),
+                value_expected: INT_KIND,
                 value_got: self.descriptor(),
             }),
         }

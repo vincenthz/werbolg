@@ -20,7 +20,7 @@ hashbrown = "0.14"
 werbolg-core = { path = "werbolg-core" }
 werbolg-exec = { path = "werbolg-exec" }
 werbolg-compile = { path = "werbolg-compile" }
-werbolg-interpret = { path = "werbolg-interpret" }
+# werbolg-interpret = { path = "werbolg-interpret" }
 werbolg-lang-common = { path = "werbolg-lang-common" }
 werbolg-lang-rusty = { path = "werbolg-lang-rusty", optional = true }
 werbolg-lang-lispy = { path = "werbolg-lang-lispy", optional = true }
