@@ -3,7 +3,7 @@ mod value;
 
 use hashbrown::HashMap;
 use value::Value;
-use werbolg_compile::{code_dump, compile, symbols::IdVec, Environment};
+use werbolg_compile::{code_dump, compile, symbols::IdVec, CompilationError, Environment};
 use werbolg_core::{ConstrId, Ident, Literal, NifId, ValueFun};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable, NIF,
@@ -73,18 +73,35 @@ fn nif_hashtable_get(args: &[Value]) -> Result<Value, ExecutionError> {
     }
 }
 
-fn literal_to_value(lit: &Literal) -> Value {
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum MyLiteral {
+    Bool(bool),
+    Int(u64),
+}
+
+fn literal_to_value(lit: &MyLiteral) -> Value {
     match lit {
-        Literal::Bool(b) => Value::Bool(true),
-        Literal::String(_) => Value::Unit,
-        Literal::Number(_) => Value::Integral(0),
-        Literal::Decimal(_) => Value::Unit,
-        Literal::Bytes(_) => Value::Unit,
+        MyLiteral::Bool(b) => Value::Bool(*b),
+        MyLiteral::Int(n) => Value::Integral(*n),
     }
 }
 
-fn literal_mapper(lit: Literal) -> Literal {
-    lit
+fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
+    match lit {
+        Literal::Bool(b) => {
+            let b = b.as_ref() == "true";
+            Ok(MyLiteral::Bool(b))
+        }
+        Literal::String(_) => Err(CompilationError::LiteralNotSupported(lit)),
+        Literal::Number(s) => {
+            let Ok(v) = u64::from_str_radix(s.as_ref(), 10) else {
+                todo!()
+            };
+            Ok(MyLiteral::Int(v))
+        }
+        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(lit)),
+        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(lit)),
+    }
 }
 
 fn get_content(args: &[String]) -> Result<(FileUnit, lang::Lang), ()> {

@@ -202,7 +202,7 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
 ) -> Result<(), CompilationError> {
     match expr {
         ir::Expr::Literal(_span, lit) => {
-            let lit_id = state.lits.add((state.params.literal_mapper)(lit));
+            let lit_id = state.lits.add((state.params.literal_mapper)(lit)?);
             state.write_code().push(Instruction::PushLiteral(lit_id));
             Ok(())
         }

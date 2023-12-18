@@ -16,7 +16,7 @@ pub use params::CompilationParams;
 use compile::*;
 pub use defs::*;
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, Ident, LitId, Span};
+use werbolg_core::{ConstrId, FunId, Ident, LitId, Literal, Span};
 
 use bindings::BindingsStack;
 pub use environ::Environment;
@@ -27,6 +27,7 @@ pub enum CompilationError {
     DuplicateSymbol(Ident),
     MissingSymbol(Span, Ident),
     FunctionParamsMoreThanLimit(usize),
+    LiteralNotSupported(Literal),
 }
 
 pub struct CompilationUnit<L> {
