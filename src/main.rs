@@ -4,7 +4,7 @@ mod value;
 use hashbrown::HashMap;
 use value::Value;
 use werbolg_compile::{code_dump, compile, symbols::IdVec, CompilationError, Environment};
-use werbolg_core::{ConstrId, Ident, Literal, NifId, ValueFun};
+use werbolg_core::{Ident, Literal, NifId};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable, NIF,
 };
@@ -86,19 +86,20 @@ fn literal_to_value(lit: &MyLiteral) -> Value {
     }
 }
 
+// only support bool and number from the werbolg core literal
 fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
     match lit {
         Literal::Bool(b) => {
             let b = b.as_ref() == "true";
             Ok(MyLiteral::Bool(b))
         }
-        Literal::String(_) => Err(CompilationError::LiteralNotSupported(lit)),
         Literal::Number(s) => {
             let Ok(v) = u64::from_str_radix(s.as_ref(), 10) else {
                 todo!()
             };
             Ok(MyLiteral::Int(v))
         }
+        Literal::String(_) => Err(CompilationError::LiteralNotSupported(lit)),
         Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(lit)),
         Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(lit)),
     }

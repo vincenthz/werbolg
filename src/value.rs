@@ -54,11 +54,11 @@ impl Valuable for Value {
     }
 
     fn structure(&self) -> Option<(ConstrId, &[Self])> {
-        todo!()
+        None
     }
 
-    fn index(&self, index: usize) -> Option<&Self> {
-        todo!()
+    fn index(&self, _index: usize) -> Option<&Self> {
+        None
     }
 
     fn make_fun(fun: ValueFun) -> Self {

@@ -6,6 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hashbrown = "0.14"
 werbolg-core = { path = "../werbolg-core" }
 werbolg-compile = { path = "../werbolg-compile" }
