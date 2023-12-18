@@ -10,9 +10,9 @@ pub trait IdF:
 }
 
 macro_rules! define_id_remapper {
-    ($constr:ident, $n:literal, $c:expr) => {
+    ($constr:ident, $bt:ident, $n:literal, $c:expr) => {
         #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub struct $constr(u32);
+        pub struct $constr($bt);
 
         impl IdF for $constr {
             fn as_index(self) -> usize {
@@ -20,11 +20,11 @@ macro_rules! define_id_remapper {
             }
 
             fn from_slice_len<T>(slice: &[T]) -> Self {
-                Self(slice.len() as u32)
+                Self(slice.len() as $bt)
             }
 
             fn from_collection_len(len: usize) -> Self {
-                Self(len as u32)
+                Self(len as $bt)
             }
 
             fn remap(left: Self, right: Self) -> Self {
@@ -40,18 +40,6 @@ macro_rules! define_id_remapper {
             }
         }
 
-        /*
-        impl IdRemapper for $constr {
-            fn uncat(self) -> Id {
-                self.0
-            }
-
-            fn cat(id: Id) -> Self {
-                Self(id)
-            }
-        }
-        */
-
         impl core::fmt::Debug for $constr {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 write!(f, "{}{:?}", $c, self.0)
@@ -60,12 +48,12 @@ macro_rules! define_id_remapper {
     };
 }
 
-define_id_remapper!(FunId, 32, 'F');
-define_id_remapper!(LitId, 32, 'L');
-define_id_remapper!(ConstrId, 32, 'C');
-define_id_remapper!(NifId, 32, 'N');
-define_id_remapper!(GlobalId, 32, 'G');
-define_id_remapper!(InstructionAddress, 32, '%');
+define_id_remapper!(FunId, u32, 32, 'F');
+define_id_remapper!(LitId, u32, 32, 'L');
+define_id_remapper!(ConstrId, u32, 32, 'C');
+define_id_remapper!(NifId, u32, 32, 'N');
+define_id_remapper!(GlobalId, u32, 32, 'G');
+define_id_remapper!(InstructionAddress, u32, 32, '%');
 
 #[derive(Clone, Copy, Debug)]
 pub enum ValueFun {
