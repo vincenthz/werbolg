@@ -3,8 +3,8 @@ mod value;
 
 use hashbrown::HashMap;
 use value::{Value, HASHMAP_KIND};
-use werbolg_compile::{code_dump, compile, symbols::IdVec, CompilationError, Environment};
-use werbolg_core::{Ident, Literal, NifId};
+use werbolg_compile::{code_dump, compile, CompilationError, Environment};
+use werbolg_core::{idvec::IdVec, Ident, Literal, NifId};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable, NIF,
 };

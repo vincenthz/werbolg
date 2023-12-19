@@ -1,4 +1,6 @@
+//! Compile werbolg-core AST to an easy to execute set of instructions
 #![no_std]
+#![deny(missing_docs)]
 
 extern crate alloc;
 
@@ -9,7 +11,7 @@ mod defs;
 mod environ;
 mod instructions;
 mod params;
-pub mod symbols;
+mod symbols;
 
 pub use code::{InstructionAddress, InstructionDiff};
 pub use instructions::{CallArity, Instruction, LocalBindIndex, ParamBindIndex, StructFieldIndex};
@@ -27,19 +29,33 @@ use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
 use alloc::format;
 use core::fmt::Write;
 
+/// Compilation error
 #[derive(Debug)]
 pub enum CompilationError {
+    /// Duplicate symbol during compilation (e.g. 2 functions with the name)
     DuplicateSymbol(Ident),
+    /// Cannot find the symbol during compilation
     MissingSymbol(Span, Ident),
+    /// Number of parameters for a functions is above the limit we chose
     FunctionParamsMoreThanLimit(usize),
+    /// Core's Literal is not supported by this compiler
     LiteralNotSupported(Literal),
 }
 
+/// A compiled unit
+///
+/// The L type parameter is the compilation-level literal type that the user wants
+/// to compile to.
 pub struct CompilationUnit<L> {
+    /// Table of literal indexed by their LitId
     pub lits: IdVec<LitId, L>,
+    /// Table of constructor (structure / enum) indexed by their ConstrId
     pub constrs: SymbolsTableData<ConstrId, ConstrDef>,
+    /// Symbol table of function { Ident => FunId }
     pub funs_tbl: SymbolsTable<FunId>,
+    /// Table of function indexed by their FunId
     pub funs: IdVec<FunId, FunDef>,
+    /// A sequence of instructions of all the code, indexed by InstructionAddress
     pub code: IdVec<InstructionAddress, Instruction>,
 }
 
@@ -103,6 +119,7 @@ pub fn compile<'a, L: Clone + Eq + core::hash::Hash>(
     })
 }
 
+/// Dump the instructions to a buffer
 pub fn code_dump<W: Write>(
     writer: &mut W,
     code: &IdVec<InstructionAddress, Instruction>,

@@ -2,6 +2,7 @@ use super::instructions::Instruction;
 use super::symbols::{IdVec, IdVecAfter};
 use werbolg_core::id::IdF;
 
+/// Instruction Address
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InstructionAddress(u32);
 
@@ -12,6 +13,7 @@ impl Default for InstructionAddress {
 }
 
 impl InstructionAddress {
+    /// Increment the instruction address to the next instruction
     pub fn next(self) -> Self {
         InstructionAddress::add(self, 1)
     }
@@ -72,6 +74,7 @@ pub struct Code {
 /// placeholder instruction
 pub struct CodeRef(InstructionAddress);
 
+/// A displacement type between instruction. i.e. the number of element between 2 different InstructionAddress
 #[derive(Debug, Copy, Clone)]
 pub struct InstructionDiff(u32);
 

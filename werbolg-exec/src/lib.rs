@@ -4,12 +4,12 @@
 extern crate alloc;
 
 use ir::{ConstrId, GlobalId, NifId};
-use werbolg_compile::symbols::IdVec;
 use werbolg_compile::{
     CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex, StructFieldIndex,
 };
 use werbolg_compile::{CompilationUnit, InstructionAddress, InstructionDiff};
 use werbolg_core as ir;
+use werbolg_core::idvec::IdVec;
 
 mod exec;
 mod valuable;
