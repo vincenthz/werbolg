@@ -266,9 +266,9 @@ pub enum ExecutionError {
     /// The functions is being called with a different number of parameter it was expecting
     ArityError {
         /// The expected number by the function
-        expected: usize,
+        expected: CallArity,
         /// The number of actual parameters received by the function
-        got: usize,
+        got: CallArity,
     },
     /// The initial call parameter is trying to use more parameters than allowed by the system
     ArityOverflow {

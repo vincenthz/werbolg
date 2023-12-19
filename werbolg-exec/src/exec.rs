@@ -38,6 +38,8 @@ pub fn exec<'module, L, T, V: Valuable>(
     exec_loop(em)
 }
 
+/// Initialize the execution machine with a call to the specified function (by FunId)
+/// and the arguments to this function as values
 pub fn initialize<'module, L, T, V: Valuable>(
     em: &mut ExecutionMachine<'module, L, T, V>,
     call: ir::FunId,
@@ -241,15 +243,13 @@ fn process_call<'m, L, T, V: Valuable>(
         }
         ValueFun::Fun(funid) => {
             let call_def = &em.module.funs[funid];
+            if call_def.arity != arity {
+                return Err(ExecutionError::ArityError {
+                    expected: call_def.arity,
+                    got: arity,
+                });
+            }
             Ok(CallResult::Jump(call_def.code_pos, call_def.stack_size))
         }
-    }
-}
-
-fn _check_arity(expected: usize, got: usize) -> Result<(), ExecutionError> {
-    if expected == got {
-        Ok(())
-    } else {
-        Err(ExecutionError::ArityError { expected, got })
     }
 }

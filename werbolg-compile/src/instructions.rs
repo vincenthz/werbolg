@@ -53,5 +53,5 @@ pub struct StructFieldIndex(pub u8);
 /// The arity (number of parameter) of a function.
 ///
 /// This is limited (arbitrarily) to a maximum of 255
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CallArity(pub u8);
