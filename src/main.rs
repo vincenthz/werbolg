@@ -216,7 +216,9 @@ fn main() -> Result<(), ()> {
     let exec_module =
         compile(&compilation_params, module, &mut env.environment).expect("no compilation error");
 
-    code_dump(&exec_module.code, &exec_module.funs);
+    let mut out = String::new();
+    code_dump(&mut out, &exec_module.code, &exec_module.funs).expect("writing to string work");
+    println!("{}", out);
 
     let ee = env.finalize();
 

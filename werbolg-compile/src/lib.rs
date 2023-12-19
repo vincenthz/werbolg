@@ -1,3 +1,5 @@
+#![no_std]
+
 extern crate alloc;
 
 mod bindings;
@@ -21,6 +23,9 @@ use werbolg_core::{ConstrId, FunId, Ident, LitId, Literal, Span};
 use bindings::BindingsStack;
 pub use environ::Environment;
 use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
+
+use alloc::format;
+use core::fmt::Write;
 
 #[derive(Debug)]
 pub enum CompilationError {
@@ -98,7 +103,11 @@ pub fn compile<'a, L: Clone + Eq + core::hash::Hash>(
     })
 }
 
-pub fn code_dump(code: &IdVec<InstructionAddress, Instruction>, fundefs: &IdVec<FunId, FunDef>) {
+pub fn code_dump<W: Write>(
+    writer: &mut W,
+    code: &IdVec<InstructionAddress, Instruction>,
+    fundefs: &IdVec<FunId, FunDef>,
+) -> Result<(), core::fmt::Error> {
     let mut place = hashbrown::HashMap::new();
     for (funid, fundef) in fundefs.iter() {
         place.insert(fundef.code_pos, funid);
@@ -107,7 +116,8 @@ pub fn code_dump(code: &IdVec<InstructionAddress, Instruction>, fundefs: &IdVec<
     for (ia, stmt) in code.iter() {
         if let Some(funid) = place.get(&ia) {
             let fundef = &fundefs[*funid];
-            println!(
+            write!(
+                writer,
                 "[{} local-stack={}]",
                 fundef
                     .name
@@ -115,8 +125,9 @@ pub fn code_dump(code: &IdVec<InstructionAddress, Instruction>, fundefs: &IdVec<
                     .map(|n| format!("{:?}", n))
                     .unwrap_or(format!("{:?}", funid)),
                 fundef.stack_size.0
-            );
+            )?;
         }
-        println!("{}  {:?}", ia, stmt)
+        write!(writer, "{}  {:?}", ia, stmt)?
     }
+    Ok(())
 }

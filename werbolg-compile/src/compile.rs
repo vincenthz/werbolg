@@ -5,6 +5,7 @@ use super::instructions::*;
 use super::symbols::*;
 use super::CompilationError;
 use super::CompilationParams;
+use alloc::{vec, vec::Vec};
 use werbolg_core as ir;
 use werbolg_core::{ConstrId, FunId, GlobalId, Ident, LitId, NifId, Span};
 

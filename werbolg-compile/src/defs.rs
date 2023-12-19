@@ -1,5 +1,6 @@
 use super::code::InstructionAddress;
 use super::instructions::*;
+use alloc::vec::Vec;
 use werbolg_core::{ConstrId, Ident};
 
 #[derive(Copy, Clone, Debug)]
