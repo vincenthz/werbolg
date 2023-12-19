@@ -181,9 +181,9 @@ fn main() -> Result<(), ()> {
         pub fn add_native_mut_fun(
             &mut self,
             ident: &'static str,
-            f: fn(&mut ExecutionMachine<'m, L, T, V>, &[V]) -> Result<V, ExecutionError>,
+            f: fn(&mut ExecutionMachine<'m, L, T, V>) -> Result<V, ExecutionError>,
         ) {
-            self.add_native_call(ident, NIFCall::Mut(f))
+            self.add_native_call(ident, NIFCall::Raw(f))
         }
 
         pub fn add_native_pure_fun(

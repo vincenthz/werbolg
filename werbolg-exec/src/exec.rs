@@ -7,7 +7,9 @@ use werbolg_core::ValueFun;
 
 /// Native Implemented Function
 pub struct NIF<'m, L, T, V> {
+    /// name of the NIF
     pub name: &'static str,
+    /// the call itself
     pub call: NIFCall<'m, L, T, V>,
 }
 
@@ -16,8 +18,10 @@ pub struct NIF<'m, L, T, V> {
 /// * "Pure" function that don't have access to the execution machine
 /// * "Mut" function that have access to the execution machine and have more power / responsability.
 pub enum NIFCall<'m, L, T, V> {
+    /// "Pure" NIF call only takes the input parameter and return an output
     Pure(fn(&[V]) -> Result<V, ExecutionError>),
-    Mut(fn(&mut ExecutionMachine<'m, L, T, V>, &[V]) -> Result<V, ExecutionError>),
+    /// "Raw" NIF takes the execution machine in parameter and return an output
+    Raw(fn(&mut ExecutionMachine<'m, L, T, V>) -> Result<V, ExecutionError>),
 }
 
 /// Execute the module, calling function identified by FunId, with the arguments in parameters.
@@ -57,6 +61,9 @@ pub fn initialize<'module, L, T, V: Valuable>(
     Ok(None)
 }
 
+/// Resume execution
+///
+/// If the stack is empty (if the program is terminated already), then it returns an ExecutionFinished error
 pub fn exec_continue<'m, L, T, V: Valuable>(
     em: &mut ExecutionMachine<'m, L, T, V>,
 ) -> Result<V, ExecutionError> {
@@ -70,9 +77,6 @@ fn exec_loop<'m, L, T, V: Valuable>(
     em: &mut ExecutionMachine<'m, L, T, V>,
 ) -> Result<V, ExecutionError> {
     loop {
-        if em.aborted() {
-            return Err(ExecutionError::Abort);
-        }
         match step(em)? {
             None => {}
             Some(v) => break Ok(v),
@@ -231,9 +235,7 @@ fn process_call<'m, L, T, V: Valuable>(
                     let (_first, args) = em.stack.get_call_and_args(arity);
                     nif(args)?
                 }
-                NIFCall::Mut(_nif) => {
-                    todo!()
-                }
+                NIFCall::Raw(nif) => nif(em)?,
             };
             Ok(CallResult::Value(res))
         }
