@@ -1,5 +1,5 @@
 //! Werbolg Execution machine
-//#![no_std]
+#![no_std]
 
 extern crate alloc;
 
@@ -200,25 +200,25 @@ impl<'m, L, T, V: Valuable> ExecutionMachine<'m, L, T, V> {
 }
 
 impl<'m, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, L, T, V> {
-    pub fn debug_state(&self) {
-        println!("ip={} sp={:?}", self.ip, self.sp.0);
+    pub fn debug_state<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
+        writeln!(writer, "ip={} sp={:?}", self.ip, self.sp.0)?;
 
         for (stack_index, value) in self.stack.iter_pos() {
             match stack_index.cmp(&self.sp) {
                 core::cmp::Ordering::Less => {
                     let diff = self.sp.0 - stack_index.0;
-                    println!("[-{}] {:?}", diff, value);
+                    writeln!(writer, "[-{}] {:?}", diff, value)?;
                 }
                 core::cmp::Ordering::Greater => {
                     let diff = stack_index.0 - self.sp.0;
-                    println!("[{}] {:?}", 1 + diff, value);
+                    writeln!(writer, "[{}] {:?}", 1 + diff, value)?;
                 }
                 core::cmp::Ordering::Equal => {
-                    println!("@ {:?}", value);
+                    writeln!(writer, "@ {:?}", value)?;
                 }
             }
         }
-        println!("")
+        Ok(())
     }
 }
 
