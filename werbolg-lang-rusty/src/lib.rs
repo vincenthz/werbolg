@@ -23,6 +23,7 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
             Statement::Function(
                 span,
                 ir::FunDef {
+                    privacy: ir::Privacy::Public,
                     name: Some(ir::Ident::from(n)),
                     vars: fun.args,
                     body,

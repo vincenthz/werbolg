@@ -43,6 +43,13 @@ pub struct Use {
     pub renames: Vec<(Ident, Ident)>,
 }
 
+/// AST for symbol privacy (public / private)
+#[derive(Clone, Copy, Debug)]
+pub enum Privacy {
+    Public,
+    Private,
+}
+
 /// AST for function definition
 ///
 /// Function definitions are something like:
@@ -53,6 +60,7 @@ pub struct Use {
 ///
 #[derive(Clone, Debug)]
 pub struct FunDef {
+    pub privacy: Privacy,
     pub name: Option<Ident>,
     pub vars: Vec<Variable>,
     pub body: Expr,
@@ -89,6 +97,7 @@ pub struct EnumDef {
 #[derive(Clone, Debug)]
 pub struct Variant(StructDef);
 
+/// A pattern "matching"
 #[derive(Clone, Debug)]
 pub enum Binder {
     Unit,

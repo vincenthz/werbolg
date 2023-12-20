@@ -141,7 +141,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
         );
 
         for (funid, fundef) in vecdata.into_iter() {
-            let lirdef = compile::rewrite_fun(&mut state, fundef)?;
+            let lirdef = compile::generate_func_code(&mut state, fundef)?;
             let lirid = state.funs_vec.push(lirdef);
             assert_eq!(funid, lirid)
         }

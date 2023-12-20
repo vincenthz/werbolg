@@ -133,11 +133,16 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
     }
 }
 
-pub(crate) fn rewrite_fun<'a, L: Clone + Eq + core::hash::Hash>(
+pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut RewriteState<'a, L>,
     fundef: ir::FunDef,
 ) -> Result<FunDef, CompilationError> {
-    let ir::FunDef { name, vars, body } = fundef;
+    let ir::FunDef {
+        privacy: _,
+        name,
+        vars,
+        body,
+    } = fundef;
 
     let mut local = LocalBindings::new();
 
@@ -155,7 +160,7 @@ pub(crate) fn rewrite_fun<'a, L: Clone + Eq + core::hash::Hash>(
     }
 
     let code_pos = state.get_instruction_address();
-    rewrite_expr2(state, &mut local, body.clone())?;
+    generate_expression_code(state, &mut local, body.clone())?;
 
     local.scope_leave();
 
@@ -168,7 +173,7 @@ pub(crate) fn rewrite_fun<'a, L: Clone + Eq + core::hash::Hash>(
     })
 }
 
-fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
+fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut RewriteState<'a, L>,
     local: &mut LocalBindings,
     expr: ir::Expr,
@@ -204,7 +209,7 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
             todo!()
         }
         ir::Expr::Let(binder, body, in_expr) => {
-            rewrite_expr2(state, local, *body)?;
+            generate_expression_code(state, local, *body)?;
             match binder {
                 ir::Binder::Ident(ident) => {
                     let bind = append_ident(local, &ident);
@@ -218,7 +223,7 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
                     state.write_code().push(Instruction::IgnoreOne);
                 }
             }
-            rewrite_expr2(state, local, *in_expr)?;
+            generate_expression_code(state, local, *in_expr)?;
             Ok(())
         }
         ir::Expr::Field(expr, struct_ident, field_ident) => {
@@ -244,7 +249,7 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
                 ));
             };
 
-            rewrite_expr2(state, local, *expr)?;
+            generate_expression_code(state, local, *expr)?;
             state
                 .write_code()
                 .push(Instruction::AccessField(constr_id, index));
@@ -252,7 +257,7 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
         }
         ir::Expr::Lambda(_span, fundef) => {
             let prev = state.set_in_lambda();
-            rewrite_fun(state, *fundef)?;
+            generate_func_code(state, *fundef)?;
 
             state.restore_codestate(prev);
             todo!()
@@ -261,7 +266,7 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
             assert!(args.len() > 0);
             let len = args.len() - 1;
             for arg in args {
-                rewrite_expr2(state, local, arg)?;
+                generate_expression_code(state, local, arg)?;
             }
             state
                 .write_code()
@@ -274,20 +279,20 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
             then_expr,
             else_expr,
         } => {
-            rewrite_expr2(state, local, (*cond).unspan())?;
+            generate_expression_code(state, local, (*cond).unspan())?;
 
             let cond_jump_ref = state.write_code().push_temp();
             let cond_pos = state.get_instruction_address();
 
             local.scope_enter();
-            rewrite_expr2(state, local, (*then_expr).unspan())?;
+            generate_expression_code(state, local, (*then_expr).unspan())?;
             local.scope_leave();
 
             let jump_else_ref = state.write_code().push_temp();
             let else_pos = state.get_instruction_address();
 
             local.scope_enter();
-            rewrite_expr2(state, local, (*else_expr).unspan())?;
+            generate_expression_code(state, local, (*else_expr).unspan())?;
             local.scope_leave();
 
             let end_pos = state.get_instruction_address();
