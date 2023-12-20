@@ -21,9 +21,9 @@ pub use valuable::{Valuable, ValueKind};
 pub use exec::{exec, exec_continue, step, NIFCall, NIF};
 
 /// Execution environment with index Nifs by their NifId, and global variable with their GlobalId
-pub struct ExecutionEnviron<'m, L, T, V> {
+pub struct ExecutionEnviron<'m, 'e, L, T, V> {
     /// Indexed NIFs
-    pub nifs: IdVec<NifId, NIF<'m, L, T, V>>,
+    pub nifs: IdVec<NifId, NIF<'m, 'e, L, T, V>>,
     /// Indexed Globals
     pub globals: IdVec<GlobalId, V>,
 }
@@ -36,11 +36,9 @@ pub struct ExecutionParams<L, V> {
 }
 
 /// Execution machine
-pub struct ExecutionMachine<'m, L, T, V> {
-    /// NIFs
-    pub nifs: IdVec<NifId, NIF<'m, L, T, V>>,
-    /// Global Values
-    pub globals: IdVec<GlobalId, V>,
+pub struct ExecutionMachine<'m, 'e, L, T, V> {
+    /// Environ
+    pub environ: &'e ExecutionEnviron<'m, 'e, L, T, V>,
     /// Module
     pub module: &'m CompilationUnit<L>,
     /// call frame return values
@@ -148,17 +146,16 @@ impl<V: Valuable> ValueStack<V> {
     }
 }
 
-impl<'m, L, T, V: Valuable> ExecutionMachine<'m, L, T, V> {
+impl<'m, 'e, L, T, V: Valuable> ExecutionMachine<'m, 'e, L, T, V> {
     /// Create a new execution machine
     pub fn new(
         module: &'m CompilationUnit<L>,
-        env: ExecutionEnviron<'m, L, T, V>,
+        environ: &'e ExecutionEnviron<'m, 'e, L, T, V>,
         params: ExecutionParams<L, V>,
         userdata: T,
     ) -> Self {
         Self {
-            nifs: env.nifs,
-            globals: env.globals,
+            environ,
             module,
             stack: ValueStack::new(),
             rets: Vec::new(),
@@ -207,7 +204,7 @@ impl<'m, L, T, V: Valuable> ExecutionMachine<'m, L, T, V> {
     /// Get the global value at GlobalId and push it to the top of the stack
     #[inline]
     pub fn sp_push_value_from_global(&mut self, bind_index: GlobalId) {
-        let val = self.globals[bind_index].clone();
+        let val = self.environ.globals[bind_index].clone();
         self.stack.push_value(val);
     }
 
@@ -236,7 +233,7 @@ impl<'m, L, T, V: Valuable> ExecutionMachine<'m, L, T, V> {
     }
 }
 
-impl<'m, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, L, T, V> {
+impl<'m, 'e, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, L, T, V> {
     /// print the debug state of the execution machine in a writer
     pub fn debug_state<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
         writeln!(writer, "ip={} sp={:?}", self.ip, self.sp.0)?;

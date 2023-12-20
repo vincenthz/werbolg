@@ -6,27 +6,27 @@ use werbolg_core as ir;
 use werbolg_core::ValueFun;
 
 /// Native Implemented Function
-pub struct NIF<'m, L, T, V> {
+pub struct NIF<'m, 'e, L, T, V> {
     /// name of the NIF
     pub name: &'static str,
     /// the call itself
-    pub call: NIFCall<'m, L, T, V>,
+    pub call: NIFCall<'m, 'e, L, T, V>,
 }
 
 /// 2 Variants of Native calls
 ///
 /// * "Pure" function that don't have access to the execution machine
 /// * "Mut" function that have access to the execution machine and have more power / responsability.
-pub enum NIFCall<'m, L, T, V> {
+pub enum NIFCall<'m, 'e, L, T, V> {
     /// "Pure" NIF call only takes the input parameter and return an output
     Pure(fn(&[V]) -> Result<V, ExecutionError>),
     /// "Raw" NIF takes the execution machine in parameter and return an output
-    Raw(fn(&mut ExecutionMachine<'m, L, T, V>) -> Result<V, ExecutionError>),
+    Raw(fn(&mut ExecutionMachine<'m, 'e, L, T, V>) -> Result<V, ExecutionError>),
 }
 
 /// Execute the module, calling function identified by FunId, with the arguments in parameters.
-pub fn exec<'module, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'module, L, T, V>,
+pub fn exec<'module, 'environ, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'module, 'environ, L, T, V>,
     call: ir::FunId,
     args: &[V],
 ) -> Result<V, ExecutionError> {
@@ -40,8 +40,8 @@ pub fn exec<'module, L, T, V: Valuable>(
 
 /// Initialize the execution machine with a call to the specified function (by FunId)
 /// and the arguments to this function as values
-pub fn initialize<'module, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'module, L, T, V>,
+pub fn initialize<'module, 'environ, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'module, 'environ, L, T, V>,
     call: ir::FunId,
     args: &[V],
 ) -> Result<Option<V>, ExecutionError> {
@@ -66,8 +66,8 @@ pub fn initialize<'module, L, T, V: Valuable>(
 /// Resume execution
 ///
 /// If the stack is empty (if the program is terminated already), then it returns an ExecutionFinished error
-pub fn exec_continue<'m, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, L, T, V>,
+pub fn exec_continue<'m, 'e, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, 'e, L, T, V>,
 ) -> Result<V, ExecutionError> {
     if em.rets.is_empty() {
         return Err(ExecutionError::ExecutionFinished);
@@ -75,8 +75,8 @@ pub fn exec_continue<'m, L, T, V: Valuable>(
     exec_loop(em)
 }
 
-fn exec_loop<'m, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, L, T, V>,
+fn exec_loop<'m, 'e, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, 'e, L, T, V>,
 ) -> Result<V, ExecutionError> {
     loop {
         match step(em)? {
@@ -94,7 +94,9 @@ type StepResult<V> = Result<Option<V>, ExecutionError>;
 /// * not an error : Either no value or a value if the execution of the program is finished
 ///
 /// The step function need to update the execution IP
-pub fn step<'m, L, T, V: Valuable>(em: &mut ExecutionMachine<'m, L, T, V>) -> StepResult<V> {
+pub fn step<'m, 'e, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, 'e, L, T, V>,
+) -> StepResult<V> {
     let instr = &em.module.code[em.ip];
     /*
     print!(
@@ -218,8 +220,8 @@ enum CallResult<V> {
     Value(V),
 }
 
-fn process_call<'m, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, L, T, V>,
+fn process_call<'m, 'e, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, 'e, L, T, V>,
     arity: CallArity,
 ) -> Result<CallResult<V>, ExecutionError> {
     let first = em.stack.get_call(arity);
@@ -232,7 +234,7 @@ fn process_call<'m, L, T, V: Valuable>(
 
     match fun {
         ValueFun::Native(nifid) => {
-            let res = match &em.nifs[nifid].call {
+            let res = match &em.environ.nifs[nifid].call {
                 NIFCall::Pure(nif) => {
                     let (_first, args) = em.stack.get_call_and_args(arity);
                     nif(args)?
