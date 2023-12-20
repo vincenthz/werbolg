@@ -12,18 +12,20 @@ use werbolg_compile::{CompilationUnit, InstructionAddress, InstructionDiff};
 use werbolg_core as ir;
 use werbolg_core::idvec::IdVec;
 
+mod allocator;
 mod exec;
 mod valuable;
 
 use alloc::{string::String, vec::Vec};
+pub use allocator::WAllocator;
 pub use valuable::{Valuable, ValueKind};
 
 pub use exec::{exec, exec_continue, step, NIFCall, NIF};
 
 /// Execution environment with index Nifs by their NifId, and global variable with their GlobalId
-pub struct ExecutionEnviron<'m, 'e, L, T, V> {
+pub struct ExecutionEnviron<'m, 'e, A, L, T, V> {
     /// Indexed NIFs
-    pub nifs: IdVec<NifId, NIF<'m, 'e, L, T, V>>,
+    pub nifs: IdVec<NifId, NIF<'m, 'e, A, L, T, V>>,
     /// Indexed Globals
     pub globals: IdVec<GlobalId, V>,
 }
@@ -36,9 +38,9 @@ pub struct ExecutionParams<L, V> {
 }
 
 /// Execution machine
-pub struct ExecutionMachine<'m, 'e, L, T, V> {
+pub struct ExecutionMachine<'m, 'e, A, L, T, V> {
     /// Environ
-    pub environ: &'e ExecutionEnviron<'m, 'e, L, T, V>,
+    pub environ: &'e ExecutionEnviron<'m, 'e, A, L, T, V>,
     /// Module
     pub module: &'m CompilationUnit<L>,
     /// call frame return values
@@ -53,6 +55,8 @@ pub struct ExecutionMachine<'m, 'e, L, T, V> {
     pub current_stack_size: LocalStackSize,
     /// Execution params
     pub params: ExecutionParams<L, V>,
+    /// Allocator
+    pub allocator: A,
     /// User controlled data
     pub userdata: T,
 }
@@ -146,12 +150,13 @@ impl<V: Valuable> ValueStack<V> {
     }
 }
 
-impl<'m, 'e, L, T, V: Valuable> ExecutionMachine<'m, 'e, L, T, V> {
+impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
     /// Create a new execution machine
     pub fn new(
         module: &'m CompilationUnit<L>,
-        environ: &'e ExecutionEnviron<'m, 'e, L, T, V>,
+        environ: &'e ExecutionEnviron<'m, 'e, A, L, T, V>,
         params: ExecutionParams<L, V>,
+        allocator: A,
         userdata: T,
     ) -> Self {
         Self {
@@ -160,6 +165,7 @@ impl<'m, 'e, L, T, V: Valuable> ExecutionMachine<'m, 'e, L, T, V> {
             stack: ValueStack::new(),
             rets: Vec::new(),
             userdata,
+            allocator,
             ip: InstructionAddress::default(),
             sp: StackPointer::default(),
             params,
@@ -233,7 +239,7 @@ impl<'m, 'e, L, T, V: Valuable> ExecutionMachine<'m, 'e, L, T, V> {
     }
 }
 
-impl<'m, 'e, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, L, T, V> {
+impl<'m, 'e, A, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, A, L, T, V> {
     /// print the debug state of the execution machine in a writer
     pub fn debug_state<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
         writeln!(writer, "ip={} sp={:?}", self.ip, self.sp.0)?;

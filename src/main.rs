@@ -6,9 +6,16 @@ use value::{Value, HASHMAP_KIND};
 use werbolg_compile::{code_dump, compile, CompilationError, Environment};
 use werbolg_core::{idvec::IdVec, Ident, Literal, NifId};
 use werbolg_exec::{
-    ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable, NIF,
+    ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
+    WAllocator, NIF,
 };
 use werbolg_lang_common::FileUnit;
+
+pub struct DummyAlloc;
+
+impl WAllocator for DummyAlloc {
+    type Value = Value;
+}
 
 fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
@@ -153,13 +160,13 @@ fn main() -> Result<(), ()> {
 
     let module = lang::parse(lang, &fileunit).expect("no parse error");
 
-    pub struct Env<'m, 'e, L, T, V> {
+    pub struct Env<'m, 'e, A, L, T, V> {
         environment: Environment,
-        nifs: IdVec<NifId, NIF<'m, 'e, L, T, V>>,
+        nifs: IdVec<NifId, NIF<'m, 'e, A, L, T, V>>,
         //nifs_binds: werbolg_interpret::Bindings<NifId>,
     }
 
-    impl<'m, 'e, L, T, V: Valuable> Env<'m, 'e, L, T, V> {
+    impl<'m, 'e, A, L, T, V: Valuable> Env<'m, 'e, A, L, T, V> {
         pub fn new() -> Self {
             Self {
                 environment: Environment::new(),
@@ -167,7 +174,7 @@ fn main() -> Result<(), ()> {
                 //nifs_binds: werbolg_interpret::Bindings::new(),
             }
         }
-        pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, 'e, L, T, V>) {
+        pub fn add_native_call(&mut self, ident: &'static str, f: NIFCall<'m, 'e, A, L, T, V>) {
             let id = self.environment.add(werbolg_core::Ident::from(ident));
             let id2 = self.nifs.push(NIF {
                 name: ident,
@@ -181,7 +188,7 @@ fn main() -> Result<(), ()> {
         pub fn add_native_mut_fun(
             &mut self,
             ident: &'static str,
-            f: fn(&mut ExecutionMachine<'m, 'e, L, T, V>) -> Result<V, ExecutionError>,
+            f: fn(&mut ExecutionMachine<'m, 'e, A, L, T, V>) -> Result<V, ExecutionError>,
         ) {
             self.add_native_call(ident, NIFCall::Raw(f))
         }
@@ -194,7 +201,7 @@ fn main() -> Result<(), ()> {
             self.add_native_call(ident, NIFCall::Pure(f))
         }
 
-        pub fn finalize(self) -> ExecutionEnviron<'m, 'e, L, T, V> {
+        pub fn finalize(self) -> ExecutionEnviron<'m, 'e, A, L, T, V> {
             let globals = self.environment.global.remap(|f| V::make_fun(f));
 
             werbolg_exec::ExecutionEnviron {
@@ -228,7 +235,7 @@ fn main() -> Result<(), ()> {
         .expect("existing function as entry point");
 
     let execution_params = ExecutionParams { literal_to_value };
-    let mut em = ExecutionMachine::new(&exec_module, &ee, execution_params, ());
+    let mut em = ExecutionMachine::new(&exec_module, &ee, execution_params, DummyAlloc, ());
 
     match werbolg_exec::exec(&mut em, entry_point, &[]) {
         Err(e) => {
