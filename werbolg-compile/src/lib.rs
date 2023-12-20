@@ -191,7 +191,7 @@ pub fn code_dump<W: Write>(
     for (ia, stmt) in code.iter() {
         if let Some(funid) = place.get(&ia) {
             let fundef = &fundefs[*funid];
-            write!(
+            writeln!(
                 writer,
                 "[{} local-stack={}]",
                 fundef
@@ -202,7 +202,7 @@ pub fn code_dump<W: Write>(
                 fundef.stack_size.0
             )?;
         }
-        write!(writer, "{}  {:?}", ia, stmt)?
+        writeln!(writer, "{}  {:?}", ia, stmt)?
     }
     Ok(())
 }

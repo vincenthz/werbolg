@@ -67,6 +67,12 @@ impl LocalBindings {
         let local = self.local.pop().unwrap();
         self.max_local = core::cmp::max(self.max_local, local);
     }
+
+    pub fn scope_terminate(mut self) -> LocalStackSize {
+        self.scope_leave();
+        assert_eq!(self.local.len(), 0, "internal compilation error");
+        LocalStackSize(self.max_local as u16)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -162,14 +168,14 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     let code_pos = state.get_instruction_address();
     generate_expression_code(state, &mut local, body.clone())?;
 
-    local.scope_leave();
+    let stack_size = local.scope_terminate();
 
     state.write_code().push(Instruction::Ret);
     Ok(FunDef {
         name,
         arity,
         code_pos,
-        stack_size: LocalStackSize(local.max_local as u32),
+        stack_size,
     })
 }
 

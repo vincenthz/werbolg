@@ -5,7 +5,7 @@ use werbolg_core::{ConstrId, Ident};
 
 /// Local stack size (in unit of values)
 #[derive(Copy, Clone, Debug)]
-pub struct LocalStackSize(pub u32);
+pub struct LocalStackSize(pub u16);
 
 /// Function definition
 ///
