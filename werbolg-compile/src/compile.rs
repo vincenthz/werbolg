@@ -133,34 +133,6 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
     }
 }
 
-pub(crate) fn alloc_fun(
-    state: &mut SymbolsTableData<FunId, ir::FunDef>,
-    fundef: ir::FunDef,
-) -> Result<FunId, CompilationError> {
-    let ident = fundef.name.clone();
-    if let Some(ident) = ident {
-        state
-            .add(ident.clone(), fundef)
-            .ok_or_else(|| CompilationError::DuplicateSymbol(ident))
-    } else {
-        Ok(state.add_anon(fundef))
-    }
-}
-
-pub(crate) fn alloc_struct(
-    state: &mut SymbolsTableData<ConstrId, ConstrDef>,
-    ir::StructDef { name, fields }: ir::StructDef,
-) -> Result<ConstrId, CompilationError> {
-    let stru = StructDef {
-        name: name.unspan(),
-        fields: fields.into_iter().map(|v| v.unspan()).collect(),
-    };
-    let name = stru.name.clone();
-    state
-        .add(name.clone(), ConstrDef::Struct(stru))
-        .ok_or_else(|| CompilationError::DuplicateSymbol(name))
-}
-
 pub(crate) fn rewrite_fun<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut RewriteState<'a, L>,
     fundef: ir::FunDef,
@@ -249,11 +221,34 @@ fn rewrite_expr2<'a, L: Clone + Eq + core::hash::Hash>(
             rewrite_expr2(state, local, *in_expr)?;
             Ok(())
         }
-        ir::Expr::Field(expr, _ident) => {
+        ir::Expr::Field(expr, struct_ident, field_ident) => {
+            let (constr_id, constr_def) = state.constrs.get(&struct_ident.inner).ok_or(
+                CompilationError::MissingConstructor(
+                    struct_ident.span.clone(),
+                    struct_ident.inner.clone(),
+                ),
+            )?;
+
+            let ConstrDef::Struct(struct_def) = constr_def else {
+                return Err(CompilationError::ConstructorNotStructure(
+                    struct_ident.span,
+                    struct_ident.inner,
+                ));
+            };
+
+            let Some(index) = struct_def.find_field_index(&field_ident.inner) else {
+                return Err(CompilationError::StructureFieldNotExistant(
+                    field_ident.span,
+                    struct_ident.inner,
+                    field_ident.inner,
+                ));
+            };
+
             rewrite_expr2(state, local, *expr)?;
-            //state.write_code().push(Instruction::AccessField(ident));
-            todo!()
-            //Ok(())
+            state
+                .write_code()
+                .push(Instruction::AccessField(constr_id, index));
+            Ok(())
         }
         ir::Expr::Lambda(_span, fundef) => {
             let prev = state.set_in_lambda();

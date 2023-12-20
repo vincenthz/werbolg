@@ -2,6 +2,9 @@
 //!
 //! This try to remain generic to allow multiple different language (existing or new)
 //! to target werbolg and be interpreted through it
+//!
+//! The AST try the terminology of Rust AST, but offer less / more flexibility at time,
+//! as this is made for other languages to target also.
 
 use super::basic::*;
 use super::location::*;
@@ -23,9 +26,21 @@ pub struct Module {
 /// * Naked expression
 #[derive(Clone, Debug)]
 pub enum Statement {
+    Use(Use),
     Function(Span, FunDef),
     Struct(Span, StructDef),
     Expr(Expr),
+}
+
+/// AST Use/Import
+#[derive(Clone, Debug)]
+pub struct Use {
+    /// the name of the namespace to import
+    pub namespace: Ident,
+    /// hiding of symbols
+    pub hiding: Vec<Ident>,
+    /// renaming of symbols, e.g. `use namespace::{x as y}`
+    pub renames: Vec<(Ident, Ident)>,
 }
 
 /// AST for function definition
@@ -85,7 +100,7 @@ pub enum Binder {
 pub enum Expr {
     Literal(Span, Literal),
     Ident(Span, Ident),
-    Field(Box<Expr>, Ident),
+    Field(Box<Expr>, Spanned<Ident>, Spanned<Ident>),
     List(Span, Vec<Expr>),
     Let(Binder, Box<Expr>, Box<Expr>),
     Lambda(Span, Box<FunDef>),

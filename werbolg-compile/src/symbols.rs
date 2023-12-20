@@ -56,6 +56,12 @@ impl<ID: IdF, T> SymbolsTableData<ID, T> {
     pub fn add_anon(&mut self, v: T) -> ID {
         self.vecdata.push(v)
     }
+
+    pub fn get(&self, ident: &Ident) -> Option<(ID, &T)> {
+        self.table
+            .get(ident)
+            .map(|constr_id| (constr_id, &self.vecdata[constr_id]))
+    }
 }
 
 pub struct UniqueTableBuilder<ID: IdF, T: Eq + Hash> {

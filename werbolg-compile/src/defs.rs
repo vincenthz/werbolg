@@ -31,6 +31,16 @@ pub struct StructDef {
     pub fields: Vec<Ident>,
 }
 
+impl StructDef {
+    /// Try to find the index for a given field
+    pub fn find_field_index(&self, ident: &Ident) -> Option<StructFieldIndex> {
+        self.fields
+            .iter()
+            .position(|x| x == ident)
+            .map(|x| StructFieldIndex(x as u8))
+    }
+}
+
 /// Enumeration definition
 #[derive(Clone, Debug)]
 pub struct EnumDef {
