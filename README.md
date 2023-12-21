@@ -15,3 +15,9 @@ ability to escape the werbolg sandbox is driven only by the user configuration.
 By default the sandbox is completely empty of operations, and thus cannot
 manipulate any values but only pass them around. Whilst it is not a useful
 setup, it illustrates the security default of the model.
+
+## TODO
+
+* Value Allocator - Exec
+* Tail Call Optimisation (TCO) - Exec/Compile
+* IR Namespacing - Frontends/Compile
