@@ -1,6 +1,6 @@
 use super::symbols::IdVec;
 use crate::symbols::SymbolsTableData;
-use werbolg_core::{GlobalId, Ident, NifId};
+use werbolg_core::{GlobalId, Ident, Namespace, NifId};
 
 /// Environment of the compilation
 ///
@@ -29,14 +29,17 @@ impl<N, G> Environment<N, G> {
     }
 
     /// Add NIF to the environment
-    pub fn add_nif(&mut self, ident: Ident, t: N) -> NifId {
-        let nif_id = self.symbols.add(ident, t).expect("unique NIF");
+    pub fn add_nif(&mut self, namespace: &Namespace, ident: Ident, t: N) -> NifId {
+        let nif_id = self.symbols.add(namespace, ident, t).expect("unique NIF");
         nif_id
     }
 
     /// Add global to the environment
-    pub fn add_global(&mut self, ident: Ident, p: G) -> GlobalId {
-        let global_id = self.globals.add(ident, p).expect("unique Global");
+    pub fn add_global(&mut self, namespace: &Namespace, ident: Ident, p: G) -> GlobalId {
+        let global_id = self
+            .globals
+            .add(namespace, ident, p)
+            .expect("unique Global");
         global_id
     }
 

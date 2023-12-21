@@ -232,12 +232,13 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             Ok(())
         }
         ir::Expr::Field(expr, struct_ident, field_ident) => {
-            let (constr_id, constr_def) = state.constrs.get(&struct_ident.inner).ok_or(
-                CompilationError::MissingConstructor(
+            let (constr_id, constr_def) = state
+                .constrs
+                .get(&NamespaceResolver::none(), &struct_ident.inner)
+                .ok_or(CompilationError::MissingConstructor(
                     struct_ident.span.clone(),
                     struct_ident.inner.clone(),
-                ),
-            )?;
+                ))?;
 
             let ConstrDef::Struct(struct_def) = constr_def else {
                 return Err(CompilationError::ConstructorNotStructure(

@@ -3,8 +3,8 @@ mod value;
 
 use hashbrown::HashMap;
 use value::{Value, HASHMAP_KIND};
-use werbolg_compile::{code_dump, compile, CompilationError, Environment};
-use werbolg_core::{Ident, Literal};
+use werbolg_compile::{code_dump, compile, CompilationError, Environment, NamespaceResolver};
+use werbolg_core::{Ident, Literal, Namespace};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
     WAllocator, NIF,
@@ -166,7 +166,7 @@ fn main() -> Result<(), ()> {
                 name: $i,
                 call: NIFCall::Pure($e),
             };
-            $env.add_nif(Ident::from($i), nif);
+            $env.add_nif(&Namespace::None, Ident::from($i), nif);
         };
     }
 
@@ -189,7 +189,7 @@ fn main() -> Result<(), ()> {
 
     let entry_point = exec_module
         .funs_tbl
-        .get(&Ident::from("main"))
+        .get(&NamespaceResolver::none(), &Ident::from("main"))
         .expect("existing function as entry point");
 
     let execution_params = ExecutionParams { literal_to_value };

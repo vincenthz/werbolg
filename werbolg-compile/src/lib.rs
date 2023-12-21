@@ -20,10 +20,11 @@ pub use params::CompilationParams;
 use compile::*;
 pub use defs::*;
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, Ident, LitId, Literal, Span};
+use werbolg_core::{ConstrId, FunId, Ident, LitId, Literal, Namespace, Span};
 
 use bindings::BindingsStack;
 pub use environ::Environment;
+pub use symbols::NamespaceResolver;
 use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
 
 use alloc::format;
@@ -94,7 +95,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                     let ident = fundef.name.clone();
                     let _funid = if let Some(ident) = ident {
                         self.funs
-                            .add(ident.clone(), fundef)
+                            .add(&Namespace::None, ident.clone(), fundef)
                             .ok_or_else(|| CompilationError::DuplicateSymbol(ident))?
                     } else {
                         self.funs.add_anon(fundef)
@@ -108,7 +109,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                     };
                     let name = stru.name.clone();
                     self.constrs
-                        .add(name.clone(), ConstrDef::Struct(stru))
+                        .add(&Namespace::None, name.clone(), ConstrDef::Struct(stru))
                         .ok_or_else(|| CompilationError::DuplicateSymbol(name))?;
                 }
                 ir::Statement::Expr(_) => (),

@@ -32,6 +32,17 @@ impl Ident {
     }
 }
 
+/// A namespace specifier
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Namespace {
+    /// No namespace specifier
+    None,
+    /// Root namespace specifier
+    Root,
+    /// Explicit named namespace specifier
+    Some(Ident),
+}
+
 /// Core Literal
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Literal {
