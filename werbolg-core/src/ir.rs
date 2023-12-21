@@ -21,7 +21,7 @@ pub struct Module {
     pub statements: Vec<Statement>,
 }
 
-/// AST for a high level statement
+/// AST for a module level statement
 ///
 /// Current known types are:
 ///
