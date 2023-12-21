@@ -3,6 +3,7 @@ use core::ops::Deref;
 /// Span as a range of bytes in a file
 pub type Span = core::ops::Range<usize>;
 
+/// Merge two spans together, note that the end span need to be after the start span
 pub fn span_merge(start: &Span, end: &Span) -> Span {
     assert!(
         start.end <= end.start,
@@ -16,6 +17,7 @@ pub fn span_merge(start: &Span, end: &Span) -> Span {
     }
 }
 
+/// Merge many span from an iterator together
 pub fn spans_merge<'a, I>(it: &mut I) -> Span
 where
     I: Iterator<Item = &'a Span>,
@@ -35,9 +37,14 @@ where
 }
 
 /// A type T with an attached Span
+///
+/// The Eq instance of Span, doesn't check that the span are equal,
+/// for explicit checking using `span_eq`
 #[derive(Clone, Debug, Hash)]
 pub struct Spanned<T> {
+    /// The span of T
     pub span: Span,
+    /// Inner value T
     pub inner: T,
 }
 
@@ -58,15 +65,19 @@ impl<T: PartialEq> PartialEq for Spanned<T> {
 impl<T: Eq> Eq for Spanned<T> {}
 
 impl<T: Eq> Spanned<T> {
+    /// Check that the Spanned is equivalent to another
     pub fn span_eq(&self, other: &Self) -> bool {
         self.span == other.span && self.inner == other.inner
     }
 }
 
 impl<T> Spanned<T> {
+    /// Create a new spanned type from its inner components
     pub fn new(span: Span, inner: T) -> Self {
         Self { span, inner }
     }
+
+    /// Consume the Spanned and return its inner type only
     pub fn unspan(self) -> T {
         self.inner
     }

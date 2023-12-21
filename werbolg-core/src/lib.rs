@@ -1,4 +1,7 @@
+//! Werbolg Core
+
 #![no_std]
+#![deny(missing_docs)]
 
 extern crate alloc;
 

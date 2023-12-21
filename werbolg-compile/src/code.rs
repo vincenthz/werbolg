@@ -1,6 +1,6 @@
 use super::instructions::Instruction;
 use super::symbols::{IdVec, IdVecAfter};
-use werbolg_core::id::IdF;
+use werbolg_core::id::{IdArith, IdF};
 
 /// Instruction Address
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -15,7 +15,7 @@ impl Default for InstructionAddress {
 impl InstructionAddress {
     /// Increment the instruction address to the next instruction
     pub fn next(self) -> Self {
-        InstructionAddress::add(self, 1)
+        InstructionAddress::add(self, InstructionDiff(1))
     }
 }
 
@@ -35,19 +35,22 @@ impl IdF for InstructionAddress {
     fn remap(left: Self, right: Self) -> Self {
         Self(left.0 + right.0)
     }
+}
+impl IdArith for InstructionAddress {
+    type IdDiff = InstructionDiff;
 
-    fn add(left: Self, right: u32) -> Self {
-        Self(left.0.checked_add(right).expect("ID valid add"))
+    fn add(left: Self, right: InstructionDiff) -> Self {
+        Self(left.0.checked_add(right.0).expect("ID valid add"))
     }
 
-    fn diff(left: Self, right: Self) -> u32 {
-        left.0.checked_sub(right.0).expect("ID valid diff")
+    fn diff(left: Self, right: Self) -> InstructionDiff {
+        InstructionDiff(left.0.checked_sub(right.0).expect("ID valid diff"))
     }
 }
 
 impl core::ops::AddAssign<InstructionDiff> for InstructionAddress {
     fn add_assign(&mut self, rhs: InstructionDiff) {
-        *self = InstructionAddress::add(*self, rhs.0)
+        *self = InstructionAddress::add(*self, rhs)
     }
 }
 
@@ -55,7 +58,7 @@ impl core::ops::Sub for InstructionAddress {
     type Output = InstructionDiff;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        InstructionDiff(InstructionAddress::diff(self, rhs))
+        InstructionAddress::diff(self, rhs)
     }
 }
 

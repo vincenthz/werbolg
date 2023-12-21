@@ -1,5 +1,9 @@
 use alloc::{boxed::Box, string::String};
 
+/// An ident in the program
+///
+/// Note that the ident can contains pretty much anything the frontend wants.
+/// For example, Space or '::' could be inside the ident
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Ident(pub String);
 
@@ -22,17 +26,24 @@ impl From<String> for Ident {
 }
 
 impl Ident {
+    /// check if the Ident matches the string in parameter
     pub fn matches(&self, s: &str) -> bool {
         self.0 == s
     }
 }
 
+/// Core Literal
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum Literal {
+    /// Bool
     Bool(Box<str>),
+    /// String
     String(Box<str>),
+    /// Integral Number
     Number(Box<str>),
+    /// Decimal Number
     Decimal(Box<str>),
+    /// Bytes
     Bytes(Box<[u8]>),
 }
 
