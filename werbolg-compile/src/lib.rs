@@ -129,6 +129,10 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             bindings.add(ident.clone(), BindingType::Nif(id))
         }
 
+        for (id, ident, _t) in environ.globals.iter() {
+            bindings.add(ident.clone(), BindingType::Global(id))
+        }
+
         for (ident, fun_id) in table.iter() {
             bindings.add(ident.clone(), BindingType::Fun(fun_id))
         }
