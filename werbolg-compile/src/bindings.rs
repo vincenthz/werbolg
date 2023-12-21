@@ -46,11 +46,6 @@ impl<T> BindingsStack<T> {
         self.stack.pop().unwrap()
     }
 
-    #[allow(unused)]
-    pub fn scope_leave(&mut self) {
-        self.stack.pop();
-    }
-
     pub fn add(&mut self, name: BindingName, value: T) {
         match self.stack.last_mut() {
             None => panic!("cannot add to empty"),

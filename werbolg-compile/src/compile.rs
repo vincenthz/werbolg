@@ -44,7 +44,7 @@ impl LocalBindings {
 
     pub fn add_local(&mut self, ident: Ident) -> LocalBindIndex {
         match self.local.last_mut() {
-            None => panic!("cannot happen"),
+            None => panic!("internal error: cannot add local without an empty binding stack"),
             Some(x) => {
                 let local = *x;
                 *x += 1;
@@ -77,7 +77,6 @@ impl LocalBindings {
 
 #[derive(Clone, Copy)]
 pub enum BindingType {
-    #[allow(unused)]
     Global(GlobalId),
     Nif(NifId),
     Fun(FunId),

@@ -166,7 +166,7 @@ fn main() -> Result<(), ()> {
                 name: $i,
                 call: NIFCall::Pure($e),
             };
-            $env.add_nif(werbolg_core::Ident::from($i), nif);
+            $env.add_nif(Ident::from($i), nif);
         };
     }
 
