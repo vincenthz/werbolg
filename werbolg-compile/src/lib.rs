@@ -166,7 +166,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     }
 }
 
-/// Compile a IR Module into an optimised-for-execution LIR Module
+/// Compile a IR Module into an optimised-for-execution `CompilationUnit`
 pub fn compile<'a, L: Clone + Eq + core::hash::Hash>(
     params: &'a CompilationParams<L>,
     module: ir::Module,
