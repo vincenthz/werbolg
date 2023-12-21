@@ -31,6 +31,7 @@ impl<ID: IdF> SymbolsTable<ID> {
     }
 }
 
+/// Symbol Table Data maps Ident to ID and store the ID to T
 pub struct SymbolsTableData<ID: IdF, T> {
     pub table: SymbolsTable<ID>,
     pub vecdata: IdVec<ID, T>,
@@ -61,6 +62,12 @@ impl<ID: IdF, T> SymbolsTableData<ID, T> {
         self.table
             .get(ident)
             .map(|constr_id| (constr_id, &self.vecdata[constr_id]))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (ID, &Ident, &T)> {
+        self.table
+            .iter()
+            .map(|(ident, id)| (id, ident, &self.vecdata[id]))
     }
 }
 

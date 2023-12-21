@@ -118,15 +118,15 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     }
 
     /// Finalize compilation and return a CompilationUnit containing all the modules compiled in the state
-    pub fn finalize(
+    pub fn finalize<N, G>(
         self,
-        environ: &mut Environment,
+        environ: &mut Environment<N, G>,
     ) -> Result<CompilationUnit<L>, CompilationError> {
         let SymbolsTableData { table, vecdata } = self.funs;
 
         let mut bindings = BindingsStack::new();
-        for (_id, (ident, _idx)) in environ.symbols.vecdata.iter() {
-            bindings.add(ident.clone(), BindingType::Nif(_id))
+        for (id, ident, _t) in environ.symbols.iter() {
+            bindings.add(ident.clone(), BindingType::Nif(id))
         }
 
         for (ident, fun_id) in table.iter() {
@@ -167,10 +167,10 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
 }
 
 /// Compile a IR Module into an optimised-for-execution `CompilationUnit`
-pub fn compile<'a, L: Clone + Eq + core::hash::Hash>(
+pub fn compile<'a, L: Clone + Eq + core::hash::Hash, N, G>(
     params: &'a CompilationParams<L>,
     module: ir::Module,
-    environ: &mut Environment,
+    environ: &mut Environment<N, G>,
 ) -> Result<CompilationUnit<L>, CompilationError> {
     let mut compiler = CompilationState::new(params.clone());
     compiler.add_module(module)?;

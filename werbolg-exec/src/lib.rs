@@ -30,6 +30,20 @@ pub struct ExecutionEnviron<'m, 'e, A, L, T, V> {
     pub globals: IdVec<GlobalId, V>,
 }
 
+impl<'m, 'e, A, L, T, V> ExecutionEnviron<'m, 'e, A, L, T, V> {
+    /// Pack a streamlined compilation environment into an execution environment
+    ///
+    /// this is the result of calling `Environment::finalize()`
+    pub fn from_compile_environment(
+        tuple: (IdVec<GlobalId, V>, IdVec<NifId, NIF<'m, 'e, A, L, T, V>>),
+    ) -> Self {
+        Self {
+            nifs: tuple.1,
+            globals: tuple.0,
+        }
+    }
+}
+
 /// User driven Execution params
 #[derive(Clone)]
 pub struct ExecutionParams<L, V> {
