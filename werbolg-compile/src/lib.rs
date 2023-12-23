@@ -3,7 +3,6 @@
 #![deny(missing_docs)]
 
 extern crate alloc;
-extern crate std;
 
 mod bindings;
 mod code;

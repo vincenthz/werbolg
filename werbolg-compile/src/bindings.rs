@@ -118,6 +118,7 @@ impl<T> BindingsStack<T> {
         None
     }
 
+    #[allow(unused)]
     pub fn dump<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
         writeln!(writer, "bindings-stack: {}", self.stack.len())?;
         for (i, bindings) in self.stack.iter().rev().enumerate() {

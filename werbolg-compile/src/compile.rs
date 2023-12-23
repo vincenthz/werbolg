@@ -39,7 +39,6 @@ impl LocalBindings {
     }
 
     pub fn add_param(&mut self, ident: Ident, n: u8) {
-        std::println!("add-param {:?}", ident);
         self.bindings
             .add(Path::relative(ident), BindingType::Param(ParamBindIndex(n)))
     }
@@ -168,14 +167,9 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
         local.add_param(var.0.clone().unspan(), var_i);
     }
 
-    let mut out = alloc::string::String::new();
-    local.bindings.dump(&mut out).unwrap();
-    std::println!("{}", out);
-
     let code_pos = state.get_instruction_address();
     generate_expression_code(state, &mut local, body.clone())?;
 
-    //local.scope_leave();
     let stack_size = local.scope_terminate();
 
     state.write_code().push(Instruction::Ret);
