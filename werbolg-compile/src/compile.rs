@@ -1,13 +1,13 @@
-use super::bindings::BindingsStack;
+use super::bindings::{BindingsStack, GlobalBindings};
 use super::code::*;
 use super::defs::*;
+use super::errors::*;
 use super::instructions::*;
 use super::symbols::*;
-use super::CompilationError;
 use super::CompilationParams;
 use alloc::{vec, vec::Vec};
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, GlobalId, Ident, LitId, NifId, Span};
+use werbolg_core::{ConstrId, FunId, GlobalId, Ident, LitId, NifId, Path, Span};
 
 pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) params: &'a CompilationParams<L>,
@@ -19,7 +19,8 @@ pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) lambdas: IdVecAfter<FunId, FunDef>,
     pub(crate) lambdas_code: Code,
     pub(crate) in_lambda: CodeState,
-    pub(crate) bindings: BindingsStack<BindingType>,
+    //pub(crate) bindings: BindingsStack<BindingType>,
+    pub(crate) globals: GlobalBindings<BindingType>,
 }
 
 pub struct LocalBindings {
@@ -38,8 +39,9 @@ impl LocalBindings {
     }
 
     pub fn add_param(&mut self, ident: Ident, n: u8) {
+        std::println!("add-param {:?}", ident);
         self.bindings
-            .add(ident, BindingType::Param(ParamBindIndex(n)))
+            .add(Path::relative(ident), BindingType::Param(ParamBindIndex(n)))
     }
 
     pub fn add_local(&mut self, ident: Ident) -> LocalBindIndex {
@@ -50,7 +52,8 @@ impl LocalBindings {
                 *x += 1;
 
                 let local = LocalBindIndex(local);
-                self.bindings.add(ident, BindingType::Local(local));
+                self.bindings
+                    .add(Path::relative(ident), BindingType::Local(local));
                 local
             }
         }
@@ -70,7 +73,7 @@ impl LocalBindings {
 
     pub fn scope_terminate(mut self) -> LocalStackSize {
         self.scope_leave();
-        assert_eq!(self.local.len(), 0, "internal compilation error");
+        assert_eq!(self.local.len(), 1, "internal compilation error");
         LocalStackSize(self.max_local as u16)
     }
 }
@@ -96,7 +99,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
         params: &'a CompilationParams<L>,
         funs_tbl: SymbolsTable<FunId>,
         lambdas: IdVecAfter<FunId, FunDef>,
-        bindings: BindingsStack<BindingType>,
+        globals: GlobalBindings<BindingType>,
     ) -> Self {
         Self {
             params,
@@ -108,7 +111,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
             constrs: SymbolsTableData::new(),
             lits: UniqueTableBuilder::new(),
             in_lambda: CodeState::default(),
-            bindings,
+            globals,
         }
     }
 
@@ -150,6 +153,7 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     } = fundef;
 
     let mut local = LocalBindings::new();
+    local.scope_enter();
 
     let arity = vars
         .len()
@@ -164,9 +168,14 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
         local.add_param(var.0.clone().unspan(), var_i);
     }
 
+    let mut out = alloc::string::String::new();
+    local.bindings.dump(&mut out).unwrap();
+    std::println!("{}", out);
+
     let code_pos = state.get_instruction_address();
     generate_expression_code(state, &mut local, body.clone())?;
 
+    //local.scope_leave();
     let stack_size = local.scope_terminate();
 
     state.write_code().push(Instruction::Ret);
@@ -189,8 +198,8 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             state.write_code().push(Instruction::PushLiteral(lit_id));
             Ok(())
         }
-        ir::Expr::Ident(span, ident) => {
-            let x = fetch_ident(state, local, span, ident.clone())?;
+        ir::Expr::Path(span, path) => {
+            let x = fetch_ident(state, local, span, path.clone())?;
             match x {
                 BindingType::Global(idx) => {
                     state.write_code().push(Instruction::FetchGlobal(idx));
@@ -319,14 +328,14 @@ fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
     state: &RewriteState<'a, L>,
     local: &LocalBindings,
     span: Span,
-    ident: Ident,
+    path: Path,
 ) -> Result<BindingType, CompilationError> {
     local
         .bindings
-        .get(&ident)
-        .or_else(|| state.bindings.get(&ident))
+        .get(&path)
+        .or_else(|| state.globals.get(&path))
         .map(|x| *x)
-        .ok_or(CompilationError::MissingSymbol(span, ident))
+        .ok_or(CompilationError::MissingSymbol(span, path))
 }
 
 fn append_ident(local: &mut LocalBindings, ident: &Ident) -> LocalBindIndex {

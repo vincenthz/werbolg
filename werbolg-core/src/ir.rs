@@ -133,15 +133,15 @@ pub enum Binder {
 pub enum Expr {
     /// Literal, e.g. 1, or "abc"
     Literal(Span, Literal),
-    /// A Variable, e.g. `a`
-    Ident(Span, Ident),
+    /// A path, e.g. `a` or `my::std::a`
+    Path(Span, Path),
     /// Structure Field access, e.g. `(some expr).$struct-name+$field`
     ///
     /// Note that this need to contains the name of the structure that we
     /// want to access into. it's up to the frontend to provide this information
     /// either by disambiguating at the frontend level by adding explicit struct name
     /// or by other methods
-    Field(Box<Expr>, Spanned<Ident>, Spanned<Ident>),
+    Field(Box<Expr>, Spanned<Path>, Spanned<Ident>),
     /// A List expression
     List(Span, Vec<Expr>),
     /// A Let binding of the form `let $binder = $expr in $expr`

@@ -3,12 +3,14 @@
 #![deny(missing_docs)]
 
 extern crate alloc;
+extern crate std;
 
 mod bindings;
 mod code;
 mod compile;
 mod defs;
 mod environ;
+mod errors;
 mod instructions;
 mod params;
 mod symbols;
@@ -20,34 +22,16 @@ pub use params::CompilationParams;
 use compile::*;
 pub use defs::*;
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, Ident, LitId, Literal, Namespace, Span};
+use werbolg_core::{ConstrId, FunId, LitId, Namespace, Path};
 
-use bindings::BindingsStack;
+use bindings::GlobalBindings;
 pub use environ::Environment;
+pub use errors::CompilationError;
 pub use symbols::NamespaceResolver;
 use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
 
-use alloc::format;
+use alloc::{format, vec::Vec};
 use core::fmt::Write;
-
-/// Compilation error
-#[derive(Debug)]
-pub enum CompilationError {
-    /// Duplicate symbol during compilation (e.g. 2 functions with the name)
-    DuplicateSymbol(Ident),
-    /// Cannot find the symbol during compilation
-    MissingSymbol(Span, Ident),
-    /// Cannot find the constructor symbol during compilation
-    MissingConstructor(Span, Ident),
-    /// Number of parameters for a functions is above the limit we chose
-    FunctionParamsMoreThanLimit(usize),
-    /// Core's Literal is not supported by this compiler
-    LiteralNotSupported(Literal),
-    /// The constructor specified is a not a structure, but trying to access inner field
-    ConstructorNotStructure(Span, Ident),
-    /// The structure specified doesn't have a field of the right name
-    StructureFieldNotExistant(Span, Ident, Ident),
-}
 
 /// A compiled unit
 ///
@@ -84,7 +68,14 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     }
 
     /// Add a ir::module to the compilation state
-    pub fn add_module(&mut self, module: ir::Module) -> Result<(), CompilationError> {
+    pub fn add_module(
+        &mut self,
+        namespace: &Namespace,
+        module: ir::Module,
+    ) -> Result<(), CompilationError> {
+        self.funs.create_namespace(namespace.clone())?;
+        self.constrs.create_namespace(namespace.clone())?;
+
         for stmt in module.statements.into_iter() {
             match stmt {
                 ir::Statement::Use(_u) => {
@@ -95,7 +86,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                     let ident = fundef.name.clone();
                     let _funid = if let Some(ident) = ident {
                         self.funs
-                            .add(&Namespace::None, ident.clone(), fundef)
+                            .add(namespace, &Path::relative(ident.clone()), fundef)
                             .ok_or_else(|| CompilationError::DuplicateSymbol(ident))?
                     } else {
                         self.funs.add_anon(fundef)
@@ -109,7 +100,11 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                     };
                     let name = stru.name.clone();
                     self.constrs
-                        .add(&Namespace::None, name.clone(), ConstrDef::Struct(stru))
+                        .add(
+                            namespace,
+                            &Path::relative(name.clone()),
+                            ConstrDef::Struct(stru),
+                        )
                         .ok_or_else(|| CompilationError::DuplicateSymbol(name))?;
                 }
                 ir::Statement::Expr(_) => (),
@@ -125,28 +120,33 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     ) -> Result<CompilationUnit<L>, CompilationError> {
         let SymbolsTableData { table, vecdata } = self.funs;
 
-        let mut bindings = BindingsStack::new();
-        for (id, ident, _t) in environ.symbols.iter() {
-            bindings.add(ident.clone(), BindingType::Nif(id))
+        let mut root_bindings = GlobalBindings::new();
+        for (path, id) in environ.symbols.to_vec(Namespace::root()) {
+            root_bindings.add(path, BindingType::Nif(id))
         }
 
-        for (id, ident, _t) in environ.globals.iter() {
-            bindings.add(ident.clone(), BindingType::Global(id))
+        for (path, id) in environ.globals.to_vec(Namespace::root()) {
+            root_bindings.add(path, BindingType::Global(id))
         }
 
-        for (ident, fun_id) in table.iter() {
-            bindings.add(ident.clone(), BindingType::Fun(fun_id))
+        for (path, fun_id) in table.to_vec(Namespace::root()) {
+            root_bindings.add(path, BindingType::Fun(fun_id))
         }
+
+        //let bindings = BindingsStack::new();
 
         let mut state = compile::RewriteState::new(
             &self.params,
             table,
             IdVecAfter::new(vecdata.next_id()),
-            bindings,
+            //bindings,
+            root_bindings,
         );
 
         for (funid, fundef) in vecdata.into_iter() {
-            let lirdef = compile::generate_func_code(&mut state, fundef)?;
+            let fun_name = fundef.name.clone();
+            let lirdef = compile::generate_func_code(&mut state, fundef)
+                .map_err(|e| e.context(format!("function code {:?}", fun_name)))?;
             let lirid = state.funs_vec.push(lirdef);
             assert_eq!(funid, lirid)
         }
@@ -174,12 +174,18 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
 /// Compile a IR Module into an optimised-for-execution `CompilationUnit`
 pub fn compile<'a, L: Clone + Eq + core::hash::Hash, N, G>(
     params: &'a CompilationParams<L>,
-    module: ir::Module,
+    modules: Vec<(Namespace, ir::Module)>,
     environ: &mut Environment<N, G>,
 ) -> Result<CompilationUnit<L>, CompilationError> {
     let mut compiler = CompilationState::new(params.clone());
-    compiler.add_module(module)?;
-    compiler.finalize(environ)
+    for (ns, module) in modules.into_iter() {
+        compiler
+            .add_module(&ns, module)
+            .map_err(|e| e.context(format!("compiling module {:?}", ns)))?;
+    }
+    compiler
+        .finalize(environ)
+        .map_err(|e| e.context(format!("Finalizing")))
 }
 
 /// Dump the instructions to a buffer

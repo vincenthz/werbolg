@@ -131,7 +131,10 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
 
 fn statement(ast: Spanned<Ast>) -> Result<ir::Statement, ParseError> {
     match ast.inner {
-        Ast::Atom(ident) => Ok(ir::Statement::Expr(ir::Expr::Ident(ast.span, ident))),
+        Ast::Atom(ident) => Ok(ir::Statement::Expr(ir::Expr::Path(
+            ast.span,
+            ir::Path::relative(ident),
+        ))),
         Ast::Literal(lit) => Ok(ir::Statement::Expr(ir::Expr::Literal(
             ast.span,
             literal(lit),
@@ -169,7 +172,7 @@ fn spanned_expr(ast: Spanned<Ast>) -> Result<Spanned<ir::Expr>, ParseError> {
 
 fn expr(ast: Spanned<Ast>) -> Result<ir::Expr, ParseError> {
     match ast.inner {
-        Ast::Atom(ident) => Ok(ir::Expr::Ident(ast.span, ident)),
+        Ast::Atom(ident) => Ok(ir::Expr::Path(ast.span, ir::Path::relative(ident))),
         Ast::Literal(lit) => Ok(ir::Expr::Literal(ast.span, literal(lit))),
         Ast::List(e) => exprs(ast.span, e),
         Ast::If(cond_expr, then_expr, else_expr) => Ok(ir::Expr::If {

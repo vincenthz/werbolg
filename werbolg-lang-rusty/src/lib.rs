@@ -49,7 +49,10 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
             span_expr.1.clone(),
             list.iter().map(|se| rewrite_expr(se)).collect::<Vec<_>>(),
         ),
-        parse::Expr::Local(l) => ir::Expr::Ident(span_expr.1.clone(), ir::Ident::from(l.as_str())),
+        parse::Expr::Local(l) => ir::Expr::Path(
+            span_expr.1.clone(),
+            ir::Path::relative(ir::Ident::from(l.as_str())),
+        ),
         parse::Expr::Let(name, bind, then) => ir::Expr::Let(
             ir::Binder::Ident(ir::Ident::from(name.as_str())),
             Box::new(rewrite_expr(bind)),
@@ -63,9 +66,9 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
         parse::Expr::Binary(left, op, right) => ir::Expr::Call(
             span_expr.1.clone(),
             vec![
-                ir::Expr::Ident(
+                ir::Expr::Path(
                     /* should be op's span */ span_expr.1.clone(),
-                    ir::Ident::from(op.as_str()),
+                    ir::Path::absolute(ir::Ident::from(op.as_str())),
                 ),
                 rewrite_expr(&left),
                 rewrite_expr(&right),

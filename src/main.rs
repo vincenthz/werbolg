@@ -4,7 +4,7 @@ mod value;
 use hashbrown::HashMap;
 use value::{Value, HASHMAP_KIND};
 use werbolg_compile::{code_dump, compile, CompilationError, Environment, NamespaceResolver};
-use werbolg_core::{Ident, Literal, Namespace};
+use werbolg_core::{Ident, Literal, Namespace, Path};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
     WAllocator, NIF,
@@ -158,7 +158,10 @@ fn main() -> Result<(), ()> {
         }
     };
 
+    let module_ns = Namespace::root().append(Ident::from("main"));
     let module = lang::parse(lang, &fileunit).expect("no parse error");
+
+    let modules = vec![(module_ns.clone(), module)];
 
     macro_rules! add_pure_nif {
         ($env:ident, $i:literal, $e:expr) => {
@@ -166,7 +169,7 @@ fn main() -> Result<(), ()> {
                 name: $i,
                 call: NIFCall::Pure($e),
             };
-            $env.add_nif(&Namespace::None, Ident::from($i), nif);
+            $env.add_nif(&Namespace::root(), Ident::from($i), nif);
         };
     }
 
@@ -179,7 +182,8 @@ fn main() -> Result<(), ()> {
     add_pure_nif!(env, "table_get", nif_hashtable_get);
 
     let compilation_params = werbolg_compile::CompilationParams { literal_mapper };
-    let exec_module = compile(&compilation_params, module, &mut env).expect("no compilation error");
+    let exec_module =
+        compile(&compilation_params, modules, &mut env).expect("no compilation error");
 
     let ee = ExecutionEnviron::from_compile_environment(env.finalize());
 
@@ -189,7 +193,10 @@ fn main() -> Result<(), ()> {
 
     let entry_point = exec_module
         .funs_tbl
-        .get(&NamespaceResolver::none(), &Ident::from("main"))
+        .get(
+            &NamespaceResolver::none(),
+            &Path::new(module_ns, Ident::from("main")),
+        )
         .expect("existing function as entry point");
 
     let execution_params = ExecutionParams { literal_to_value };
