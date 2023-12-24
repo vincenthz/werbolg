@@ -19,7 +19,6 @@ pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) lambdas: IdVecAfter<FunId, FunDef>,
     pub(crate) lambdas_code: Code,
     pub(crate) in_lambda: CodeState,
-    //pub(crate) bindings: BindingsStack<BindingType>,
     pub(crate) globals: GlobalBindings<BindingType>,
 }
 
