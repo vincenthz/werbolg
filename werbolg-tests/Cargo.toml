@@ -1,0 +1,14 @@
+[package]
+name = "werbolg-tests"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+werbolg-core = { path = "../werbolg-core" }
+werbolg-exec = { path = "../werbolg-exec" }
+werbolg-compile = { path = "../werbolg-compile" }
+
+[dev-dependencies]
+werbolg-ir-write = { path = "../werbolg-ir-write" }

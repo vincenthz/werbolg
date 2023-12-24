@@ -135,7 +135,7 @@ fn get_content(args: &[String]) -> Result<(FileUnit, lang::Lang), ()> {
 }
 
 fn get_content_nostd() -> (FileUnit, lang::Lang) {
-    let test_snippet = include_str!("../test.lispy");
+    let test_snippet = include_str!("../../test.lispy");
     let fileunit = FileUnit::from_string("test.lispy".to_string(), test_snippet.to_string());
     (fileunit, lang::Lang::Lispy)
 }
