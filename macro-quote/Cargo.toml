@@ -1,0 +1,10 @@
+[package]
+name = "macro-quote"
+version = "0.1.0"
+edition = "2021"
+description = "lightweight quoter for proc macro generation"
+
+[lib]
+proc-macro = true
+
+[dependencies]

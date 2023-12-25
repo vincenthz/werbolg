@@ -228,10 +228,10 @@ mod tests {
     #[test]
     fn it_works() {
         let snippet = r#"
-        (define add3 (a b c)
+        (define (add3 a b c)
             (+ (+ a b) c)
         )
-        (add3 10 20 30)
+        (define main (add3 10 20 30))
         "#;
         let fileunit = FileUnit::from_str("test", snippet);
         let res = module(&fileunit);

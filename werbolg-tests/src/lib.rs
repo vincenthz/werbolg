@@ -1,14 +1,20 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use werbolg_ir_write::module;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn it_compiles() {
+        /*
+        let mod1 = module! {
+            fn add(a, b) {
+                a + b
+            }
+
+            fn sub(a, b) {
+                a - b
+            }
+        };
+        assert!(false)
+        */
     }
 }

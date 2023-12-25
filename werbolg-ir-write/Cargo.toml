@@ -9,3 +9,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
+macro-quote = { path = "../macro-quote" }
+macro-quote-types = { path = "../macro-quote-types" }
+
+[dev-dependencies]

@@ -5,6 +5,10 @@ use proc_macro::{
 
 /// A Parser for TokenTree, with an arbitrary sized lookahead
 pub(crate) struct Parser {
+    /// First seen span of this parser
+    first_span: Option<Span>,
+    /// Last seen span of this parser
+    last_span: Option<Span>,
     /// Lookahead buffer of dynamic size
     la: Vec<TokenTree>,
     /// Rest of the stream
@@ -14,6 +18,8 @@ pub(crate) struct Parser {
 impl From<TokenStream> for Parser {
     fn from(ts: TokenStream) -> Parser {
         Parser {
+            first_span: None,
+            last_span: None,
             la: Vec::new(),
             ts: ts.into_iter(),
         }
@@ -100,7 +106,14 @@ impl Parser {
     /// Return the next element and consume it from the stream
     pub fn next(&mut self) -> Option<TokenTree> {
         if self.la.is_empty() {
-            self.ts.next()
+            let tt = self.ts.next();
+            if let Some(tt) = &tt {
+                if self.first_span.is_none() {
+                    self.first_span = Some(tt.span());
+                }
+                self.last_span = Some(tt.span());
+            };
+            tt
         } else {
             let token = self.la.remove(0);
             Some(token)

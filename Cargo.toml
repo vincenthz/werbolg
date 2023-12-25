@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "macro-quote-types",
+    "macro-quote",
     "werbolg-core",
     "werbolg-compile",
     "werbolg-exec",
@@ -7,5 +9,6 @@ members = [
     "werbolg-lang-rusty",
     "werbolg-lang-lispy",
     "werbolg-ir-write",
+    "werbolg-tests",
     "werbolg-example1",
 ]
