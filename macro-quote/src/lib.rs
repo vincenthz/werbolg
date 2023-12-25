@@ -2,8 +2,8 @@
 
 extern crate alloc;
 
-use alloc::{vec, vec::Vec};
-use proc_macro::{Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenStream, TokenTree};
+use alloc::vec::Vec;
+use proc_macro::{Delimiter, Ident, Punct, Spacing, Span, TokenStream, TokenTree};
 mod helper;
 mod output;
 

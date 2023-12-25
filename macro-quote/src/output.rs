@@ -108,6 +108,7 @@ impl Output {
         }
     }
 
+    /*
     pub fn push_call_literal_char(&mut self, s: char) {
         self.push_path(
             Span::call_site(),
@@ -130,6 +131,7 @@ impl Output {
             gen1.push_literal(Literal::string(s));
         })
     }
+    */
 
     pub fn push_call_span_call_site(&mut self) {
         self.push_path(
@@ -302,6 +304,7 @@ impl Output {
         self.arg0();
     }
 
+    /*
     pub fn push_tokenstream_from_iter(&mut self) {
         /*
         self.push_ident(Ident::new("TokenStream", Span::call_site()));
@@ -311,20 +314,14 @@ impl Output {
         */
         todo!()
     }
+    */
 
     #[inline]
     pub fn push_grp(&mut self, grp: Group) {
         self.0.push(TokenTree::from(grp))
     }
 
-    #[inline]
-    pub fn push_empty_call(&mut self) {
-        self.0.push(TokenTree::from(Group::new(
-            Delimiter::Parenthesis,
-            TokenStream::new(),
-        )))
-    }
-
+    /*
     #[inline]
     pub fn append(&mut self, mut trees: Vec<TokenTree>) {
         self.0.append(&mut trees)
@@ -334,6 +331,7 @@ impl Output {
     pub fn push_output(&mut self, delim: Delimiter, p: Output) {
         self.push_grp(Group::new(delim, p.finalize()))
     }
+    */
 
     #[inline]
     pub fn finalize(self) -> TokenStream {

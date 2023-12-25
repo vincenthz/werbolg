@@ -48,7 +48,9 @@ pub enum Base {
     Decimal,
     Hexadecimal,
 }
+
 impl Base {
+    #[allow(unused)]
     pub fn to_radix(self) -> u32 {
         match self {
             Base::Binary => 2,
