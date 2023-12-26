@@ -11,8 +11,8 @@ default = ["lang-lispy", "lang-rusty"]
 lang-lispy = ["werbolg-lang-lispy"]
 lang-rusty = ["werbolg-lang-rusty"]
 
-[profile.release]
-panic = 'abort'
+#[profile.release]
+#panic = 'abort'
 
 [dependencies]
 hashbrown = "0.14"

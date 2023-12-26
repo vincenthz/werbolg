@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
-[dev-dependencies]
 werbolg-core = { path = "../werbolg-core" }
 werbolg-exec = { path = "../werbolg-exec" }
 werbolg-compile = { path = "../werbolg-compile" }
 werbolg-ir-write = { path = "../werbolg-ir-write" }
+
+[dev-dependencies]

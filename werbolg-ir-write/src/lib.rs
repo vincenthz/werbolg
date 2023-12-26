@@ -6,6 +6,7 @@ extern crate proc_macro;
 mod parse;
 
 use alloc::string::String;
+use macro_quote_types::ToTokenTrees;
 use proc_macro::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
 
 //use gen::ExtendsStream; //, Generator, Path};
@@ -17,7 +18,11 @@ use macro_quote::quote;
 
 enum Statement {
     Use(Span, u32),
-    Fn(Span, String, Vec<String>),
+    Fn(Span, bool, String, Vec<String>, Expr),
+}
+
+enum Expr {
+    Let,
 }
 
 #[proc_macro]
@@ -34,7 +39,9 @@ pub fn module(item: TokenStream) -> TokenStream {
                 let g = generate_statement(stmt);
                 statements.push(g);
             }
-            (Err(errs), _) => panic!("No parser worked:\n{:?}", errs),
+            (Err(errs), p) => {
+                break;
+            } //panic!("No parser worked:\n{:?}", errs),
         }
     }
 
@@ -44,9 +51,9 @@ pub fn module(item: TokenStream) -> TokenStream {
     }
 }
 
-fn vec_macro(inner: Vec<TokenStream>) -> TokenStream {
+fn vec_macro<X: ToTokenTrees>(inner: Vec<X>) -> TokenStream {
     quote! {
-        ::alloc::slice::into_vec(::alloc::boxed::Box::new(&[ #(#inner),* ]))
+        ::alloc::vec::Vec::from(::alloc::boxed::Box::new(&[ #(#inner),* ]))
     }
 }
 
@@ -58,15 +65,57 @@ fn parse_use(p: &mut ParserTry) -> Result<Statement, ParseError> {
         return Err(format!("keyword not matching"));
     }
 
-    todo!()
+    //todo!()
+    Err(format!("use not implemented"))
 }
 
 fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParseError> {
-    todo!()
+    // parse first keyword and optional pub before
+    let i: &Ident = p
+        .next_ident()
+        .map_err(|e| format!("use: initial keyword {:?}", e))?;
+    let span = i.span();
+    let is_private = if i.to_string() == "pub" {
+        let i2: &Ident = p
+            .next_ident()
+            .map_err(|e| format!("after pub ident {:?}", e))?;
+        if i2.to_string() != "fn" {
+            return Err(format!(
+                "keyword 'fn' not matching after pub, got {}",
+                i2.to_string()
+            ));
+        }
+        false
+    } else if i.to_string() == "fn" {
+        true
+    } else {
+        return Err(format!(
+            "keyword 'fn' or 'pub fn' not matching, got {}",
+            i.to_string()
+        ));
+    };
+
+    // parse name of function
+    let name = p
+        .next_ident()
+        .map(|x| x.to_string())
+        .map_err(|e| format!("expecting name after 'fn' got error {:?}", e))?;
+
+    let vars = p
+        .next_group(|grp| {
+            if grp.delimiter() == Delimiter::Parenthesis {
+                Some(grp.stream())
+            } else {
+                None
+            }
+        })
+        .map_err(|e| format!("expecting parens but got {:?}", e))?;
+    Ok(Statement::Fn(span, is_private, name, vec![], Expr::Let))
 }
 
 fn span_to_werbolg(span: &Span) -> TokenStream {
-    todo!()
+    TokenStream::new()
+    //todo!()
     /*
     quote! {
         core::ops::Range { start: 0, end: 0 }
@@ -77,17 +126,20 @@ fn span_to_werbolg(span: &Span) -> TokenStream {
 fn generate_statement(statement: Statement) -> TokenStream {
     match statement {
         Statement::Use(_, _) => todo!(),
-        Statement::Fn(span, name, vars) => {
+        Statement::Fn(span, is_private, name, vars, body) => {
             let span = span_to_werbolg(&span);
             let v = quote! {
-                ::alloc::slice::into_vec(::alloc::boxed::Box::new(&[ #(#vars),* ]))
+                ::alloc::vec::Vec::from(::alloc::boxed::Box::new(&[ #(#vars),* ]))
+            };
+            let b = quote! {
+                123
             };
             quote! {
                 werbolg_core::ir::Statement::Function(#span, werbolg_core::ir::FunDef {
-                    private: werbolg_core::ir::Privacy::Public,
+                    privacy: werbolg_core::ir::Privacy::Public,
                     name: Some(#name),
                     var: #v,
-                    body: ,
+                    body: [],
                 })
             }
         }

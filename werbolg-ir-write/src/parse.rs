@@ -54,6 +54,7 @@ pub enum ParserError {
         expecting: TokenKind,
         got: TokenKind,
     },
+    NotMatches,
 }
 
 impl Parser {
@@ -179,11 +180,29 @@ impl ParserTry {
         self.parser
     }
 
-    pub fn parse_try(self) -> ParserTry {
-        ParserTry {
-            parser: self.parser,
-            current: self.current,
+    /// Try to parse using f. On failure leave the parser position where it was
+    pub fn parse_try<F, O, E>(&mut self, f: F) -> Result<O, E>
+    where
+        F: FnOnce(&mut Self) -> Result<O, E>,
+    {
+        let save_current = self.current;
+        match f(self) {
+            Ok(t) => Ok(t),
+            Err(e) => {
+                self.current = save_current;
+                Err(e)
+            }
         }
+    }
+
+    /// Try to parse using f or on failure g. If both closures fails, the parser
+    /// position is not changed.
+    pub fn alternative<F, G, O, E>(&mut self, f: F, g: G) -> Result<O, E>
+    where
+        F: FnOnce(&mut Self) -> Result<O, E>,
+        G: FnOnce(&mut Self) -> Result<O, E>,
+    {
+        self.parse_try(f).or_else(|_| self.parse_try(g))
     }
 
     /// Return the un-modified `Parser`
@@ -205,6 +224,28 @@ impl ParserTry {
             },
             None => Err(ParserError::EndOfStream {
                 expecting: Some(TokenKind::Ident),
+            }),
+        }
+    }
+
+    /// Try to get the next group
+    pub fn next_group<M, T>(&mut self, f: M) -> Result<T, ParserError>
+    where
+        M: FnOnce(&Group) -> Option<T>,
+    {
+        match self.next() {
+            Some(tt) => match tt {
+                TokenTree::Group(group) => match f(group) {
+                    None => Err(ParserError::NotMatches),
+                    Some(t) => Ok(t),
+                },
+                _ => Err(ParserError::Expecting {
+                    expecting: TokenKind::Group,
+                    got: TokenKind::from(tt),
+                }),
+            },
+            None => Err(ParserError::EndOfStream {
+                expecting: Some(TokenKind::Group),
             }),
         }
     }

@@ -9,7 +9,7 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-macro-quote = { path = "../macro-quote" }
-macro-quote-types = { path = "../macro-quote-types" }
+macro-quote = { git = "https://github.com/vincenthz/macro-quote" }
+macro-quote-types = { git = "https://github.com/vincenthz/macro-quote" }
 
 [dev-dependencies]

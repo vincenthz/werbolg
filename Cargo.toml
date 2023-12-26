@@ -1,7 +1,6 @@
 [workspace]
+resolver = "2"
 members = [
-    "macro-quote-types",
-    "macro-quote",
     "werbolg-core",
     "werbolg-compile",
     "werbolg-exec",
