@@ -105,6 +105,11 @@ impl Path {
         Path(PathType::Absolute, n)
     }
 
+    /// Create a new raw path
+    pub fn new_raw(pathtype: PathType, idents: Vec<Ident>) -> Self {
+        Self(pathtype, idents)
+    }
+
     /// Create a new relative path of 1 level
     pub fn relative(ident: Ident) -> Self {
         Self(PathType::Relative, vec![ident])

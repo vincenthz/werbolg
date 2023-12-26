@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use proc_macro::{
-    token_stream::IntoIter, Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree,
+    token_stream::{self, IntoIter},
+    Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree,
 };
 
 /// A Parser for TokenTree, with an arbitrary sized lookahead
@@ -23,6 +24,12 @@ impl From<TokenStream> for Parser {
             la: Vec::new(),
             ts: ts.into_iter(),
         }
+    }
+}
+
+impl From<Vec<TokenTree>> for Parser {
+    fn from(ts: Vec<TokenTree>) -> Parser {
+        Parser::from(TokenStream::from_iter(ts))
     }
 }
 
@@ -143,6 +150,30 @@ impl Parser {
     pub fn try_parse(self) -> ParserTry {
         ParserTry::new(self)
     }
+
+    pub fn sep_by(mut self) -> Vec<Parser> {
+        let mut parsers = Vec::new();
+        let mut v = Vec::new();
+        while let Some(x) = self.next() {
+            match x {
+                TokenTree::Punct(punct) if punct.as_char() == ';' => {
+                    let mut out = Vec::new();
+                    core::mem::swap(&mut v, &mut out);
+                    parsers.push(Parser::from(out))
+                }
+                TokenTree::Punct(_)
+                | TokenTree::Group(_)
+                | TokenTree::Ident(_)
+                | TokenTree::Literal(_) => {
+                    v.push(x);
+                }
+            }
+        }
+        if v.len() > 0 {
+            parsers.push(Parser::from(v));
+        }
+        parsers
+    }
 }
 
 /// Tentative parser
@@ -228,6 +259,43 @@ impl ParserTry {
         }
     }
 
+    pub fn next_literal(&mut self) -> Result<&Literal, ParserError> {
+        match self.next() {
+            Some(tt) => match tt {
+                TokenTree::Literal(literal) => Ok(literal),
+                _ => Err(ParserError::Expecting {
+                    expecting: TokenKind::Literal,
+                    got: TokenKind::from(tt),
+                }),
+            },
+            None => Err(ParserError::EndOfStream {
+                expecting: Some(TokenKind::Literal),
+            }),
+        }
+    }
+
+    /// Try to get the next punct
+    pub fn next_punct<M, T>(&mut self, f: M) -> Result<T, ParserError>
+    where
+        M: FnOnce(&Punct) -> Option<T>,
+    {
+        match self.next() {
+            Some(tt) => match tt {
+                TokenTree::Punct(punct) => match f(punct) {
+                    None => Err(ParserError::NotMatches),
+                    Some(t) => Ok(t),
+                },
+                _ => Err(ParserError::Expecting {
+                    expecting: TokenKind::Punct,
+                    got: TokenKind::from(tt),
+                }),
+            },
+            None => Err(ParserError::EndOfStream {
+                expecting: Some(TokenKind::Punct),
+            }),
+        }
+    }
+
     /// Try to get the next group
     pub fn next_group<M, T>(&mut self, f: M) -> Result<T, ParserError>
     where
@@ -248,5 +316,22 @@ impl ParserTry {
                 expecting: Some(TokenKind::Group),
             }),
         }
+    }
+
+    pub fn try_chain<E, T>(
+        self,
+        parsers: &[fn(&mut ParserTry) -> Result<T, E>],
+    ) -> Result<T, Vec<E>> {
+        let mut errors: Vec<E> = Vec::new();
+        let mut current = self;
+        for p in parsers.iter() {
+            match current.parse_try(p) {
+                Ok(t) => return Ok(t),
+                Err(e) => {
+                    errors.push(e);
+                }
+            }
+        }
+        Err(errors)
     }
 }

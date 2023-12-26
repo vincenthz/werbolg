@@ -1,16 +1,17 @@
 #![no_std]
 extern crate alloc;
+extern crate proc_macro;
 
 use werbolg_ir_write::module;
 
 fn module1() -> werbolg_core::Module {
     module! {
         fn add(a, b) {
-            a + b
+            a
         }
 
         fn sub(a, b) {
-            a - b
+            b
         }
     }
 }
