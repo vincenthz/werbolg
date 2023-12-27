@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use proc_macro::{
-    token_stream::{self, IntoIter},
-    Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree,
+    token_stream::IntoIter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree,
 };
 
 /// A Parser for TokenTree, with an arbitrary sized lookahead
@@ -151,30 +150,6 @@ impl Parser {
         ParserTry::new(self)
     }
 
-    pub fn sep_by(mut self) -> Vec<Parser> {
-        let mut parsers = Vec::new();
-        let mut v = Vec::new();
-        while let Some(x) = self.next() {
-            match x {
-                TokenTree::Punct(punct) if punct.as_char() == ';' => {
-                    let mut out = Vec::new();
-                    core::mem::swap(&mut v, &mut out);
-                    parsers.push(Parser::from(out))
-                }
-                TokenTree::Punct(_)
-                | TokenTree::Group(_)
-                | TokenTree::Ident(_)
-                | TokenTree::Literal(_) => {
-                    v.push(x);
-                }
-            }
-        }
-        if v.len() > 0 {
-            parsers.push(Parser::from(v));
-        }
-        parsers
-    }
-
     pub fn next_ident(&mut self) -> Result<Ident, ParserError> {
         match self.next() {
             Some(tt) => match tt {
@@ -190,6 +165,7 @@ impl Parser {
         }
     }
 
+    #[allow(unused)]
     pub fn next_literal(&mut self) -> Result<Literal, ParserError> {
         match self.next() {
             Some(tt) => match tt {

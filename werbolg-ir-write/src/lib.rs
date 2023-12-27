@@ -27,7 +27,7 @@ pub fn module(item: TokenStream) -> TokenStream {
                 let g = generate_statement(stmt);
                 statements.push(g);
             }
-            (Err(errs), p) => {
+            (Err(_errs), _p) => {
                 break;
             } //panic!("No parser worked:\n{:?}", errs),
         }
