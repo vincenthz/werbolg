@@ -4,7 +4,7 @@ extern crate proc_macro;
 
 use werbolg_ir_write::module;
 
-fn module1() -> werbolg_core::Module {
+pub fn module1() -> werbolg_core::Module {
     module! {
         fn add(a, b) {
             a
@@ -19,7 +19,7 @@ fn module1() -> werbolg_core::Module {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::{vec, vec::Vec};
+    use alloc::vec;
     use werbolg_compile::{compile, CompilationError, CompilationParams, Environment};
 
     fn literal_mapper(
