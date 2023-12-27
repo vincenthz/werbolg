@@ -18,7 +18,7 @@ use macro_quote::quote;
 
 enum Statement {
     Use(Span, u32),
-    Fn(Span, bool, Ident, Vec<String>, Expr),
+    Fn(Span, bool, Ident, Vec<Ident>, Expr),
 }
 
 enum Expr {
@@ -57,7 +57,6 @@ pub fn module(item: TokenStream) -> TokenStream {
 
 fn vec_macro<X: ToTokenTrees>(inner: Vec<X>) -> TokenStream {
     quote! {
-        //::alloc::vec::Vec::from(::alloc::boxed::Box::new(&[ #(#inner),* ]))
         (::alloc::boxed::Box::new([ #(#inner),* ]) as ::alloc::boxed::Box<[_]>).into_vec()
     }
 }
@@ -116,6 +115,35 @@ fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParseError> {
             }
         })
         .map_err(|e| format!("expecting parens but got {:?}", e))?;
+    let mut var_parser = Parser::from(vars_ts);
+    let vars = {
+        if var_parser.is_end() {
+            Vec::new()
+        } else {
+            let mut vars = Vec::new();
+            let ident = var_parser
+                .next_ident()
+                .map_err(|e| format!("expecting ident"))?;
+            vars.push(ident);
+            while !var_parser.is_end() {
+                var_parser
+                    .next_punct(|punct| {
+                        if punct.as_char() == ',' {
+                            Some(())
+                        } else {
+                            None
+                        }
+                    })
+                    .map_err(|e| format!("expecting ,"))?;
+
+                let ident = var_parser
+                    .next_ident()
+                    .map_err(|e| format!("expecting ident"))?;
+                vars.push(ident);
+            }
+            vars
+        }
+    };
 
     let body_ts = p
         .next_group(|grp| {
@@ -129,7 +157,7 @@ fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParseError> {
 
     let body = parse_expr(Parser::from(body_ts))?;
 
-    Ok(Statement::Fn(span, is_private, name, vec![], body))
+    Ok(Statement::Fn(span, is_private, name, vars, body))
 }
 
 /*
@@ -233,7 +261,7 @@ fn atom_double_colon(parser: &mut ParserTry) -> Result<(), ParseError> {
                 None
             }
         })
-        .map_err(|e| format!("path sep : not first colon"))?;
+        .map_err(|e| format!("path sep : not first colon {:?}", e))?;
     parser
         .next_punct(|p| {
             if p.as_char() == ':' && p.spacing() == proc_macro::Spacing::Alone {
@@ -242,7 +270,7 @@ fn atom_double_colon(parser: &mut ParserTry) -> Result<(), ParseError> {
                 None
             }
         })
-        .map_err(|e| format!("path sep : not second colon"))?;
+        .map_err(|e| format!("path sep : not second colon {:?}", e))?;
     Ok(())
 }
 fn atom_keyword(parser: &mut ParserTry, keyword: &str) -> Result<(), ParseError> {
@@ -283,17 +311,34 @@ fn werbolg_ident_from_ident(s: &Ident) -> TokenStream {
     }
 }
 
+fn werbolg_variable_from_ident(s: &Ident) -> TokenStream {
+    let x = s.to_string();
+    let span = werbolg_span();
+    quote! {
+        werbolg_core::Variable(werbolg_core::Spanned::new(#span, werbolg_core::Ident::from(#x)))
+    }
+}
+
 fn generate_statement(statement: Statement) -> TokenStream {
     match statement {
         Statement::Use(_, _) => todo!(),
         Statement::Fn(span, is_private, name, vars, body) => {
             let span = werbolg_span();
-            let v = vec_macro(vars);
+            let v = vec_macro(
+                vars.iter()
+                    .map(|i| werbolg_variable_from_ident(i))
+                    .collect(),
+            );
             let b = generate_expr(body);
             let name = werbolg_ident_from_ident(&name);
+            let private = if is_private {
+                quote! { werbolg_core::ir::Privacy::Private }
+            } else {
+                quote! { werbolg_core::ir::Privacy::Public }
+            };
             quote! {
                 werbolg_core::ir::Statement::Function(#span, werbolg_core::ir::FunDef {
-                    privacy: werbolg_core::ir::Privacy::Public,
+                    privacy: #private,
                     name: Some(#name),
                     vars: #v,
                     body: #b,

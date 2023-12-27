@@ -174,6 +174,58 @@ impl Parser {
         }
         parsers
     }
+
+    pub fn next_ident(&mut self) -> Result<Ident, ParserError> {
+        match self.next() {
+            Some(tt) => match tt {
+                TokenTree::Ident(ident) => Ok(ident),
+                _ => Err(ParserError::Expecting {
+                    expecting: TokenKind::Ident,
+                    got: TokenKind::from(&tt),
+                }),
+            },
+            None => Err(ParserError::EndOfStream {
+                expecting: Some(TokenKind::Ident),
+            }),
+        }
+    }
+
+    pub fn next_literal(&mut self) -> Result<Literal, ParserError> {
+        match self.next() {
+            Some(tt) => match tt {
+                TokenTree::Literal(literal) => Ok(literal),
+                _ => Err(ParserError::Expecting {
+                    expecting: TokenKind::Literal,
+                    got: TokenKind::from(&tt),
+                }),
+            },
+            None => Err(ParserError::EndOfStream {
+                expecting: Some(TokenKind::Literal),
+            }),
+        }
+    }
+
+    /// Try to get the next punct
+    pub fn next_punct<M, T>(&mut self, f: M) -> Result<T, ParserError>
+    where
+        M: FnOnce(Punct) -> Option<T>,
+    {
+        match self.next() {
+            Some(tt) => match tt {
+                TokenTree::Punct(punct) => match f(punct) {
+                    None => Err(ParserError::NotMatches),
+                    Some(t) => Ok(t),
+                },
+                _ => Err(ParserError::Expecting {
+                    expecting: TokenKind::Punct,
+                    got: TokenKind::from(&tt),
+                }),
+            },
+            None => Err(ParserError::EndOfStream {
+                expecting: Some(TokenKind::Punct),
+            }),
+        }
+    }
 }
 
 /// Tentative parser
