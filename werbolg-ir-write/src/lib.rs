@@ -4,14 +4,12 @@ extern crate proc_macro;
 mod lang;
 mod parse;
 
-use alloc::string::String;
+use macro_quote_types::ext::span_to_range;
 use macro_quote_types::ToTokenTrees;
 use proc_macro::{Ident, TokenStream};
 
 use lang::*;
 use parse::Parser;
-
-type ParseError = String;
 
 use macro_quote::quote;
 
@@ -65,6 +63,13 @@ fn werbolg_span() -> TokenStream {
     }
 }
 
+fn werbolg_span_from_span(span: proc_macro::Span) -> TokenStream {
+    let core::ops::Range { start, end } = span_to_range(span);
+    quote! {
+        core::ops::Range { start: #start, end: #end }
+    }
+}
+
 fn werbolg_ident(s: &str) -> TokenStream {
     quote! {
         Ident::from(#s)
@@ -91,7 +96,7 @@ fn generate_statement(statement: Statement) -> TokenStream {
         Statement::Use(_, _) => todo!(),
         Statement::Fn(span, is_private, name, vars, body) => {
             //panic!("span: {:?}", span);
-            let span = werbolg_span();
+            let span = werbolg_span_from_span(span);
             let v = vec_macro(
                 vars.iter()
                     .map(|i| werbolg_variable_from_ident(i))
