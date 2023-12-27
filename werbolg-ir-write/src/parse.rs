@@ -60,7 +60,26 @@ pub enum ParserError {
         expecting: TokenKind,
         got: TokenKind,
     },
+    ExpectingIdent {
+        expecting: String,
+        got: String,
+    },
+    ExpectingPunct {
+        expecting: char,
+    },
+    Multiple(Vec<ParserError>),
+    NotTerminated,
     NotMatches,
+    Context(String, Box<ParserError>),
+}
+
+impl ParserError {
+    pub fn context(self, context: &str) -> Self {
+        match self {
+            Self::Context(msg, c) => Self::Context(format!("{} | {}", context, msg), c),
+            _ => Self::Context(context.to_string(), Box::new(self)),
+        }
+    }
 }
 
 impl Parser {
@@ -150,56 +169,21 @@ impl Parser {
         ParserTry::new(self)
     }
 
-    pub fn next_ident(&mut self) -> Result<Ident, ParserError> {
-        match self.next() {
-            Some(tt) => match tt {
-                TokenTree::Ident(ident) => Ok(ident),
-                _ => Err(ParserError::Expecting {
-                    expecting: TokenKind::Ident,
-                    got: TokenKind::from(&tt),
-                }),
-            },
-            None => Err(ParserError::EndOfStream {
-                expecting: Some(TokenKind::Ident),
-            }),
-        }
-    }
-
-    #[allow(unused)]
-    pub fn next_literal(&mut self) -> Result<Literal, ParserError> {
-        match self.next() {
-            Some(tt) => match tt {
-                TokenTree::Literal(literal) => Ok(literal),
-                _ => Err(ParserError::Expecting {
-                    expecting: TokenKind::Literal,
-                    got: TokenKind::from(&tt),
-                }),
-            },
-            None => Err(ParserError::EndOfStream {
-                expecting: Some(TokenKind::Literal),
-            }),
-        }
-    }
-
-    /// Try to get the next punct
-    pub fn next_punct<M, T>(&mut self, f: M) -> Result<T, ParserError>
+    pub fn try_parse_to_end<F, T>(self, f: F) -> Result<T, ParserError>
     where
-        M: FnOnce(Punct) -> Option<T>,
+        F: FnOnce(&mut ParserTry) -> Result<T, ParserError>,
     {
-        match self.next() {
-            Some(tt) => match tt {
-                TokenTree::Punct(punct) => match f(punct) {
-                    None => Err(ParserError::NotMatches),
-                    Some(t) => Ok(t),
-                },
-                _ => Err(ParserError::Expecting {
-                    expecting: TokenKind::Punct,
-                    got: TokenKind::from(&tt),
-                }),
-            },
-            None => Err(ParserError::EndOfStream {
-                expecting: Some(TokenKind::Punct),
-            }),
+        let mut tryp = self.try_parse();
+        match f(&mut tryp) {
+            Ok(t) => {
+                let mut parser = tryp.commit();
+                if parser.is_end() {
+                    Ok(t)
+                } else {
+                    Err(ParserError::NotTerminated)
+                }
+            }
+            Err(e) => Err(e),
         }
     }
 }
@@ -240,9 +224,9 @@ impl ParserTry {
     }
 
     /// Try to parse using f. On failure leave the parser position where it was
-    pub fn parse_try<F, O, E>(&mut self, f: F) -> Result<O, E>
+    pub fn parse_try<F, O>(&mut self, f: F) -> Result<O, ParserError>
     where
-        F: FnOnce(&mut Self) -> Result<O, E>,
+        F: FnOnce(&mut Self) -> Result<O, ParserError>,
     {
         let save_current = self.current;
         match f(self) {
@@ -256,10 +240,11 @@ impl ParserTry {
 
     /// Try to parse using f or on failure g. If both closures fails, the parser
     /// position is not changed.
-    pub fn alternative<F, G, O, E>(&mut self, f: F, g: G) -> Result<O, E>
+    #[allow(unused)]
+    pub fn alternative<F, G, O>(&mut self, f: F, g: G) -> Result<O, ParserError>
     where
-        F: FnOnce(&mut Self) -> Result<O, E>,
-        G: FnOnce(&mut Self) -> Result<O, E>,
+        F: FnOnce(&mut Self) -> Result<O, ParserError>,
+        G: FnOnce(&mut Self) -> Result<O, ParserError>,
     {
         self.parse_try(f).or_else(|_| self.parse_try(g))
     }
@@ -346,20 +331,25 @@ impl ParserTry {
         }
     }
 
-    pub fn try_chain<E, T>(
-        self,
-        parsers: &[fn(&mut ParserTry) -> Result<T, E>],
-    ) -> Result<T, Vec<E>> {
-        let mut errors: Vec<E> = Vec::new();
-        let mut current = self;
-        for p in parsers.iter() {
-            match current.parse_try(p) {
+    pub fn try_chain<T>(
+        &mut self,
+        parsers: &[(&str, fn(&mut ParserTry) -> Result<T, ParserError>)],
+    ) -> Result<T, ParserError> {
+        let mut errors: Vec<ParserError> = Vec::new();
+        let current_saved = self.current;
+        for (context, p) in parsers.iter() {
+            match self.parse_try(p) {
                 Ok(t) => return Ok(t),
                 Err(e) => {
-                    errors.push(e);
+                    self.current = current_saved;
+                    errors.push(e.context(context));
                 }
             }
         }
-        Err(errors)
+        Err(ParserError::Multiple(errors))
+    }
+
+    pub fn is_end(&mut self) -> bool {
+        self.peek_kind().is_none()
     }
 }

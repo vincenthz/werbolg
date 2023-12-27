@@ -128,24 +128,25 @@ fn generate_expr(expr: Expr) -> TokenStream {
             quote! { ir::Expr::Let(ir::Binder::Ident(#ident)) }
         }
         Expr::Literal(lit) => quote! { #lit },
-        Expr::Path(absolute, fragments) => {
-            let fr = vec_macro(
-                fragments
-                    .into_iter()
-                    .map(|i| {
-                        let x = i.to_string();
-                        quote! { Ident::from(#x) }
-                    })
-                    .collect::<Vec<_>>(),
-            );
+        Expr::Path(path) => {
+            let path = generate_path(path);
             let span = werbolg_span();
-            if absolute {
-                quote! { ir::Expr::Path(#span, Path::new_raw(PathType::Absolute, #fr)) }
-            } else {
-                quote! { ir::Expr::Path(#span, Path::new_raw(PathType::Relative, #fr)) }
-            }
+            quote! { ir::Expr::Path(#span, #path) }
         }
         Expr::Call(_) => quote! { werbolg_core::Expr::Call() },
         Expr::If(_) => quote! { werbolg_core::Expr::If { span, cond, then_expr, else_expr } },
+    }
+}
+
+fn generate_path(Path { absolute, path }: Path) -> TokenStream {
+    let fr = vec_macro(
+        path.into_iter()
+            .map(|fr| werbolg_ident_from_ident(&fr))
+            .collect::<Vec<_>>(),
+    );
+    if absolute {
+        quote! { Path::new_raw(PathType::Absolute, #fr) }
+    } else {
+        quote! { Path::new_raw(PathType::Relative, #fr) }
     }
 }

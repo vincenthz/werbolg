@@ -1,235 +1,242 @@
 use super::parse::*;
 
-use alloc::string::String;
-use macro_quote_types::ToTokenTrees;
-use proc_macro::{Delimiter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree};
+use proc_macro::{Delimiter, Ident, Literal, Spacing, Span, TokenStream};
 
-type ParseError = String;
-
-use macro_quote::quote;
+type ParseError = ParserError;
 
 pub(crate) enum Statement {
-    Use(Span, u32),
+    Use(Span, Path),
     Fn(Span, bool, Ident, Vec<Ident>, Expr),
 }
 
 pub(crate) enum Expr {
     Let(Ident),
     Literal(Literal),
-    Path(bool, Vec<Ident>),
+    Path(Path),
     Call(Vec<Expr>),
     If(Box<Expr>),
 }
 
-pub(crate) fn parse_use(p: &mut ParserTry) -> Result<Statement, ParseError> {
-    let i: &Ident = p
-        .next_ident()
-        .map_err(|e| format!("use: initial keyword {:?}", e))?;
-    if i.to_string() != "use" {
-        return Err(format!("keyword not matching"));
-    }
+pub(crate) struct Path {
+    pub(crate) absolute: bool,
+    pub(crate) path: Vec<Ident>,
+}
 
-    //todo!()
-    Err(format!("use not implemented"))
+pub(crate) fn parse_use(p: &mut ParserTry) -> Result<Statement, ParseError> {
+    let span = atom_keyword(p, "use")?;
+    let path = atom_path(p)?;
+    atom_semicolon(p)?;
+
+    Ok(Statement::Use(span, path))
 }
 
 pub(crate) fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParseError> {
     // parse first keyword and optional pub before
-    let i: &Ident = p
-        .next_ident()
-        .map_err(|e| format!("use: initial keyword {:?}", e))?;
-    let span = i.span();
-    let is_private = if i.to_string() == "pub" {
-        let i2: &Ident = p
-            .next_ident()
-            .map_err(|e| format!("after pub ident {:?}", e))?;
-        if i2.to_string() != "fn" {
-            return Err(format!(
-                "keyword 'fn' not matching after pub, got {}",
-                i2.to_string()
-            ));
+    let first = atom_keyword(p, "pub");
+    let (span, is_private) = match first {
+        Err(_) => {
+            let span = atom_keyword(p, "fn")?;
+            (span, true)
         }
-        false
-    } else if i.to_string() == "fn" {
-        true
-    } else {
-        return Err(format!(
-            "keyword 'fn' or 'pub fn' not matching, got {}",
-            i.to_string()
-        ));
+        Ok(span) => {
+            let _: Span = atom_keyword(p, "fn")?;
+            (span, false)
+        }
     };
 
     // parse name of function
     let name = p
         .next_ident()
         .map(|x| x.clone())
-        .map_err(|e| format!("expecting name after 'fn' got error {:?}", e))?;
+        .map_err(|e| e.context("expecting name"))?;
 
     // parse the parameters of function
-    let vars_ts = p
-        .next_group(|grp| {
-            if grp.delimiter() == Delimiter::Parenthesis {
-                Some(grp.stream())
-            } else {
-                None
-            }
-        })
-        .map_err(|e| format!("expecting parens but got {:?}", e))?;
+    let vars_ts = atom_parens(p)?;
     let mut var_parser = Parser::from(vars_ts);
     let vars = {
         if var_parser.is_end() {
             Vec::new()
         } else {
             let mut vars = Vec::new();
-            let ident = var_parser
-                .next_ident()
-                .map_err(|e| format!("expecting ident"))?;
-            vars.push(ident);
-            while !var_parser.is_end() {
-                var_parser
-                    .next_punct(|punct| {
-                        if punct.as_char() == ',' {
-                            Some(())
-                        } else {
-                            None
-                        }
-                    })
-                    .map_err(|e| format!("expecting ,"))?;
-
-                let ident = var_parser
+            var_parser.try_parse_to_end(|parser| {
+                let ident = parser
                     .next_ident()
-                    .map_err(|e| format!("expecting ident"))?;
+                    .map(|i| i.clone())
+                    .map_err(|e| e.context("expecting function variable name"))?;
                 vars.push(ident);
-            }
+                while !parser.is_end() {
+                    atom_comma(parser)?;
+
+                    let ident = parser
+                        .next_ident()
+                        .map(|i| i.clone())
+                        .map_err(|e| e.context("expecting function variable name"))?;
+                    vars.push(ident);
+                }
+                Ok(())
+            })?;
             vars
         }
     };
 
-    let body_ts = p
-        .next_group(|grp| {
-            if grp.delimiter() == Delimiter::Brace {
-                Some(grp.stream())
-            } else {
-                None
-            }
-        })
-        .map_err(|e| format!("expecting brace but got {:?}", e))?;
-
-    let body = parse_expr(Parser::from(body_ts))?;
-
+    let body_ts = atom_braces(p)?;
+    let body = Parser::from(body_ts).try_parse_to_end(|parser| parse_expr(parser))?;
     Ok(Statement::Fn(span, is_private, name, vars, body))
 }
 
-fn parse_expr(parser: Parser) -> Result<Expr, ParseError> {
-    fn parse_literal(parser: &mut ParserTry) -> Result<Expr, ParseError> {
-        let lit = parser
-            .next_literal()
-            .map_err(|e| format!("not literal {:?}", e))?;
-        Ok(Expr::Literal(lit.clone()))
-    }
-    fn parse_path(parser: &mut ParserTry) -> Result<Expr, ParseError> {
-        let absolute = parser
-            .parse_try(|parser| atom_double_colon(parser))
-            .map(|()| true)
-            .unwrap_or(false);
-
-        let first = parser
-            .next_ident()
-            .map_err(|e| format!("not an ident {:?}", e))?;
-        let mut path = vec![first.clone()];
-        loop {
-            if atom_double_colon(parser).is_err() {
-                break;
-            }
-            let rem = parser
-                .next_ident()
-                .map_err(|e| format!("not an ident {:?}", e))?;
-            path.push(rem.clone());
-        }
-        Ok(Expr::Path(absolute, path))
-    }
+fn parse_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
     fn parse_let(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         atom_keyword(parser, "let")?;
         let ident = parser
             .next_ident()
-            .map_err(|e| format!("not let ident {:?}", e))?;
-        Ok(Expr::Let(ident.clone()))
+            .map(|x| x.clone())
+            .map_err(|e| e.context("bind"))?;
+        atom_eq(parser)?;
+        atom_keyword(parser, "in")?;
+        Ok(Expr::Let(ident))
     }
     fn parse_call(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         let path = parse_path(parser)?;
         let call_params = atom_parens(parser)?;
-        Ok(Expr::Call(vec![path]))
+        let mut call_parser = Parser::from(call_params);
+        let mut call_exprs = vec![path];
+        if !call_parser.is_end() {
+            call_parser.try_parse_to_end(|parser| {
+                let e = parse_expr(parser)?;
+                call_exprs.push(e);
+                while !parser.is_end() {
+                    atom_comma(parser)?;
+                    let e = parse_expr(parser)?;
+                    call_exprs.push(e)
+                }
+                Ok(())
+            })?
+        }
+
+        Ok(Expr::Call(call_exprs))
     }
     fn parse_if(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         atom_keyword(parser, "if")?;
-        let cond = parse_rec_expr(parser)?;
+        let cond = parse_paren_expr(parser)?;
         Ok(Expr::If(Box::new(cond)))
     }
-    fn parse_rec_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
-        let ts = atom_parens(parser)?;
-        let e = parse_expr(Parser::from(ts))?;
-        Ok(e)
-    }
-    let (r, mut parser) = parser.try_chain(&[
-        parse_let,
-        parse_if,
-        parse_literal,
-        parse_call,
-        parse_path,
-        parse_rec_expr,
-    ]);
-    match r {
-        Ok(e) => {
-            if parser.is_end() {
-                Ok(e)
-            } else {
-                Err(format!("expression tree is not finished"))
-            }
+    parser
+        .try_chain(&[
+            ("let", parse_let),
+            ("if", parse_if),
+            ("call", parse_call),
+            ("factor", parse_factor),
+        ])
+        .map_err(|e| e.context("expr"))
+}
+
+fn parse_factor(parser: &mut ParserTry) -> Result<Expr, ParseError> {
+    parser.try_chain(&[
+        ("literal", parse_literal),
+        ("path", parse_path),
+        ("paren-expr", parse_paren_expr),
+    ])
+}
+
+fn parse_paren_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
+    let ts = atom_parens(parser)?;
+    Parser::from(ts).try_parse_to_end(parse_expr)
+}
+
+fn parse_literal(parser: &mut ParserTry) -> Result<Expr, ParseError> {
+    let lit = parser.next_literal()?;
+    Ok(Expr::Literal(lit.clone()))
+}
+
+fn parse_path(parser: &mut ParserTry) -> Result<Expr, ParseError> {
+    atom_path(parser).map(|path| Expr::Path(path))
+}
+
+fn atom_path(parser: &mut ParserTry) -> Result<Path, ParseError> {
+    let absolute = parser
+        .parse_try(|parser| atom_double_colon(parser))
+        .map(|()| true)
+        .unwrap_or(false);
+
+    let first = parser.next_ident().map_err(|e| e.context("path"))?;
+    let mut path = vec![first.clone()];
+    loop {
+        if atom_double_colon(parser).is_err() {
+            break;
         }
-        Err(e) => Err(format!("expression parser failed {:?}", e)),
+        let rem = parser.next_ident().map_err(|e| e.context("path"))?;
+        path.push(rem.clone());
     }
+    Ok(Path { absolute, path })
 }
 
 fn atom_parens(parser: &mut ParserTry) -> Result<TokenStream, ParseError> {
-    parser
-        .next_group(|g| {
-            if g.delimiter() == Delimiter::Parenthesis {
-                Some(g.stream())
-            } else {
-                None
-            }
-        })
-        .map_err(|e| format!("parens {:?}", e))
+    parser.next_group(|g| {
+        if g.delimiter() == Delimiter::Parenthesis {
+            Some(g.stream())
+        } else {
+            None
+        }
+    })
+}
+
+fn atom_braces(parser: &mut ParserTry) -> Result<TokenStream, ParseError> {
+    parser.next_group(|g| {
+        if g.delimiter() == Delimiter::Brace {
+            Some(g.stream())
+        } else {
+            None
+        }
+    })
+}
+
+fn atom_comma(parser: &mut ParserTry) -> Result<(), ParseError> {
+    expecting_punct(parser, ',')
+}
+
+fn atom_eq(parser: &mut ParserTry) -> Result<(), ParseError> {
+    expecting_punct_spacing(parser, '=', Spacing::Alone)
+}
+
+fn atom_semicolon(parser: &mut ParserTry) -> Result<(), ParseError> {
+    expecting_punct_spacing(parser, ';', Spacing::Alone)
 }
 
 fn atom_double_colon(parser: &mut ParserTry) -> Result<(), ParseError> {
-    parser
-        .next_punct(|p| {
-            if p.as_char() == ':' && p.spacing() == proc_macro::Spacing::Joint {
-                Some(())
-            } else {
-                None
-            }
-        })
-        .map_err(|e| format!("path sep : not first colon {:?}", e))?;
-    parser
-        .next_punct(|p| {
-            if p.as_char() == ':' && p.spacing() == proc_macro::Spacing::Alone {
-                Some(())
-            } else {
-                None
-            }
-        })
-        .map_err(|e| format!("path sep : not second colon {:?}", e))?;
+    expecting_punct_spacing(parser, ':', Spacing::Joint)?;
+    expecting_punct_spacing(parser, ':', Spacing::Alone)?;
     Ok(())
 }
-fn atom_keyword(parser: &mut ParserTry, keyword: &str) -> Result<(), ParseError> {
-    let first = parser
-        .next_ident()
-        .map(|v| v.to_string())
-        .map_err(|e| format!("no let keyword {:?}", e))?;
-    if first == keyword {
-        return Err(format!("no {} keyword: found {} instead", keyword, first));
+
+fn expecting_punct(parser: &mut ParserTry, c: char) -> Result<(), ParseError> {
+    parser
+        .next_punct(|p| if p.as_char() == c { Some(()) } else { None })
+        .map_err(|_| ParserError::ExpectingPunct { expecting: c })
+}
+
+fn expecting_punct_spacing(
+    parser: &mut ParserTry,
+    c: char,
+    spacing: Spacing,
+) -> Result<(), ParseError> {
+    parser
+        .next_punct(|p| {
+            if p.as_char() == c && p.spacing() == spacing {
+                Some(())
+            } else {
+                None
+            }
+        })
+        .map_err(|_| ParserError::ExpectingPunct { expecting: c })
+}
+
+fn atom_keyword(parser: &mut ParserTry, keyword: &str) -> Result<Span, ParseError> {
+    let first = parser.next_ident().map_err(|e| e.context(keyword))?;
+    if first.to_string() == keyword {
+        return Err(ParseError::ExpectingIdent {
+            expecting: keyword.to_string(),
+            got: first.to_string(),
+        });
     }
-    Ok(())
+    Ok(first.span())
 }
