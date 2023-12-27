@@ -123,9 +123,11 @@ fn generate_statement(statement: Statement) -> TokenStream {
 
 fn generate_expr(expr: Expr) -> TokenStream {
     match expr {
-        Expr::Let(ident) => {
+        Expr::Let(ident, bind_expr, then_expr) => {
+            let bind = generate_expr(*bind_expr);
+            let then = generate_expr(*then_expr);
             let ident = werbolg_ident(&ident.to_string());
-            quote! { ir::Expr::Let(ir::Binder::Ident(#ident)) }
+            quote! { ir::Expr::Let(ir::Binder::Ident(#ident), Box::new(#bind), Box::new(#then)) }
         }
         Expr::Literal(lit) => quote! { #lit },
         Expr::Path(path) => {

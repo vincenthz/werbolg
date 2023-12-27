@@ -10,7 +10,7 @@ pub(crate) enum Statement {
 }
 
 pub(crate) enum Expr {
-    Let(Ident),
+    Let(Ident, Box<Expr>, Box<Expr>),
     Literal(Literal),
     Path(Path),
     Call(Vec<Expr>),
@@ -92,8 +92,10 @@ fn parse_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
             .map(|x| x.clone())
             .map_err(|e| e.context("bind"))?;
         atom_eq(parser)?;
-        atom_keyword(parser, "in")?;
-        Ok(Expr::Let(ident))
+        let bind_expr = parse_expr(parser).map_err(|e| e.context("bind-expr"))?;
+        atom_semicolon(parser).map_err(|e| e.context("bind-expr terminator"))?;
+        let then_expr = parse_expr(parser).map_err(|e| e.context("then-expr"))?;
+        Ok(Expr::Let(ident, Box::new(bind_expr), Box::new(then_expr)))
     }
     fn parse_call(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         let path = parse_path(parser)?;
