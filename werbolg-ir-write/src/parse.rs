@@ -146,19 +146,19 @@ impl Parser {
         }
     }
 
-    pub fn try_chain<E, T>(
+    pub fn try_chain<T>(
         self,
-        parsers: &[fn(&mut ParserTry) -> Result<T, E>],
-    ) -> (Result<T, Vec<E>>, Self) {
-        let mut errors: Vec<E> = Vec::new();
+        parsers: &[(&str, fn(&mut ParserTry) -> Result<T, ParserError>)],
+    ) -> (Result<T, Vec<ParserError>>, Self) {
+        let mut errors: Vec<ParserError> = Vec::new();
         let mut current = self;
-        for p in parsers.iter() {
+        for (name, p) in parsers.iter() {
             let mut try_parser = current.try_parse();
             match p(&mut try_parser) {
                 Ok(t) => return (Ok(t), try_parser.commit()),
                 Err(e) => {
                     current = try_parser.fail();
-                    errors.push(e);
+                    errors.push(e.context(name));
                 }
             }
         }
@@ -191,7 +191,7 @@ impl Parser {
 /// Tentative parser
 pub(crate) struct ParserTry {
     parser: Parser,
-    current: usize,
+    pub current: usize,
 }
 
 impl ParserTry {
@@ -224,9 +224,9 @@ impl ParserTry {
     }
 
     /// Try to parse using f. On failure leave the parser position where it was
-    pub fn parse_try<F, O>(&mut self, f: F) -> Result<O, ParserError>
+    pub fn parse_try<F, O>(&mut self, mut f: F) -> Result<O, ParserError>
     where
-        F: FnOnce(&mut Self) -> Result<O, ParserError>,
+        F: FnMut(&mut Self) -> Result<O, ParserError>,
     {
         let save_current = self.current;
         match f(self) {
@@ -243,8 +243,8 @@ impl ParserTry {
     #[allow(unused)]
     pub fn alternative<F, G, O>(&mut self, f: F, g: G) -> Result<O, ParserError>
     where
-        F: FnOnce(&mut Self) -> Result<O, ParserError>,
-        G: FnOnce(&mut Self) -> Result<O, ParserError>,
+        F: FnMut(&mut Self) -> Result<O, ParserError>,
+        G: FnMut(&mut Self) -> Result<O, ParserError>,
     {
         self.parse_try(f).or_else(|_| self.parse_try(g))
     }
@@ -270,6 +270,10 @@ impl ParserTry {
                 expecting: Some(TokenKind::Ident),
             }),
         }
+    }
+
+    pub fn next_ident_clone(&mut self) -> Result<Ident, ParserError> {
+        self.next_ident().map(|x| x.clone())
     }
 
     pub fn next_literal(&mut self) -> Result<&Literal, ParserError> {

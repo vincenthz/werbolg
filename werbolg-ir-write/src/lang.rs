@@ -22,7 +22,7 @@ pub(crate) struct Path {
     pub(crate) path: Vec<Ident>,
 }
 
-pub(crate) fn parse_use(p: &mut ParserTry) -> Result<Statement, ParseError> {
+pub(crate) fn parse_use(p: &mut ParserTry) -> Result<Statement, ParserError> {
     let span = atom_keyword(p, "use")?;
     let path = atom_path(p)?;
     atom_semicolon(p)?;
@@ -30,25 +30,15 @@ pub(crate) fn parse_use(p: &mut ParserTry) -> Result<Statement, ParseError> {
     Ok(Statement::Use(span, path))
 }
 
-pub(crate) fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParseError> {
+pub(crate) fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParserError> {
     // parse first keyword and optional pub before
-    let first = atom_keyword(p, "pub");
-    let (span, is_private) = match first {
-        Err(_) => {
-            let span = atom_keyword(p, "fn")?;
-            (span, true)
-        }
-        Ok(span) => {
-            let _: Span = atom_keyword(p, "fn")?;
-            (span, false)
-        }
-    };
+    let is_private = atom_keyword(p, "pub")
+        .map(|_| false)
+        .unwrap_or_else(|_| true);
+    let span = atom_keyword(p, "fn")?;
 
     // parse name of function
-    let name = p
-        .next_ident()
-        .map(|x| x.clone())
-        .map_err(|e| e.context("expecting name"))?;
+    let name = p.next_ident_clone().map_err(|e| e.context("bind name"))?;
 
     // parse the parameters of function
     let vars_ts = atom_parens(p)?;
@@ -60,8 +50,7 @@ pub(crate) fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParseError> {
             let mut vars = Vec::new();
             var_parser.try_parse_to_end(|parser| {
                 let ident = parser
-                    .next_ident()
-                    .map(|i| i.clone())
+                    .next_ident_clone()
                     .map_err(|e| e.context("expecting function variable name"))?;
                 vars.push(ident);
                 while !parser.is_end() {
@@ -233,12 +222,14 @@ fn expecting_punct_spacing(
 }
 
 fn atom_keyword(parser: &mut ParserTry, keyword: &str) -> Result<Span, ParseError> {
-    let first = parser.next_ident().map_err(|e| e.context(keyword))?;
-    if first.to_string() == keyword {
-        return Err(ParseError::ExpectingIdent {
-            expecting: keyword.to_string(),
-            got: first.to_string(),
-        });
-    }
-    Ok(first.span())
+    parser.parse_try(|parser| {
+        let first = parser.next_ident_clone().map_err(|e| e.context(keyword))?;
+        if first.to_string() != keyword {
+            return Err(ParseError::ExpectingIdent {
+                expecting: keyword.to_string(),
+                got: first.to_string(),
+            });
+        }
+        Ok(first.span())
+    })
 }

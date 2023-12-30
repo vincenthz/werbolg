@@ -19,16 +19,15 @@ pub fn module(item: TokenStream) -> TokenStream {
     let mut statements = Vec::new();
 
     while !parser.is_end() {
-        let parser_chain = [parse_use, parse_fn];
-
-        match parser.try_chain(&parser_chain) {
+        match parser.try_chain(&[("use", parse_use), ("fn", parse_fn)]) {
             (Ok(stmt), p) => {
                 parser = p;
                 let g = generate_statement(stmt);
                 statements.push(g);
             }
             (Err(_errs), _p) => {
-                break;
+                panic!("statement failed : {:?}", _errs);
+                //break;
             } //panic!("No parser worked:\n{:?}", errs),
         }
     }
