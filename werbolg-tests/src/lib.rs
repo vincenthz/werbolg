@@ -7,11 +7,11 @@ use werbolg_ir_write::module;
 pub fn module1() -> werbolg_core::Module {
     module! {
         fn add(a, b) {
-            a
+            pop(1)
         }
 
         fn sub(a, b) {
-            b
+            push(b)
         }
     }
 }
@@ -21,6 +21,9 @@ mod tests {
     use super::*;
     use alloc::vec;
     use werbolg_compile::{compile, CompilationError, CompilationParams, Environment};
+    use werbolg_core::{Ident, Namespace};
+
+    //extern crate std;
 
     fn literal_mapper(
         lit: werbolg_core::Literal,
@@ -31,8 +34,12 @@ mod tests {
     #[test]
     fn it_compiles() {
         let mod1 = module1();
+        //std::println!("{:?}", mod1);
+        //assert!(false);
         let params = CompilationParams { literal_mapper };
         let mut environ = Environment::<(), ()>::new();
+        environ.add_nif(&Namespace::root(), Ident::from("pop"), ());
+        environ.add_nif(&Namespace::root(), Ident::from("push"), ());
         let r = compile(
             &params,
             vec![(werbolg_core::Namespace::root(), mod1)],

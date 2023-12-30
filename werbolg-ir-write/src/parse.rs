@@ -195,6 +195,28 @@ pub(crate) struct ParserTry {
 }
 
 impl ParserTry {
+    pub fn debug(&mut self) -> Result<String, core::fmt::Error> {
+        use core::fmt::Write;
+        let mut out = String::new();
+        let mut pos = 0;
+        loop {
+            let e = self.parser.peek_at(pos);
+            if let Some(e) = e {
+                if self.current == pos {
+                    core::write!(&mut out, "@")?;
+                }
+                core::write!(&mut out, " {:?} ", e)?;
+                pos += 1;
+            } else {
+                if self.current == pos {
+                    core::write!(&mut out, "@")?;
+                }
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     /// Create a new tentative parser that own the underlying parser
     ///
     /// This tentative parser only peek in the stream

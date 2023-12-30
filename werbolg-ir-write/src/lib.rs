@@ -1,10 +1,11 @@
 extern crate alloc;
 extern crate proc_macro;
+//extern crate std;
 
 mod lang;
 mod parse;
 
-use macro_quote_types::ext::span_to_range;
+use macro_quote_types::ext::{literal_kind, span_to_range};
 use macro_quote_types::ToTokenTrees;
 use proc_macro::{Ident, TokenStream};
 
@@ -36,7 +37,7 @@ pub fn module(item: TokenStream) -> TokenStream {
     quote! {
         {
             use ::alloc::{vec::Vec, boxed::Box};
-            use werbolg_core::{ir, Ident, Variable, Spanned, Path, PathType};
+            use werbolg_core::{ir, Ident, Variable, Spanned, Path, PathType, Literal};
             ir::Module { statements : #inx }
         }
     }
@@ -101,6 +102,7 @@ fn generate_statement(statement: Statement) -> TokenStream {
                     .map(|i| werbolg_variable_from_ident(i))
                     .collect(),
             );
+            //println!("{:?} => {:?}", name, body);
             let b = generate_expr(body);
             let name = werbolg_ident_from_ident(&name);
             let private = if is_private {
@@ -128,13 +130,25 @@ fn generate_expr(expr: Expr) -> TokenStream {
             let ident = werbolg_ident(&ident.to_string());
             quote! { ir::Expr::Let(ir::Binder::Ident(#ident), Box::new(#bind), Box::new(#then)) }
         }
-        Expr::Literal(lit) => quote! { #lit },
+        Expr::Literal(lit) => {
+            let span = werbolg_span_from_span(lit.span());
+            let lit = generate_literal(lit);
+            quote! { ir::Expr::Literal(#span, #lit) }
+        }
         Expr::Path(path) => {
             let path = generate_path(path);
             let span = werbolg_span();
             quote! { ir::Expr::Path(#span, #path) }
         }
-        Expr::Call(_) => quote! { werbolg_core::Expr::Call() },
+        Expr::Call(paths) => {
+            let span = werbolg_span();
+            let paths = paths
+                .into_iter()
+                .map(|e| generate_expr(e))
+                .collect::<Vec<_>>();
+            let i = vec_macro(paths);
+            quote! { werbolg_core::Expr::Call( #span, #i ) }
+        }
         Expr::If(_) => quote! { werbolg_core::Expr::If { span, cond, then_expr, else_expr } },
     }
 }
@@ -149,5 +163,31 @@ fn generate_path(Path { absolute, path }: Path) -> TokenStream {
         quote! { Path::new_raw(PathType::Absolute, #fr) }
     } else {
         quote! { Path::new_raw(PathType::Relative, #fr) }
+    }
+}
+
+fn generate_literal(lit: proc_macro::Literal) -> TokenStream {
+    use macro_quote_types::ext::LiteralKind;
+    let kind = literal_kind(&lit);
+    match kind {
+        LiteralKind::Bytes => {
+            quote! { ir::Literal::Bytes(&[]) }
+        }
+        LiteralKind::Char => {
+            // todo
+            quote! { #lit }
+        }
+        LiteralKind::String => {
+            let s = lit.to_string();
+            quote! { Literal::string(#s) }
+        }
+        LiteralKind::Int(_, _) => {
+            let s = lit.to_string();
+            quote! { Literal::number(#s) }
+        }
+        LiteralKind::Real => {
+            let s = lit.to_string();
+            quote! { Literal::Decimal(Box::new(#s.into())) }
+        }
     }
 }

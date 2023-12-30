@@ -247,3 +247,15 @@ impl core::fmt::Debug for Literal {
         }
     }
 }
+
+impl Literal {
+    /// Create a new number literal
+    pub fn number(s: &str) -> Self {
+        Self::Number(s.into())
+    }
+
+    /// Create a new string literal
+    pub fn string(s: &str) -> Self {
+        Self::String(s.into())
+    }
+}

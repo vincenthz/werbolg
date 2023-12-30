@@ -9,6 +9,7 @@ pub(crate) enum Statement {
     Fn(Span, bool, Ident, Vec<Ident>, Expr),
 }
 
+#[derive(Debug)]
 pub(crate) enum Expr {
     Let(Ident, Box<Expr>, Box<Expr>),
     Literal(Literal),
@@ -17,6 +18,7 @@ pub(crate) enum Expr {
     If(Box<Expr>),
 }
 
+#[derive(Debug)]
 pub(crate) struct Path {
     pub(crate) absolute: bool,
     pub(crate) path: Vec<Ident>,
@@ -70,16 +72,14 @@ pub(crate) fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParserError> {
 
     let body_ts = atom_braces(p)?;
     let body = Parser::from(body_ts).try_parse_to_end(|parser| parse_expr(parser))?;
+    //println!("body: {:?}", body);
     Ok(Statement::Fn(span, is_private, name, vars, body))
 }
 
 fn parse_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
     fn parse_let(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         atom_keyword(parser, "let")?;
-        let ident = parser
-            .next_ident()
-            .map(|x| x.clone())
-            .map_err(|e| e.context("bind"))?;
+        let ident = parser.next_ident_clone().map_err(|e| e.context("bind"))?;
         atom_eq(parser)?;
         let bind_expr = parse_expr(parser).map_err(|e| e.context("bind-expr"))?;
         atom_semicolon(parser).map_err(|e| e.context("bind-expr terminator"))?;
@@ -87,10 +87,15 @@ fn parse_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         Ok(Expr::Let(ident, Box::new(bind_expr), Box::new(then_expr)))
     }
     fn parse_call(parser: &mut ParserTry) -> Result<Expr, ParseError> {
-        let path = parse_path(parser)?;
-        let call_params = atom_parens(parser)?;
+        //let x1 = parser.debug().unwrap();
+        let first = parse_factor(parser).map_err(|e| e.context("call first factor"))?;
+        //let x2 = parser.debug().unwrap();
+        let call_params =
+            atom_parens(parser).map_err(|e| e.context(&format!("call parameters")))?;
+        //let call_params = atom_parens(parser)
+        //    .map_err(|e| e.context(&format!("call parameters {} => {}", x1, x2)))?;
         let mut call_parser = Parser::from(call_params);
-        let mut call_exprs = vec![path];
+        let mut call_exprs = vec![first];
         if !call_parser.is_end() {
             call_parser.try_parse_to_end(|parser| {
                 let e = parse_expr(parser)?;
@@ -152,7 +157,10 @@ fn atom_path(parser: &mut ParserTry) -> Result<Path, ParseError> {
     let first = parser.next_ident().map_err(|e| e.context("path"))?;
     let mut path = vec![first.clone()];
     loop {
-        if atom_double_colon(parser).is_err() {
+        if parser
+            .parse_try(|parser| atom_double_colon(parser))
+            .is_err()
+        {
             break;
         }
         let rem = parser.next_ident().map_err(|e| e.context("path"))?;
