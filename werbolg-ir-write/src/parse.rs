@@ -195,7 +195,8 @@ pub(crate) struct ParserTry {
 }
 
 impl ParserTry {
-    pub fn debug(&mut self) -> Result<String, core::fmt::Error> {
+    #[allow(unused)]
+    pub(crate) fn debug(&mut self) -> Result<String, core::fmt::Error> {
         use core::fmt::Write;
         let mut out = String::new();
         let mut pos = 0;
