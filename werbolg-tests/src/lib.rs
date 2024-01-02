@@ -21,7 +21,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use werbolg_compile::{compile, CompilationError, CompilationParams, Environment};
-    use werbolg_core::{Ident, Namespace, AbsPath};
+    use werbolg_core::{AbsPath, Ident, Namespace};
 
     //extern crate std;
 
