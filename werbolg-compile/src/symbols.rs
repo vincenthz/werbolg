@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use hashbrown::HashMap;
 use werbolg_core::id::IdF;
 pub use werbolg_core::idvec::{IdVec, IdVecAfter};
-use werbolg_core::{Ident, Namespace, Path};
+use werbolg_core::{AbsPath, Ident, Namespace};
 
 /// A simple lookup table from Ident to ID
 ///
@@ -132,8 +132,7 @@ impl<ID: IdF> SymbolsTable<ID> {
         Ok(())
     }
 
-    pub fn insert(&mut self, namespace: &Namespace, path: &Path, id: ID) {
-        let path = namespace.path_with_path(path);
+    pub fn insert(&mut self, path: &AbsPath, id: ID) {
         let (namespace, ident) = path.split();
         if let Some(table) = self.flat_table_mut(&namespace) {
             table.insert(ident, id)
@@ -142,8 +141,7 @@ impl<ID: IdF> SymbolsTable<ID> {
         }
     }
 
-    pub fn get_in(&self, namespace: &Namespace, path: &Path) -> Option<ID> {
-        let path = namespace.path_with_path(path);
+    pub fn get_in(&self, path: &AbsPath) -> Option<ID> {
         let mut table = self;
         for (is_final, fragment) in path.components() {
             if is_final {
@@ -159,7 +157,7 @@ impl<ID: IdF> SymbolsTable<ID> {
         return None;
     }
 
-    pub fn get(&self, _resolver: &NamespaceResolver, path: &Path) -> Option<ID> {
+    pub fn get(&self, path: &AbsPath) -> Option<ID> {
         let (namespace, ident) = path.split();
         if namespace.is_root() {
             self.current.get(&ident)
@@ -169,9 +167,9 @@ impl<ID: IdF> SymbolsTable<ID> {
         }
     }
 
-    fn dump_path(&self, current: Namespace, vec: &mut Vec<(Path, ID)>) {
+    fn dump_path(&self, current: Namespace, vec: &mut Vec<(AbsPath, ID)>) {
         for (ident, id) in self.current.iter() {
-            let path = current.path_with_ident(ident);
+            let path = AbsPath::new(&current, ident);
             vec.push((path, id))
         }
         for (ns_name, st) in self.ns.iter() {
@@ -180,7 +178,7 @@ impl<ID: IdF> SymbolsTable<ID> {
         }
     }
 
-    pub fn to_vec(&self, current: Namespace) -> Vec<(Path, ID)> {
+    pub fn to_vec(&self, current: Namespace) -> Vec<(AbsPath, ID)> {
         let mut v = Vec::new();
         self.dump_path(current, &mut v);
         v
@@ -205,12 +203,12 @@ impl<ID: IdF, T> SymbolsTableData<ID, T> {
         self.table.create_namespace(namespace)
     }
 
-    pub fn add(&mut self, namespace: &Namespace, path: &Path, v: T) -> Option<ID> {
-        if self.table.get_in(namespace, &path).is_some() {
+    pub fn add(&mut self, path: &AbsPath, v: T) -> Option<ID> {
+        if self.table.get_in(&path).is_some() {
             return None;
         }
         let id = self.vecdata.push(v);
-        self.table.insert(namespace, path, id);
+        self.table.insert(path, id);
         Some(id)
     }
 
@@ -218,13 +216,13 @@ impl<ID: IdF, T> SymbolsTableData<ID, T> {
         self.vecdata.push(v)
     }
 
-    pub fn get(&self, resolver: &NamespaceResolver, path: &Path) -> Option<(ID, &T)> {
+    pub fn get(&self, path: &AbsPath) -> Option<(ID, &T)> {
         self.table
-            .get(resolver, path)
+            .get(path)
             .map(|constr_id| (constr_id, &self.vecdata[constr_id]))
     }
 
-    pub fn to_vec(&self, current: Namespace) -> Vec<(Path, ID)> {
+    pub fn to_vec(&self, current: Namespace) -> Vec<(AbsPath, ID)> {
         self.table.to_vec(current)
     }
 }
@@ -256,22 +254,5 @@ impl<ID: IdF, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
 
     pub fn finalize(self) -> IdVec<ID, T> {
         self.syms
-    }
-}
-
-/// Namespace Resolver
-pub struct NamespaceResolver {
-    uses: Vec<werbolg_core::Use>,
-}
-
-impl NamespaceResolver {
-    /// Create a empty namespace resolver
-    pub fn none() -> Self {
-        Self { uses: Vec::new() }
-    }
-
-    /// Set the namespace resolver
-    pub fn set(&mut self, uses: &[werbolg_core::Use]) {
-        self.uses = uses.to_vec()
     }
 }

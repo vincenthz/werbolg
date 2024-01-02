@@ -1,7 +1,6 @@
-use super::symbols::NamespaceResolver;
 use alloc::{vec, vec::Vec};
 use hashbrown::HashMap;
-use werbolg_core::{Ident, Namespace, Path};
+use werbolg_core::{AbsPath, Ident, Namespace};
 
 #[derive(Clone)]
 pub struct Bindings<T>(HashMap<Ident, T>);
@@ -49,7 +48,7 @@ impl<T> GlobalBindings<T> {
         }
     }
 
-    pub fn add(&mut self, name: Path, value: T) {
+    pub fn add(&mut self, name: AbsPath, value: T) {
         let (namespace, ident) = name.split();
         if namespace.is_root() {
             self.root.add(ident, value)
@@ -64,20 +63,7 @@ impl<T> GlobalBindings<T> {
         }
     }
 
-    pub fn get_path(&self, name: &Path) -> Option<&T> {
-        let (namespace, ident) = name.split();
-        if namespace.is_root() {
-            self.root.get(&ident)
-        } else {
-            if let Some(ns_bindings) = self.ns.get(&namespace) {
-                ns_bindings.get(&ident)
-            } else {
-                None
-            }
-        }
-    }
-
-    pub fn get(&self, resolver: &NamespaceResolver, name: &Path) -> Option<&T> {
+    pub fn get(&self, name: &AbsPath) -> Option<&T> {
         let (namespace, ident) = name.split();
         if namespace.is_root() {
             self.root.get(&ident)
@@ -104,29 +90,23 @@ impl<T> BindingsStack<T> {
         self.stack.pop().unwrap()
     }
 
-    pub fn add(&mut self, name: Path, value: T) {
-        if let Some(local_ident) = name.get_local() {
-            match self.stack.last_mut() {
-                None => {
-                    panic!("add failed {:?}", name);
-                    // fall through to the global
-                }
-                Some(bindings) => {
-                    bindings.add(local_ident.clone(), value);
-                    return;
-                }
+    pub fn add(&mut self, name: Ident, value: T) {
+        match self.stack.last_mut() {
+            None => {
+                panic!("add failed {:?}", name);
+                // fall through to the global
             }
-        } else {
-            panic!("BindingsStack : not added {:?} as not local", name)
+            Some(bindings) => {
+                bindings.add(name.clone(), value);
+                return;
+            }
         }
     }
 
-    pub fn get(&self, name: &Path) -> Option<&T> {
-        if let Some(local_ident) = name.get_local() {
-            for bindings in self.stack.iter().rev() {
-                if let Some(t) = bindings.get(local_ident) {
-                    return Some(t);
-                }
+    pub fn get(&self, name: &Ident) -> Option<&T> {
+        for bindings in self.stack.iter().rev() {
+            if let Some(t) = bindings.get(name) {
+                return Some(t);
             }
         }
         None

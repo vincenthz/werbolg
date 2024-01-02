@@ -13,6 +13,7 @@ mod environ;
 mod errors;
 mod instructions;
 mod params;
+mod resolver;
 mod symbols;
 
 pub use code::{InstructionAddress, InstructionDiff};
@@ -21,13 +22,13 @@ pub use params::CompilationParams;
 
 use compile::*;
 pub use defs::*;
+use resolver::SymbolResolver;
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, LitId, Namespace, Path};
+use werbolg_core::{AbsPath, ConstrId, FunId, LitId, Namespace};
 
 use bindings::GlobalBindings;
 pub use environ::Environment;
 pub use errors::CompilationError;
-pub use symbols::NamespaceResolver;
 use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
 
 use alloc::{format, vec::Vec};
@@ -56,7 +57,7 @@ pub struct CompilationState<L: Clone + Eq + core::hash::Hash> {
     params: CompilationParams<L>,
     funs: SymbolsTableData<FunId, (Namespace, ir::FunDef, ir::FunImpl)>,
     constrs: SymbolsTableData<ConstrId, ConstrDef>,
-    namespaces: HashMap<Namespace, Vec<ir::Use>>,
+    namespaces: HashMap<Namespace, SymbolResolver>,
 }
 
 impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
@@ -87,13 +88,10 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                 }
                 ir::Statement::Function(_span, fundef, funimpl) => {
                     let ident = fundef.name.clone();
+                    let path = AbsPath::new(namespace, &ident);
                     let _funid = self
                         .funs
-                        .add(
-                            namespace,
-                            &Path::relative(ident.clone()),
-                            (namespace.clone(), fundef, funimpl),
-                        )
+                        .add(&path, (namespace.clone(), fundef, funimpl))
                         .ok_or_else(|| CompilationError::DuplicateSymbol(ident))?;
                     ()
                 }
@@ -103,19 +101,23 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                         fields: structdef.fields.into_iter().map(|v| v.unspan()).collect(),
                     };
                     let name = stru.name.clone();
+                    let path = AbsPath::new(namespace, &name);
                     self.constrs
-                        .add(
-                            namespace,
-                            &Path::relative(name.clone()),
-                            ConstrDef::Struct(stru),
-                        )
+                        .add(&path, ConstrDef::Struct(stru))
                         .ok_or_else(|| CompilationError::DuplicateSymbol(name))?;
                 }
                 ir::Statement::Expr(_) => (),
             }
         }
 
-        if self.namespaces.insert(namespace.clone(), uses).is_some() {
+        if self
+            .namespaces
+            .insert(
+                namespace.clone(),
+                SymbolResolver::new(namespace.clone(), uses),
+            )
+            .is_some()
+        {
             return Err(CompilationError::NamespaceError(
                 symbols::NamespaceError::Duplicate(namespace.clone()),
             ));
@@ -159,7 +161,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             let Some(uses) = self.namespaces.get(&namespace) else {
                 panic!("internal error: namespace not defined");
             };
-            state.set_module_namespace(namespace.clone(), uses);
+            state.set_module_resolver(uses);
 
             let fun_name = fundef.name.clone();
             let lirdef =

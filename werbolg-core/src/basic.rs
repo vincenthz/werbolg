@@ -215,6 +215,13 @@ impl Namespace {
         self
     }
 
+    /// Append a namespace to this namespace and create a new namespace
+    pub fn append_namespace(&self, namespace: &Namespace) -> Namespace {
+        let mut out = self.0.clone();
+        out.append(&mut namespace.0.clone());
+        Self(out)
+    }
+
     /// Drop the first element of the namespace
     pub fn drop_first(mut self) -> (Ident, Self) {
         if self.is_root() {

@@ -3,12 +3,13 @@ use super::code::*;
 use super::defs::*;
 use super::errors::*;
 use super::instructions::*;
+use super::resolver::SymbolResolver;
 use super::symbols::*;
 use super::CompilationParams;
 use alloc::{vec, vec::Vec};
 use werbolg_core as ir;
 use werbolg_core::{
-    AbsPath, ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, Span,
+    AbsPath, ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, PathType, Span,
 };
 
 pub(crate) struct CodeBuilder<'a, L: Clone + Eq + core::hash::Hash> {
@@ -22,8 +23,7 @@ pub(crate) struct CodeBuilder<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) lambdas_code: Code,
     pub(crate) in_lambda: CodeState,
     pub(crate) globals: GlobalBindings<BindingType>,
-    pub(crate) current_namespace: Option<Namespace>,
-    pub(crate) resolver: NamespaceResolver,
+    pub(crate) resolver: Option<SymbolResolver>,
 }
 
 pub struct LocalBindings {
@@ -43,7 +43,7 @@ impl LocalBindings {
 
     pub fn add_param(&mut self, ident: Ident, n: u8) {
         self.bindings
-            .add(Path::relative(ident), BindingType::Param(ParamBindIndex(n)))
+            .add(ident, BindingType::Param(ParamBindIndex(n)))
     }
 
     pub fn add_local(&mut self, ident: Ident) -> LocalBindIndex {
@@ -54,8 +54,7 @@ impl LocalBindings {
                 *x += 1;
 
                 let local = LocalBindIndex(local);
-                self.bindings
-                    .add(Path::relative(ident), BindingType::Local(local));
+                self.bindings.add(ident, BindingType::Local(local));
                 local
             }
         }
@@ -114,8 +113,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
             lits: UniqueTableBuilder::new(),
             in_lambda: CodeState::default(),
             globals,
-            current_namespace: None,
-            resolver: NamespaceResolver::none(),
+            resolver: None,
         }
     }
 
@@ -137,9 +135,8 @@ impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
         }
     }
 
-    pub fn set_module_namespace(&mut self, namespace: Namespace, uses: &[ir::Use]) {
-        self.current_namespace = Some(namespace);
-        self.resolver.set(uses);
+    pub fn set_module_resolver(&mut self, uses: &SymbolResolver) {
+        self.resolver = Some(uses.clone());
     }
 
     fn write_code(&mut self) -> &mut Code {
@@ -242,13 +239,15 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             Ok(())
         }
         ir::Expr::Field(expr, struct_ident, field_ident) => {
-            let (constr_id, constr_def) = state
-                .constrs
-                .get(&state.resolver, &struct_ident.inner)
-                .ok_or(CompilationError::MissingConstructor(
-                struct_ident.span.clone(),
-                struct_ident.inner.clone(),
-            ))?;
+            let (struct_path, _) = resolve_path(&state.resolver, &struct_ident.inner);
+            let (constr_id, constr_def) =
+                state
+                    .constrs
+                    .get(&struct_path)
+                    .ok_or(CompilationError::MissingConstructor(
+                        struct_ident.span.clone(),
+                        struct_ident.inner.clone(),
+                    ))?;
 
             let ConstrDef::Struct(struct_def) = constr_def else {
                 return Err(CompilationError::ConstructorNotStructure(
@@ -332,14 +331,50 @@ fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
     path: Path,
 ) -> Result<BindingType, CompilationError> {
     std::println!("trying to resolve {:?}", path);
-    local
-        .bindings
-        .get(&path)
-        .or_else(|| state.globals.get(&state.resolver, &path))
-        .map(|x| *x)
-        .ok_or(CompilationError::MissingSymbol(span, path))
+    if let Some(local_path) = path.get_local() {
+        if let Some(bound) = local.bindings.get(local_path) {
+            return Ok(*bound);
+        }
+    }
+
+    let resolved = resolve_path(&state.resolver, &path);
+
+    if let Some(bound) = state.globals.get(&resolved.0) {
+        Ok(*bound)
+    } else {
+        if let Some(resolved) = &resolved.1 {
+            if let Some(bound) = state.globals.get(resolved) {
+                Ok(*bound)
+            } else {
+                Err(CompilationError::MissingSymbol(span, path))
+            }
+        } else {
+            Err(CompilationError::MissingSymbol(span, path))
+        }
+    }
 }
 
 fn append_ident(local: &mut LocalBindings, ident: &Ident) -> LocalBindIndex {
     local.add_local(ident.clone())
+}
+
+fn resolve_path(resolver: &Option<SymbolResolver>, path: &Path) -> (AbsPath, Option<AbsPath>) {
+    match path.path_type() {
+        PathType::Absolute => {
+            let (namespace, ident) = path.split();
+            (AbsPath::new(&namespace, &ident), None)
+        }
+        PathType::Relative => {
+            if let Some(resolver) = resolver {
+                let (namespace, ident) = path.split();
+                let full_namespace = resolver.current.append_namespace(&namespace);
+                (
+                    AbsPath::new(&full_namespace, &ident),
+                    Some(AbsPath::new(&Namespace::root(), &ident)),
+                )
+            } else {
+                panic!("no resolver")
+            }
+        }
+    }
 }
