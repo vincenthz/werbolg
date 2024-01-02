@@ -11,11 +11,18 @@ pub(crate) enum Statement {
 
 #[derive(Debug)]
 pub(crate) enum Expr {
-    Let(Ident, Box<Expr>, Box<Expr>),
+    Let(Binder, Box<Expr>, Box<Expr>),
     Literal(Literal),
     Path(Path),
     Call(Vec<Expr>),
     If(Box<Expr>),
+}
+
+#[derive(Debug)]
+pub(crate) enum Binder {
+    Unit,
+    Ignore,
+    Ident(Ident),
 }
 
 #[derive(Debug)]
@@ -79,12 +86,43 @@ pub(crate) fn parse_fn(p: &mut ParserTry) -> Result<Statement, ParserError> {
 fn parse_expr(parser: &mut ParserTry) -> Result<Expr, ParseError> {
     fn parse_let(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         atom_keyword(parser, "let")?;
-        let ident = parser.next_ident_clone().map_err(|e| e.context("bind"))?;
+        let binder = parse_binder(parser).map_err(|e| e.context("binder"))?;
         atom_eq(parser)?;
         let bind_expr = parse_expr(parser).map_err(|e| e.context("bind-expr"))?;
         atom_semicolon(parser).map_err(|e| e.context("bind-expr terminator"))?;
         let then_expr = parse_expr(parser).map_err(|e| e.context("then-expr"))?;
-        Ok(Expr::Let(ident, Box::new(bind_expr), Box::new(then_expr)))
+        Ok(Expr::Let(binder, Box::new(bind_expr), Box::new(then_expr)))
+    }
+    fn parse_binder(parser: &mut ParserTry) -> Result<Binder, ParseError> {
+        match parser.peek_kind() {
+            Some(TokenKind::Group) => {
+                let x = parser.next_group(|g| {
+                    if g.delimiter() == Delimiter::Parenthesis {
+                        Some(g.stream())
+                    } else {
+                        None
+                    }
+                })?;
+                if x.is_empty() {
+                    Ok(Binder::Unit)
+                } else {
+                    todo!()
+                }
+            }
+            Some(TokenKind::Ident) => {
+                let ident = parser.next_ident_clone().map_err(|e| e.context("bind"))?;
+                Ok(Binder::Ident(ident))
+            }
+            Some(TokenKind::Punct) => {
+                let () = parser.next_punct(|p| if p.as_char() == '_' { Some(()) } else { None })?;
+                Ok(Binder::Ignore)
+            }
+            Some(TokenKind::Literal) => Err(ParserError::NotExpecting {
+                got: TokenKind::Literal,
+            }),
+            None => Err(ParserError::EndOfStream { expecting: None }),
+        }
+        //todo!()
     }
     fn parse_call(parser: &mut ParserTry) -> Result<Expr, ParseError> {
         //let x1 = parser.debug().unwrap();

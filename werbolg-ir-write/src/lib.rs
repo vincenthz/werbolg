@@ -111,9 +111,10 @@ fn generate_statement(statement: Statement) -> TokenStream {
                 quote! { ir::Privacy::Public }
             };
             quote! {
-                ir::Statement::Function(#span, werbolg_core::ir::FunDef {
+                ir::Statement::Function(#span, ir::FunDef {
                     privacy: #private,
-                    name: Some(#name),
+                    name: #name,
+                }, ir::FunImpl {
                     vars: #v,
                     body: #b,
                 })
@@ -124,11 +125,22 @@ fn generate_statement(statement: Statement) -> TokenStream {
 
 fn generate_expr(expr: Expr) -> TokenStream {
     match expr {
-        Expr::Let(ident, bind_expr, then_expr) => {
+        Expr::Let(binder, bind_expr, then_expr) => {
             let bind = generate_expr(*bind_expr);
             let then = generate_expr(*then_expr);
-            let ident = werbolg_ident(&ident.to_string());
-            quote! { ir::Expr::Let(ir::Binder::Ident(#ident), Box::new(#bind), Box::new(#then)) }
+            let binder = match binder {
+                Binder::Ident(ident) => {
+                    let ident = werbolg_ident(&ident.to_string());
+                    quote! { ir::Binder::Ident(#ident) }
+                }
+                Binder::Ignore => {
+                    quote! { ir::Binder::Ignore }
+                }
+                Binder::Unit => {
+                    quote! { ir::Binder::Unit }
+                }
+            };
+            quote! { ir::Expr::Let(#binder, Box::new(#bind), Box::new(#then)) }
         }
         Expr::Literal(lit) => {
             let span = werbolg_span_from_span(lit.span());

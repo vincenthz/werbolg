@@ -7,9 +7,11 @@ use super::symbols::*;
 use super::CompilationParams;
 use alloc::{vec, vec::Vec};
 use werbolg_core as ir;
-use werbolg_core::{ConstrId, FunId, GlobalId, Ident, LitId, NifId, Path, Span};
+use werbolg_core::{
+    AbsPath, ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, Span,
+};
 
-pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
+pub(crate) struct CodeBuilder<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) params: &'a CompilationParams<L>,
     pub(crate) funs_tbl: SymbolsTable<FunId>,
     pub(crate) funs_vec: IdVec<FunId, FunDef>,
@@ -20,6 +22,7 @@ pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) lambdas_code: Code,
     pub(crate) in_lambda: CodeState,
     pub(crate) globals: GlobalBindings<BindingType>,
+    pub(crate) current_namespace: Option<Namespace>,
     pub(crate) resolver: NamespaceResolver,
 }
 
@@ -93,7 +96,7 @@ pub enum CodeState {
     InLambda,
 }
 
-impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
+impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
     pub fn new(
         params: &'a CompilationParams<L>,
         funs_tbl: SymbolsTable<FunId>,
@@ -111,6 +114,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
             lits: UniqueTableBuilder::new(),
             in_lambda: CodeState::default(),
             globals,
+            current_namespace: None,
             resolver: NamespaceResolver::none(),
         }
     }
@@ -133,6 +137,11 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
         }
     }
 
+    pub fn set_module_namespace(&mut self, namespace: Namespace, uses: &[ir::Use]) {
+        self.current_namespace = Some(namespace);
+        self.resolver.set(uses);
+    }
+
     fn write_code(&mut self) -> &mut Code {
         match self.in_lambda {
             CodeState::InMain => &mut self.main_code,
@@ -142,15 +151,12 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
 }
 
 pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
-    state: &mut RewriteState<'a, L>,
-    fundef: ir::FunDef,
+    state: &mut CodeBuilder<'a, L>,
+    fundef: Option<ir::FunDef>,
+    funimpl: ir::FunImpl,
 ) -> Result<FunDef, CompilationError> {
-    let ir::FunDef {
-        privacy: _,
-        name,
-        vars,
-        body,
-    } = fundef;
+    let name = fundef.map(|x| x.name.clone());
+    let ir::FunImpl { vars, body } = funimpl;
 
     let mut local = LocalBindings::new();
     local.scope_enter();
@@ -183,7 +189,7 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
 }
 
 fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
-    state: &mut RewriteState<'a, L>,
+    state: &mut CodeBuilder<'a, L>,
     local: &mut LocalBindings,
     expr: ir::Expr,
 ) -> Result<(), CompilationError> {
@@ -265,9 +271,9 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                 .push(Instruction::AccessField(constr_id, index));
             Ok(())
         }
-        ir::Expr::Lambda(_span, fundef) => {
+        ir::Expr::Lambda(_span, funimpl) => {
             let prev = state.set_in_lambda();
-            generate_func_code(state, *fundef)?;
+            generate_func_code(state, None, *funimpl)?;
 
             state.restore_codestate(prev);
             todo!()
@@ -320,7 +326,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
 }
 
 fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
-    state: &RewriteState<'a, L>,
+    state: &CodeBuilder<'a, L>,
     local: &LocalBindings,
     span: Span,
     path: Path,

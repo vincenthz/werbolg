@@ -141,6 +141,59 @@ impl Path {
     }
 }
 
+/// An absolute Path (e.g. namespace::function, or a.g.d)
+///
+/// The path cannot be empty
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct AbsPath(Vec<Ident>);
+
+impl core::fmt::Debug for AbsPath {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "::")?;
+        for (is_final, component) in self.components() {
+            write!(f, "{:?}", component)?;
+            if !is_final {
+                write!(f, "::")?
+            }
+        }
+        Ok(())
+    }
+}
+
+impl AbsPath {
+    /// Split a path to a namespace and an ident
+    pub fn split(&self) -> (Namespace, Ident) {
+        let mut x = self.0.clone();
+        let ident = x.pop().unwrap();
+        (Namespace(x), ident)
+    }
+
+    /// Return the number of elements of the path
+    pub fn len(&self) -> NonZeroUsize {
+        NonZeroUsize::new(self.0.len()).expect("Path always not null")
+    }
+
+    /// Create a new Abs Path
+    pub fn new(namespace: &Namespace, ident: &Ident) -> Self {
+        let mut n = namespace.0.clone();
+        n.push(ident.clone());
+        Self(n)
+    }
+
+    /// Create a new Abs Path
+    pub fn from_path(path: &Path) -> Self {
+        Self(path.1.clone())
+    }
+
+    /// Iterate over all components of the path, associate whether the element is final (i.e. a leaf)
+    pub fn components(&self) -> impl Iterator<Item = (bool, &Ident)> {
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (i + 1 == self.0.len(), id))
+    }
+}
+
 /// A namespace specifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Namespace(Vec<Ident>);

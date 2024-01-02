@@ -107,9 +107,7 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
                     ir::Binder::Ident(name.clone().unspan()),
                     Box::new(ir::Expr::Lambda(
                         span_args,
-                        Box::new(ir::FunDef {
-                            privacy: ir::Privacy::Public,
-                            name: None,
+                        Box::new(ir::FunImpl {
                             vars: args,
                             body: body,
                         }),
@@ -152,7 +150,9 @@ fn statement(ast: Spanned<Ast>) -> Result<ir::Statement, ParseError> {
                 ast.span,
                 ir::FunDef {
                     privacy: ir::Privacy::Public,
-                    name: Some(name.unspan()),
+                    name: name.unspan(),
+                },
+                ir::FunImpl {
                     vars: args,
                     body: body,
                 },

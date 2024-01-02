@@ -24,7 +24,9 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
                 span,
                 ir::FunDef {
                     privacy: ir::Privacy::Public,
-                    name: Some(ir::Ident::from(n)),
+                    name: ir::Ident::from(n),
+                },
+                ir::FunImpl {
                     vars: fun.args,
                     body,
                 },

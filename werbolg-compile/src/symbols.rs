@@ -44,7 +44,9 @@ pub struct SymbolsTable<ID: IdF> {
 #[derive(Clone, Debug)]
 pub enum NamespaceError {
     /// Duplicate namespace found
-    Duplicate(Namespace, Ident),
+    Duplicate(Namespace),
+    /// Duplicate namespace found
+    DuplicateLeaf(Namespace, Ident),
     /// Missing namespace
     Missing(Namespace, Ident),
 }
@@ -118,7 +120,7 @@ impl<ID: IdF> SymbolsTable<ID> {
             if is_last {
                 current
                     .create_namespace_here(n.clone())
-                    .map_err(|()| NamespaceError::Duplicate(namespace.clone(), n.clone()))?
+                    .map_err(|()| NamespaceError::DuplicateLeaf(namespace.clone(), n.clone()))?
             } else {
                 if let Some(child) = current.ns.get_mut(n) {
                     current = child;
@@ -266,5 +268,10 @@ impl NamespaceResolver {
     /// Create a empty namespace resolver
     pub fn none() -> Self {
         Self { uses: Vec::new() }
+    }
+
+    /// Set the namespace resolver
+    pub fn set(&mut self, uses: &[werbolg_core::Use]) {
+        self.uses = uses.to_vec()
     }
 }

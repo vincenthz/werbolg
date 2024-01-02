@@ -56,6 +56,9 @@ pub enum ParserError {
     EndOfStream {
         expecting: Option<TokenKind>,
     },
+    NotExpecting {
+        got: TokenKind,
+    },
     Expecting {
         expecting: TokenKind,
         got: TokenKind,

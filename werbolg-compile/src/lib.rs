@@ -32,6 +32,7 @@ use symbols::{IdVec, IdVecAfter, SymbolsTable, SymbolsTableData};
 
 use alloc::{format, vec::Vec};
 use core::fmt::Write;
+use hashbrown::HashMap;
 
 /// A compiled unit
 ///
@@ -53,8 +54,9 @@ pub struct CompilationUnit<L> {
 /// State of compilation
 pub struct CompilationState<L: Clone + Eq + core::hash::Hash> {
     params: CompilationParams<L>,
-    funs: SymbolsTableData<FunId, ir::FunDef>,
+    funs: SymbolsTableData<FunId, (Namespace, ir::FunDef, ir::FunImpl)>,
     constrs: SymbolsTableData<ConstrId, ConstrDef>,
+    namespaces: HashMap<Namespace, Vec<ir::Use>>,
 }
 
 impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
@@ -64,6 +66,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             params,
             funs: SymbolsTableData::new(),
             constrs: SymbolsTableData::new(),
+            namespaces: HashMap::new(),
         }
     }
 
@@ -73,24 +76,25 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
         namespace: &Namespace,
         module: ir::Module,
     ) -> Result<(), CompilationError> {
+        let mut uses = Vec::new();
         self.funs.create_namespace(namespace.clone())?;
         self.constrs.create_namespace(namespace.clone())?;
 
         for stmt in module.statements.into_iter() {
             match stmt {
-                ir::Statement::Use(_u) => {
-                    // todo
-                    ()
+                ir::Statement::Use(u) => {
+                    uses.push(u);
                 }
-                ir::Statement::Function(_span, fundef) => {
+                ir::Statement::Function(_span, fundef, funimpl) => {
                     let ident = fundef.name.clone();
-                    let _funid = if let Some(ident) = ident {
-                        self.funs
-                            .add(namespace, &Path::relative(ident.clone()), fundef)
-                            .ok_or_else(|| CompilationError::DuplicateSymbol(ident))?
-                    } else {
-                        self.funs.add_anon(fundef)
-                    };
+                    let _funid = self
+                        .funs
+                        .add(
+                            namespace,
+                            &Path::relative(ident.clone()),
+                            (namespace.clone(), fundef, funimpl),
+                        )
+                        .ok_or_else(|| CompilationError::DuplicateSymbol(ident))?;
                     ()
                 }
                 ir::Statement::Struct(_span, structdef) => {
@@ -110,6 +114,13 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                 ir::Statement::Expr(_) => (),
             }
         }
+
+        if self.namespaces.insert(namespace.clone(), uses).is_some() {
+            return Err(CompilationError::NamespaceError(
+                symbols::NamespaceError::Duplicate(namespace.clone()),
+            ));
+        }
+
         Ok(())
     }
 
@@ -137,17 +148,27 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             root_bindings.add(path, BindingType::Fun(fun_id))
         }
 
-        let mut state = compile::RewriteState::new(
+        let mut state = compile::CodeBuilder::new(
             &self.params,
             table,
             IdVecAfter::new(vecdata.next_id()),
             root_bindings,
         );
 
-        for (funid, fundef) in vecdata.into_iter() {
+        for (funid, (namespace, fundef, funimpl)) in vecdata.into_iter() {
+            let Some(uses) = self.namespaces.get(&namespace) else {
+                panic!("internal error: namespace not defined");
+            };
+            state.set_module_namespace(namespace.clone(), uses);
+
             let fun_name = fundef.name.clone();
-            let lirdef = compile::generate_func_code(&mut state, fundef)
-                .map_err(|e| e.context(format!("function code {:?}", fun_name)))?;
+            let lirdef =
+                compile::generate_func_code(&mut state, Some(fundef), funimpl).map_err(|e| {
+                    e.context(format!(
+                        "namespace {:?} function code {:?}",
+                        namespace, fun_name
+                    ))
+                })?;
             let lirid = state.funs_vec.push(lirdef);
             assert_eq!(funid, lirid)
         }

@@ -34,7 +34,7 @@ pub enum Statement {
     /// Use statement
     Use(Use),
     /// Function definition
-    Function(Span, FunDef),
+    Function(Span, FunDef, FunImpl),
     /// Struct definition
     Struct(Span, StructDef),
     /// A naked Expression
@@ -45,7 +45,7 @@ pub enum Statement {
 #[derive(Clone, Debug)]
 pub struct Use {
     /// the name of the namespace to import
-    pub namespace: Ident,
+    pub namespace: Path,
     /// hiding of symbols
     pub hiding: Vec<Ident>,
     /// renaming of symbols, e.g. `use namespace::{x as y}`
@@ -66,7 +66,7 @@ pub enum Privacy {
 /// Function definitions are something like:
 ///
 /// ```text
-/// function $name ( $vars ) { $body }
+/// [pub] function $name
 /// ```
 ///
 #[derive(Clone, Debug)]
@@ -74,7 +74,25 @@ pub struct FunDef {
     /// The privacy associated with this function definition
     pub privacy: Privacy,
     /// The name of this function
-    pub name: Option<Ident>,
+    pub name: Ident,
+}
+
+/// AST for function implementation
+///
+/// Function implementation are the variable + body of a function
+///
+/// ```text
+/// ( $vars ) { $body }
+/// ```
+///
+/// or anon function :
+///
+/// ```text
+/// | $vars | { $body }
+/// ```
+///
+#[derive(Clone, Debug)]
+pub struct FunImpl {
     /// The function parameters associated with this function
     pub vars: Vec<Variable>,
     /// The content of the function
@@ -147,7 +165,7 @@ pub enum Expr {
     /// A Let binding of the form `let $binder = $expr in $expr`
     Let(Binder, Box<Expr>, Box<Expr>),
     /// An anonymous function definition expression, e.g. `|a| ...` or `\x -> ...`
-    Lambda(Span, Box<FunDef>),
+    Lambda(Span, Box<FunImpl>),
     /// A function call, e.g. `print("hello", "werbolg")`
     Call(Span, Vec<Expr>),
     /// An If expression `if $cond { $then_expr } else { $else_expr }`
