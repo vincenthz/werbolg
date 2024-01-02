@@ -26,6 +26,10 @@ pub enum Instruction {
     ///
     /// expecting N+1 value on the value stack
     Call(CallArity),
+    /// Tail Call the function on the stack with the N value in arguments.
+    ///
+    /// expecting N+1 value on the value stack
+    TailCall(CallArity),
     /// Jump by N instructions
     Jump(InstructionDiff),
     /// Jump by N instructions if stack\[top\] is true

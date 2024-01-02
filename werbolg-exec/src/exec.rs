@@ -174,6 +174,23 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
                 }
             }
         }
+        Instruction::TailCall(arity) => {
+            // todo : for now we just process as a normal call
+            let val = process_call(em, *arity)?;
+            match val {
+                CallResult::Jump(fun_ip, local_stack_size) => {
+                    em.rets
+                        .push((em.ip.next(), em.sp, local_stack_size, *arity));
+                    em.sp_set(local_stack_size);
+                    em.ip_set(fun_ip);
+                }
+                CallResult::Value(nif_val) => {
+                    em.stack.pop_call(*arity);
+                    em.stack.push_value(nif_val);
+                    em.ip_next()
+                }
+            }
+        }
         Instruction::Jump(d) => em.ip_jump(*d),
         Instruction::CondJump(d) => {
             let val = em.stack.pop_value();

@@ -11,7 +11,17 @@ fn factorial(x) {
     }
 }
 
+// Calculate the factorial of a number, using a tail recursive function
+fn factorial_tco(acc, x) {
+    if x == 0 {
+        acc
+    } else {
+        factorial_tco(mul(x, acc), x - 1)
+    }
+}
+
 fn main() {
     let z = factorial(4);
-    mul(10, z)
+    let z2 = factorial_tco(1, 4);
+    z + z2
 }

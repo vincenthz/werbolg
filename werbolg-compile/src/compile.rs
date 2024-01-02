@@ -147,6 +147,12 @@ impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FunPos {
+    Root,
+    NotRoot,
+}
+
 pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut CodeBuilder<'a, L>,
     fundef: Option<ir::FunDef>,
@@ -172,7 +178,7 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     }
 
     let code_pos = state.get_instruction_address();
-    generate_expression_code(state, &mut local, body.clone())?;
+    generate_expression_code(state, &mut local, FunPos::Root, body.clone())?;
 
     let stack_size = local.scope_terminate();
 
@@ -188,6 +194,7 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
 fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut CodeBuilder<'a, L>,
     local: &mut LocalBindings,
+    funpos: FunPos,
     expr: ir::Expr,
 ) -> Result<(), CompilationError> {
     match expr {
@@ -221,7 +228,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             todo!()
         }
         ir::Expr::Let(binder, body, in_expr) => {
-            generate_expression_code(state, local, *body)?;
+            generate_expression_code(state, local, FunPos::NotRoot, *body)?;
             match binder {
                 ir::Binder::Ident(ident) => {
                     let bind = local.add_local(ident.clone());
@@ -235,7 +242,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                     state.write_code().push(Instruction::IgnoreOne);
                 }
             }
-            generate_expression_code(state, local, *in_expr)?;
+            generate_expression_code(state, local, funpos, *in_expr)?;
             Ok(())
         }
         ir::Expr::Field(expr, struct_ident, field_ident) => {
@@ -264,7 +271,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                 ));
             };
 
-            generate_expression_code(state, local, *expr)?;
+            generate_expression_code(state, local, funpos, *expr)?;
             state
                 .write_code()
                 .push(Instruction::AccessField(constr_id, index));
@@ -281,11 +288,17 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             assert!(args.len() > 0);
             let len = args.len() - 1;
             for arg in args {
-                generate_expression_code(state, local, arg)?;
+                generate_expression_code(state, local, FunPos::NotRoot, arg)?;
             }
-            state
-                .write_code()
-                .push(Instruction::Call(CallArity(len as u8)));
+            if funpos == FunPos::Root {
+                state
+                    .write_code()
+                    .push(Instruction::TailCall(CallArity(len as u8)));
+            } else {
+                state
+                    .write_code()
+                    .push(Instruction::Call(CallArity(len as u8)));
+            }
             Ok(())
         }
         ir::Expr::If {
@@ -294,20 +307,20 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             then_expr,
             else_expr,
         } => {
-            generate_expression_code(state, local, (*cond).unspan())?;
+            generate_expression_code(state, local, FunPos::NotRoot, (*cond).unspan())?;
 
             let cond_jump_ref = state.write_code().push_temp();
             let cond_pos = state.get_instruction_address();
 
             local.scope_enter();
-            generate_expression_code(state, local, (*then_expr).unspan())?;
+            generate_expression_code(state, local, funpos, (*then_expr).unspan())?;
             local.scope_leave();
 
             let jump_else_ref = state.write_code().push_temp();
             let else_pos = state.get_instruction_address();
 
             local.scope_enter();
-            generate_expression_code(state, local, (*else_expr).unspan())?;
+            generate_expression_code(state, local, funpos, (*else_expr).unspan())?;
             local.scope_leave();
 
             let end_pos = state.get_instruction_address();
