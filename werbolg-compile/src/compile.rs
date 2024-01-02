@@ -224,7 +224,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             generate_expression_code(state, local, *body)?;
             match binder {
                 ir::Binder::Ident(ident) => {
-                    let bind = append_ident(local, &ident);
+                    let bind = local.add_local(ident.clone());
                     state.write_code().push(Instruction::LocalBind(bind));
                 }
                 ir::Binder::Ignore => {
@@ -352,10 +352,6 @@ fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
             Err(CompilationError::MissingSymbol(span, path))
         }
     }
-}
-
-fn append_ident(local: &mut LocalBindings, ident: &Ident) -> LocalBindIndex {
-    local.add_local(ident.clone())
 }
 
 fn resolve_path(resolver: &Option<SymbolResolver>, path: &Path) -> (AbsPath, Option<AbsPath>) {
