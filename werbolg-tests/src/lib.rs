@@ -21,7 +21,7 @@ mod tests {
     use super::*;
     use alloc::vec;
     use werbolg_compile::{compile, CompilationError, CompilationParams, Environment};
-    use werbolg_core::{Ident, Namespace};
+    use werbolg_core::{Ident, Namespace, AbsPath};
 
     //extern crate std;
 
@@ -38,8 +38,8 @@ mod tests {
         //assert!(false);
         let params = CompilationParams { literal_mapper };
         let mut environ = Environment::<(), ()>::new();
-        environ.add_nif(&Namespace::root(), Ident::from("pop"), ());
-        environ.add_nif(&Namespace::root(), Ident::from("push"), ());
+        environ.add_nif(&AbsPath::new(&Namespace::root(), &Ident::from("pop")), ());
+        environ.add_nif(&AbsPath::new(&Namespace::root(), &Ident::from("push")), ());
         let r = compile(
             &params,
             vec![(werbolg_core::Namespace::root(), mod1)],
