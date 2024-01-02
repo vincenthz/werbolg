@@ -3,6 +3,7 @@
 #![deny(missing_docs)]
 
 extern crate alloc;
+extern crate std;
 
 mod bindings;
 mod code;
@@ -119,6 +120,10 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     ) -> Result<CompilationUnit<L>, CompilationError> {
         let SymbolsTableData { table, vecdata } = self.funs;
 
+        for (p, _id) in table.to_vec(Namespace::root()) {
+            std::println!("{:?}", p)
+        }
+
         let mut root_bindings = GlobalBindings::new();
         for (path, id) in environ.symbols.to_vec(Namespace::root()) {
             root_bindings.add(path, BindingType::Nif(id))
@@ -132,13 +137,10 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             root_bindings.add(path, BindingType::Fun(fun_id))
         }
 
-        //let bindings = BindingsStack::new();
-
         let mut state = compile::RewriteState::new(
             &self.params,
             table,
             IdVecAfter::new(vecdata.next_id()),
-            //bindings,
             root_bindings,
         );
 

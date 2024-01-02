@@ -20,6 +20,7 @@ pub(crate) struct RewriteState<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) lambdas_code: Code,
     pub(crate) in_lambda: CodeState,
     pub(crate) globals: GlobalBindings<BindingType>,
+    pub(crate) resolver: NamespaceResolver,
 }
 
 pub struct LocalBindings {
@@ -110,6 +111,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> RewriteState<'a, L> {
             lits: UniqueTableBuilder::new(),
             in_lambda: CodeState::default(),
             globals,
+            resolver: NamespaceResolver::none(),
         }
     }
 
@@ -236,11 +238,11 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
         ir::Expr::Field(expr, struct_ident, field_ident) => {
             let (constr_id, constr_def) = state
                 .constrs
-                .get(&NamespaceResolver::none(), &struct_ident.inner)
+                .get(&state.resolver, &struct_ident.inner)
                 .ok_or(CompilationError::MissingConstructor(
-                    struct_ident.span.clone(),
-                    struct_ident.inner.clone(),
-                ))?;
+                struct_ident.span.clone(),
+                struct_ident.inner.clone(),
+            ))?;
 
             let ConstrDef::Struct(struct_def) = constr_def else {
                 return Err(CompilationError::ConstructorNotStructure(
@@ -323,10 +325,11 @@ fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
     span: Span,
     path: Path,
 ) -> Result<BindingType, CompilationError> {
+    std::println!("trying to resolve {:?}", path);
     local
         .bindings
         .get(&path)
-        .or_else(|| state.globals.get(&path))
+        .or_else(|| state.globals.get(&state.resolver, &path))
         .map(|x| *x)
         .ok_or(CompilationError::MissingSymbol(span, path))
 }

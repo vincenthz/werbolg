@@ -1,3 +1,4 @@
+use super::symbols::NamespaceResolver;
 use alloc::{vec, vec::Vec};
 use hashbrown::HashMap;
 use werbolg_core::{Ident, Namespace, Path};
@@ -63,7 +64,20 @@ impl<T> GlobalBindings<T> {
         }
     }
 
-    pub fn get(&self, name: &Path) -> Option<&T> {
+    pub fn get_path(&self, name: &Path) -> Option<&T> {
+        let (namespace, ident) = name.split();
+        if namespace.is_root() {
+            self.root.get(&ident)
+        } else {
+            if let Some(ns_bindings) = self.ns.get(&namespace) {
+                ns_bindings.get(&ident)
+            } else {
+                None
+            }
+        }
+    }
+
+    pub fn get(&self, resolver: &NamespaceResolver, name: &Path) -> Option<&T> {
         let (namespace, ident) = name.split();
         if namespace.is_root() {
             self.root.get(&ident)

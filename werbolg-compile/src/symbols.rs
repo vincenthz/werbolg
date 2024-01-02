@@ -258,11 +258,13 @@ impl<ID: IdF, T: Clone + Eq + Hash> UniqueTableBuilder<ID, T> {
 }
 
 /// Namespace Resolver
-pub struct NamespaceResolver;
+pub struct NamespaceResolver {
+    uses: Vec<werbolg_core::Use>,
+}
 
 impl NamespaceResolver {
     /// Create a empty namespace resolver
     pub fn none() -> Self {
-        Self
+        Self { uses: Vec::new() }
     }
 }
