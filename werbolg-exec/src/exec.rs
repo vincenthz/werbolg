@@ -25,6 +25,7 @@
 //!
 //! Function Stack after a 'Call' operation:
 //!
+//! ```text
 //!      ┌──────────────────┬───────────────────────┐
 //!      │                  │                       │
 //!      │ Fun callee stack │  Fun local stack      │
@@ -35,9 +36,11 @@
 //!                         │                       │
 //!                         ▼                       ▼
 //!                        SP                    Stack top
+//! ```
 //!
 //! After a 'Ret' operation:
 //!
+//! ```text
 //!  ──┬─┬──────┐
 //!  ..|X│RetVal│
 //!  ──┴─┴──────┤
@@ -52,6 +55,7 @@
 //!  ┤────────┴─┴─┼──────┴──┴──────┤
 //!  ▼            ▼                ▼
 //! Stack bottom  SP            Stack top
+//! ```
 //!
 use crate::{CallSave, Valuable};
 
