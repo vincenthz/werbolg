@@ -4,7 +4,7 @@ mod value;
 use hashbrown::{HashMap, HashSet};
 use value::{Value, HASHMAP_KIND};
 use werbolg_compile::{code_dump, compile, CompilationError, Environment, InstructionAddress};
-use werbolg_core::{id::IdF, AbsPath, Ident, Literal, Namespace};
+use werbolg_core::{AbsPath, Ident, Literal, Namespace};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
     WAllocator, NIF,

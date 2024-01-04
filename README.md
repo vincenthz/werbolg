@@ -19,7 +19,6 @@ setup, it illustrates the security default of the model.
 ## TODO
 
 * Value Allocator - Exec
-* Tail Call Optimisation (TCO) - Exec/Compile
-* IR Namespacing - Frontends/Compile
+* Closure
 * Binary serialization for core - Core
 * Binary serialization for instructions - Compile
