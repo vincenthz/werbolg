@@ -25,17 +25,22 @@ pub enum Instruction {
     /// Call the function on the stack with the N value in arguments.
     ///
     /// expecting N+1 value on the value stack
-    Call(CallArity),
-    /// Tail Call the function on the stack with the N value in arguments.
-    ///
-    /// expecting N+1 value on the value stack
-    TailCall(CallArity),
+    Call(TailCall, CallArity),
     /// Jump by N instructions
     Jump(InstructionDiff),
     /// Jump by N instructions if stack\[top\] is true
     CondJump(InstructionDiff),
     /// Return from call
     Ret,
+}
+
+/// Whether or not the call is at the tail of a block and can be optimised
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TailCall {
+    /// The call is at the end of a function block
+    Yes,
+    /// The call is not at the end of a function block
+    No,
 }
 
 /// The index of locally (in the context of a function) bind value

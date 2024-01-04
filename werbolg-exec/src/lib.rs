@@ -4,7 +4,7 @@
 
 extern crate alloc;
 
-use ir::{ConstrId, GlobalId, NifId};
+use ir::{ConstrId, FunId, GlobalId, NifId};
 use werbolg_compile::{
     CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex, StructFieldIndex,
 };
@@ -20,7 +20,7 @@ use alloc::{string::String, vec::Vec};
 pub use allocator::WAllocator;
 pub use valuable::{Valuable, ValueKind};
 
-pub use exec::{exec, exec_continue, step, NIFCall, NIF};
+pub use exec::{exec, exec_continue, initialize, step, NIFCall, NIF};
 
 /// Execution environment with index Nifs by their NifId, and global variable with their GlobalId
 pub struct ExecutionEnviron<'m, 'e, A, L, T, V> {
@@ -58,21 +58,31 @@ pub struct ExecutionMachine<'m, 'e, A, L, T, V> {
     /// Module
     pub module: &'m CompilationUnit<L>,
     /// call frame return values
-    pub rets: Vec<(InstructionAddress, StackPointer, LocalStackSize, CallArity)>,
+    pub rets: Vec<CallSave>,
     /// stack
     pub stack: ValueStack<V>,
     /// instruction pointer
     pub ip: InstructionAddress,
     /// stack pointer
     pub sp: StackPointer,
-    /// Current stack size
-    pub current_stack_size: LocalStackSize,
+    /// arity current function
+    pub current_arity: CallArity,
+    // /// Current stack size
+    // pub current_stack_size: LocalStackSize,
     /// Execution params
     pub params: ExecutionParams<L, V>,
     /// Allocator
     pub allocator: A,
     /// User controlled data
     pub userdata: T,
+}
+
+/// Call Save
+pub struct CallSave {
+    ip: InstructionAddress,
+    sp: StackPointer,
+    //local_stack: LocalStackSize,
+    arity: CallArity,
 }
 
 /// Execution Stack pointer
@@ -84,6 +94,22 @@ pub struct ExecutionMachine<'m, 'e, A, L, T, V> {
 ///   * then finally stack based (push/pop) values
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StackPointer(usize);
+
+impl core::ops::Add<usize> for StackPointer {
+    type Output = StackPointer;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        StackPointer(self.0 + rhs)
+    }
+}
+
+impl core::ops::Sub<usize> for StackPointer {
+    type Output = StackPointer;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        StackPointer(self.0 - rhs)
+    }
+}
 
 /// Value stack
 pub struct ValueStack<V> {
@@ -126,13 +152,18 @@ impl<V: Valuable> ValueStack<V> {
     }
 
     /// Set a specific value on the stack to a given value
-    pub fn set_at(&mut self, index: usize, value: V) {
-        self.values[index] = value;
+    pub fn set_at(&mut self, index: StackPointer, value: V) {
+        self.values[index.0] = value;
+    }
+
+    /// Get a specific value on the stack
+    pub fn get_at(&mut self, index: StackPointer) -> V {
+        self.values[index.0].clone()
     }
 
     /// Get the value on the stack at a given index and push it a duplicate to the top
-    pub fn get_and_push(&mut self, index: usize) {
-        let value = self.values[index].clone();
+    pub fn get_and_push(&mut self, index: StackPointer) {
+        let value = self.values[index.0].clone();
         self.push_value(value)
     }
 
@@ -183,7 +214,8 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
             ip: InstructionAddress::default(),
             sp: StackPointer::default(),
             params,
-            current_stack_size: LocalStackSize(0),
+            current_arity: CallArity(0),
+            //current_stack_size: LocalStackSize(0),
         }
     }
 
@@ -206,6 +238,12 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
         self.ip += id;
     }
 
+    /// Get the current instruction
+    pub fn get_current_instruction(&self) -> Option<&'m werbolg_compile::Instruction> {
+        self.module.code.get(self.ip)
+    }
+
+    /*
     /// unlocalise the stack
     #[inline]
     fn sp_unlocal(&mut self, current_stack_size: LocalStackSize) {
@@ -213,11 +251,12 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
             self.stack.values.pop();
         }
     }
+    */
 
     /// Set value at stack pointer + local bind to the value in parameter
     #[inline]
-    pub fn sp_set_value_at(&mut self, bind_index: LocalBindIndex, value: V) {
-        let index = self.sp.0 + bind_index.0 as usize;
+    pub fn sp_set_local_value_at(&mut self, bind_index: LocalBindIndex, value: V) {
+        let index = self.sp + (bind_index.0 as usize);
         self.stack.set_at(index, value);
     }
 
@@ -231,14 +270,14 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
     /// Get the local bound value at bind_index and push it to the top of the stack
     #[inline]
     pub fn sp_push_value_from_local(&mut self, bind_index: LocalBindIndex) {
-        let index = self.sp.0 + bind_index.0 as usize;
+        let index = self.sp + bind_index.0 as usize;
         self.stack.get_and_push(index);
     }
 
     /// Get the parameter to the function at param_index and push it to the top of the stack
     #[inline]
     pub fn sp_push_value_from_param(&mut self, param_index: ParamBindIndex) {
-        let index = self.sp.0 - 1 - param_index.0 as usize;
+        let index = self.sp - self.current_arity.0 as usize + param_index.0 as usize;
         self.stack.get_and_push(index);
     }
 
@@ -249,30 +288,65 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
         for _ in 0..local_stack_size.0 {
             self.stack.push_value(V::make_dummy());
         }
-        self.current_stack_size = local_stack_size;
+        //self.current_stack_size = local_stack_size;
+    }
+
+    fn sp_move_rel(
+        &mut self,
+        arity: CallArity,
+        prev_arity: CallArity,
+        local_stack: LocalStackSize,
+    ) {
+        let nb_values_to_move = arity.0 as usize + 1;
+        let stack_top = self.stack.top();
+        let top_fun = stack_top - nb_values_to_move;
+        let begin = self.sp - (prev_arity.0 as usize) - 1;
+
+        for index in 0..nb_values_to_move {
+            let v = self.stack.get_at(top_fun + index);
+            self.stack.set_at(begin + index, v);
+        }
+        self.stack.truncate((begin + nb_values_to_move).0);
+        self.sp_set(local_stack)
     }
 }
 
 impl<'m, 'e, A, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, A, L, T, V> {
     /// print the debug state of the execution machine in a writer
     pub fn debug_state<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
-        writeln!(writer, "ip={} sp={:?}", self.ip, self.sp.0)?;
+        let instr = self.get_current_instruction();
+        writeln!(
+            writer,
+            "ip={} sp={:?} instruction={:?}",
+            self.ip,
+            self.sp.0,
+            instr.unwrap_or(&werbolg_compile::Instruction::IgnoreOne)
+        )?;
 
         for (stack_index, value) in self.stack.iter_pos() {
-            match stack_index.cmp(&self.sp) {
-                core::cmp::Ordering::Less => {
-                    let diff = self.sp.0 - stack_index.0;
-                    writeln!(writer, "[-{}] {:?}", diff, value)?;
-                }
-                core::cmp::Ordering::Greater => {
-                    let diff = stack_index.0 - self.sp.0;
-                    writeln!(writer, "[{}] {:?}", 1 + diff, value)?;
-                }
-                core::cmp::Ordering::Equal => {
-                    writeln!(writer, "@ {:?}", value)?;
-                }
+            if (stack_index.0 % 4) == 0 {
+                writeln!(writer, "")?;
+                write!(writer, "{:04x} ", stack_index.0)?;
             }
+
+            if self.sp.0 == stack_index.0 {
+                write!(writer, " |@ ")?;
+            } else {
+                write!(writer, " |  ")?;
+            }
+            use core::fmt::Write;
+            let mut out = String::new();
+            write!(&mut out, "{:?}", value)?;
+            let out = if out.len() > 16 {
+                out.chars().take(16).collect()
+            } else if out.len() < 16 {
+                alloc::format!("{:>16}", out)
+            } else {
+                out
+            };
+            write!(writer, "{}", out)?;
         }
+        writeln!(writer, "")?;
         Ok(())
     }
 }
@@ -282,6 +356,8 @@ impl<'m, 'e, A, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, A
 pub enum ExecutionError {
     /// The functions is being called with a different number of parameter it was expecting
     ArityError {
+        /// FunId
+        funid: FunId,
         /// The expected number by the function
         expected: CallArity,
         /// The number of actual parameters received by the function
@@ -292,8 +368,6 @@ pub enum ExecutionError {
         /// the number of parameters that triggered the error
         got: usize,
     },
-    //MissingBinding(ir::Ident),
-    //InternalErrorFunc(ir::FunId),
     /// Structure expected is not of the right type
     StructMismatch {
         /// The constructor expected
@@ -336,6 +410,11 @@ pub enum ExecutionError {
     UserPanic {
         /// user message
         message: String,
+    },
+    /// Instruction Pointer is invalid
+    IpInvalid {
+        /// the instruction pointer triggering this error
+        ip: InstructionAddress,
     },
     /// Execution finished
     ExecutionFinished,

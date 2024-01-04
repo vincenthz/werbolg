@@ -3,7 +3,6 @@
 #![deny(missing_docs)]
 
 extern crate alloc;
-extern crate std;
 
 mod bindings;
 mod code;
@@ -17,7 +16,9 @@ mod resolver;
 mod symbols;
 
 pub use code::{InstructionAddress, InstructionDiff};
-pub use instructions::{CallArity, Instruction, LocalBindIndex, ParamBindIndex, StructFieldIndex};
+pub use instructions::{
+    CallArity, Instruction, LocalBindIndex, ParamBindIndex, StructFieldIndex, TailCall,
+};
 pub use params::CompilationParams;
 
 use compile::*;
@@ -133,9 +134,11 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     ) -> Result<CompilationUnit<L>, CompilationError> {
         let SymbolsTableData { table, vecdata } = self.funs;
 
+        /*
         for (p, _id) in table.to_vec(Namespace::root()) {
             std::println!("{:?}", p)
         }
+        */
 
         let mut root_bindings = GlobalBindings::new();
         for (path, id) in environ.symbols.to_vec(Namespace::root()) {
@@ -228,7 +231,8 @@ pub fn code_dump<W: Write>(
             let fundef = &fundefs[*funid];
             writeln!(
                 writer,
-                "[{} local-stack={}]",
+                "[{:?} {} local-stack={}]",
+                *funid,
                 fundef
                     .name
                     .as_ref()

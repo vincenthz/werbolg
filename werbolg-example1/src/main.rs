@@ -1,10 +1,10 @@
 mod lang;
 mod value;
 
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use value::{Value, HASHMAP_KIND};
-use werbolg_compile::{code_dump, compile, CompilationError, Environment};
-use werbolg_core::{AbsPath, Ident, Literal, Namespace};
+use werbolg_compile::{code_dump, compile, CompilationError, Environment, InstructionAddress};
+use werbolg_core::{id::IdF, AbsPath, Ident, Literal, Namespace};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
     WAllocator, NIF,
@@ -200,15 +200,44 @@ fn main() -> Result<(), ()> {
     let execution_params = ExecutionParams { literal_to_value };
     let mut em = ExecutionMachine::new(&exec_module, &ee, execution_params, DummyAlloc, ());
 
-    match werbolg_exec::exec(&mut em, entry_point, &[]) {
+    let stepper = HashSet::<InstructionAddress>::new();
+    /*
+    stepper.insert(InstructionAddress::from_collection_len(0x04));
+    stepper.insert(InstructionAddress::from_collection_len(0x13));
+    stepper.insert(InstructionAddress::from_collection_len(0x14));
+    stepper.insert(InstructionAddress::from_collection_len(0x24));
+    */
+
+    let ret = if !stepper.is_empty() {
+        werbolg_exec::initialize(&mut em, entry_point, &[]).unwrap();
+        loop {
+            if stepper.contains(&em.ip) {
+                let mut out = String::new();
+                em.debug_state(&mut out).unwrap();
+                println!("{}", out);
+            }
+            match werbolg_exec::step(&mut em) {
+                Err(e) => break Err(e),
+                Ok(None) => {}
+                Ok(Some(v)) => break Ok(v),
+            }
+        }
+    } else {
+        werbolg_exec::exec(&mut em, entry_point, &[])
+    };
+
+    match ret {
         Err(e) => {
+            let mut out = String::new();
+            em.debug_state(&mut out).unwrap();
+
             println!("error: {:?} at {}", e, em.ip);
+            println!("{}", out);
             return Err(());
         }
         Ok(val) => {
             println!("{:?}", val);
+            Ok(())
         }
     }
-
-    Ok(())
 }

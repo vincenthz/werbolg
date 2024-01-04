@@ -178,11 +178,14 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     }
 
     let code_pos = state.get_instruction_address();
-    generate_expression_code(state, &mut local, FunPos::Root, body.clone())?;
+    let tc = generate_expression_code(state, &mut local, FunPos::Root, body.clone())?;
 
     let stack_size = local.scope_terminate();
 
-    state.write_code().push(Instruction::Ret);
+    if !tc {
+        state.write_code().push(Instruction::Ret);
+    }
+
     Ok(FunDef {
         name,
         arity,
@@ -196,12 +199,12 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
     local: &mut LocalBindings,
     funpos: FunPos,
     expr: ir::Expr,
-) -> Result<(), CompilationError> {
+) -> Result<bool, CompilationError> {
     match expr {
         ir::Expr::Literal(_span, lit) => {
             let lit_id = state.lits.add((state.params.literal_mapper)(lit)?);
             state.write_code().push(Instruction::PushLiteral(lit_id));
-            Ok(())
+            Ok(false)
         }
         ir::Expr::Path(span, path) => {
             let x = fetch_ident(state, local, span, path.clone())?;
@@ -222,13 +225,13 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                     state.write_code().push(Instruction::FetchStackParam(idx));
                 }
             }
-            Ok(())
+            Ok(false)
         }
         ir::Expr::List(_span, _l) => {
             todo!()
         }
         ir::Expr::Let(binder, body, in_expr) => {
-            generate_expression_code(state, local, FunPos::NotRoot, *body)?;
+            let _: bool = generate_expression_code(state, local, FunPos::NotRoot, *body)?;
             match binder {
                 ir::Binder::Ident(ident) => {
                     let bind = local.add_local(ident.clone());
@@ -242,8 +245,8 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                     state.write_code().push(Instruction::IgnoreOne);
                 }
             }
-            generate_expression_code(state, local, funpos, *in_expr)?;
-            Ok(())
+            let tc = generate_expression_code(state, local, funpos, *in_expr)?;
+            Ok(tc)
         }
         ir::Expr::Field(expr, struct_ident, field_ident) => {
             let (struct_path, _) = resolve_path(&state.resolver, &struct_ident.inner);
@@ -271,11 +274,11 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                 ));
             };
 
-            generate_expression_code(state, local, funpos, *expr)?;
+            let _: bool = generate_expression_code(state, local, funpos, *expr)?;
             state
                 .write_code()
                 .push(Instruction::AccessField(constr_id, index));
-            Ok(())
+            Ok(false)
         }
         ir::Expr::Lambda(_span, funimpl) => {
             let prev = state.set_in_lambda();
@@ -288,18 +291,21 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             assert!(args.len() > 0);
             let len = args.len() - 1;
             for arg in args {
-                generate_expression_code(state, local, FunPos::NotRoot, arg)?;
+                let _: bool = generate_expression_code(state, local, FunPos::NotRoot, arg)?;
+                ()
             }
             if funpos == FunPos::Root {
                 state
                     .write_code()
-                    .push(Instruction::TailCall(CallArity(len as u8)));
+                    .push(Instruction::Call(TailCall::Yes, CallArity(len as u8)));
+                //state.write_code().push(Instruction::Ret);
+                Ok(true)
             } else {
                 state
                     .write_code()
-                    .push(Instruction::Call(CallArity(len as u8)));
+                    .push(Instruction::Call(TailCall::No, CallArity(len as u8)));
+                Ok(false)
             }
-            Ok(())
         }
         ir::Expr::If {
             span: _,
@@ -307,32 +313,53 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             then_expr,
             else_expr,
         } => {
-            generate_expression_code(state, local, FunPos::NotRoot, (*cond).unspan())?;
+            let _: bool =
+                generate_expression_code(state, local, FunPos::NotRoot, (*cond).unspan())?;
 
             let cond_jump_ref = state.write_code().push_temp();
             let cond_pos = state.get_instruction_address();
 
             local.scope_enter();
-            generate_expression_code(state, local, funpos, (*then_expr).unspan())?;
+            let tc_then = generate_expression_code(state, local, funpos, (*then_expr).unspan())?;
             local.scope_leave();
 
-            let jump_else_ref = state.write_code().push_temp();
+            // if we are at the root, check if we need to ret or not, otherwise
+            // push a temporary for jumping to the end of the block
+            let jump_else_ref = if funpos == FunPos::Root {
+                if !tc_then {
+                    state.write_code().push(Instruction::Ret);
+                };
+                None
+            } else {
+                Some(state.write_code().push_temp())
+            };
+
             let else_pos = state.get_instruction_address();
 
             local.scope_enter();
-            generate_expression_code(state, local, funpos, (*else_expr).unspan())?;
+            let tc_else = generate_expression_code(state, local, funpos, (*else_expr).unspan())?;
             local.scope_leave();
 
             let end_pos = state.get_instruction_address();
 
+            if funpos == FunPos::Root {
+                if !tc_else {
+                    state.write_code().push(Instruction::Ret);
+                }
+            }
+
+            // write the cond jump displacement to jump to the else block if condition fails
             state
                 .write_code()
                 .resolve_temp(cond_jump_ref, Instruction::CondJump(else_pos - cond_pos));
-            state
-                .write_code()
-                .resolve_temp(jump_else_ref, Instruction::Jump(end_pos - else_pos));
 
-            Ok(())
+            if let Some(jump_else_ref) = jump_else_ref {
+                state
+                    .write_code()
+                    .resolve_temp(jump_else_ref, Instruction::Jump(end_pos - else_pos));
+            }
+
+            Ok(true)
         }
     }
 }
@@ -343,7 +370,6 @@ fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
     span: Span,
     path: Path,
 ) -> Result<BindingType, CompilationError> {
-    std::println!("trying to resolve {:?}", path);
     if let Some(local_path) = path.get_local() {
         if let Some(bound) = local.bindings.get(local_path) {
             return Ok(*bound);

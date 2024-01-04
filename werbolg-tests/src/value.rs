@@ -20,10 +20,10 @@ impl Value {
     }
 }
 
-pub const UNIT_KIND: ValueKind = b"    unit";
-pub const BOOL_KIND: ValueKind = b"    bool";
-pub const INT_KIND: ValueKind = b"     int";
-pub const FUN_KIND: ValueKind = b"     fun";
+pub const UNIT_KIND: ValueKind = "    unit";
+pub const BOOL_KIND: ValueKind = "    bool";
+pub const INT_KIND: ValueKind = "     int";
+pub const FUN_KIND: ValueKind = "     fun";
 
 impl Valuable for Value {
     fn descriptor(&self) -> werbolg_exec::ValueKind {

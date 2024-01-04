@@ -16,7 +16,7 @@ fn factorial_tco(acc, x) {
     if x == 0 {
         acc
     } else {
-        factorial_tco(mul(x, acc), x - 1)
+        factorial_tco(x * acc, x - 1)
     }
 }
 

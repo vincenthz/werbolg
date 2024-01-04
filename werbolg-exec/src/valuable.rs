@@ -1,7 +1,7 @@
 use werbolg_core::{ConstrId, ValueFun};
 
 /// A mostly for error and debug useful descriptor for a type of value
-pub type ValueKind = &'static [u8; 8];
+pub type ValueKind = &'static str;
 
 /// Valuable trait that give access to some underlying type in the value type
 pub trait Valuable: Clone {

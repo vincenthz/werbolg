@@ -1,8 +1,63 @@
-use crate::Valuable;
+//! Execution core
+//!
+//! This is composed of 4 things:
+//!
+//! * IP : Instruction Pointer for the next instruction to execute
+//! * SP : Stack Pointer of the current function
+//! * Stack of values : Values being pushed on the stack for calls, and operations
+//! * Call frames : a Stack of CallFrame to recover the context of previous function after returning
+//!                 from a function call
+//!
+//! ## Call Frames
+//!
+//!
+//!
+//! ## Stack of Value
+//!
+//! The stack of values grows by adding values to the top.
+//! Most operations takes values from the top of stack and
+//! push values to the top of the stack.
+//!
+//! Local bounded variable are reserved on the stack after the current SP.
+//!
+//! Function are a "pointer" to the function itself (FunId or NifId) `Fun`,
+//! and the arity of A `ValX`, followed by N Local value `LocalX`.
+//!
+//! Function Stack after a 'Call' operation:
+//!
+//!      ┌──────────────────┬───────────────────────┐
+//!      │                  │                       │
+//!      │ Fun callee stack │  Fun local stack      │
+//!      ▼                  ▼                       ▼
+//!  ──┬─┬───┬────┬────┬────┬──────┬──────┬──┬──────┐
+//!  ..│X│Fun│Val1│Val2│Val3│Local1│Local2│..│LocalN│
+//!  ──┴─┴───┴────┴────┴────┼──────┴──────┴──┴──────┤
+//!                         │                       │
+//!                         ▼                       ▼
+//!                        SP                    Stack top
+//!
+//! After a 'Ret' operation:
+//!
+//!  ──┬─┬──────┐
+//!  ..|X│RetVal│
+//!  ──┴─┴──────┤
+//!             │
+//!             ▼
+//!           Stack top
+//!
+//! The initial setup of the call stack, considering the entry point `main` and the parameter values A and B is:
+//!
+//!  ┌────────┬─┬─┬──────┬──┬──────┐
+//!  │Fun main│A│B│local1│..│localN│
+//!  ┤────────┴─┴─┼──────┴──┴──────┤
+//!  ▼            ▼                ▼
+//! Stack bottom  SP            Stack top
+//!
+use crate::{CallSave, Valuable};
 
 use super::allocator::WAllocator;
 use super::{ExecutionError, ExecutionMachine};
-use werbolg_compile::{CallArity, Instruction, InstructionAddress, LocalStackSize};
+use werbolg_compile::{CallArity, Instruction, InstructionAddress, LocalStackSize, TailCall};
 use werbolg_core as ir;
 use werbolg_core::ValueFun;
 
@@ -52,6 +107,10 @@ pub fn initialize<'module, 'environ, A: WAllocator<Value = V>, L, T, V: Valuable
         .map(CallArity)
         .map_err(|_| ExecutionError::ArityOverflow { got: args.len() })?;
 
+    // truncate the stack of values and rets if any
+    em.stack.truncate(0);
+    em.rets.truncate(0);
+
     em.stack.push_call(V::make_fun(ValueFun::Fun(call)), args);
 
     match process_call(em, arity)? {
@@ -98,7 +157,10 @@ type StepResult<V> = Result<Option<V>, ExecutionError>;
 pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
     em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
 ) -> StepResult<V> {
-    let instr = &em.module.code[em.ip];
+    // fetch the next instruction from ip, if ip points to a random place, raise an error
+    let Some(instr) = &em.module.code.get(em.ip) else {
+        return Err(ExecutionError::IpInvalid { ip: em.ip });
+    };
     match instr {
         Instruction::PushLiteral(lit) => {
             let literal = &em.module.lits[*lit];
@@ -151,43 +213,47 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
         }
         Instruction::LocalBind(local_bind) => {
             let val = em.stack.pop_value();
-            em.sp_set_value_at(*local_bind, val);
+            em.sp_set_local_value_at(*local_bind, val);
             em.ip_next();
         }
         Instruction::IgnoreOne => {
             let _ = em.stack.pop_value();
             em.ip_next();
         }
-        Instruction::Call(arity) => {
+        Instruction::Call(tc, arity) => {
             let val = process_call(em, *arity)?;
             match val {
                 CallResult::Jump(fun_ip, local_stack_size) => {
-                    em.rets
-                        .push((em.ip.next(), em.sp, local_stack_size, *arity));
-                    em.sp_set(local_stack_size);
-                    em.ip_set(fun_ip);
+                    if *tc == TailCall::Yes {
+                        // if we have a tail call, we don't need to save the current call frame
+                        // we just shift the values to replace the call stack and
+                        // replace the current state (sp, ip, current_arity)
+                        em.sp_move_rel(*arity, em.current_arity, local_stack_size);
+                        em.current_arity = *arity;
+                        em.ip_set(fun_ip);
+                    } else {
+                        em.rets.push(CallSave {
+                            ip: em.ip.next(),
+                            sp: em.sp,
+                            arity: em.current_arity,
+                        });
+                        em.current_arity = *arity;
+                        em.sp_set(local_stack_size);
+                        em.ip_set(fun_ip);
+                    }
                 }
                 CallResult::Value(nif_val) => {
                     em.stack.pop_call(*arity);
-                    em.stack.push_value(nif_val);
-                    em.ip_next()
-                }
-            }
-        }
-        Instruction::TailCall(arity) => {
-            // todo : for now we just process as a normal call
-            let val = process_call(em, *arity)?;
-            match val {
-                CallResult::Jump(fun_ip, local_stack_size) => {
-                    em.rets
-                        .push((em.ip.next(), em.sp, local_stack_size, *arity));
-                    em.sp_set(local_stack_size);
-                    em.ip_set(fun_ip);
-                }
-                CallResult::Value(nif_val) => {
-                    em.stack.pop_call(*arity);
-                    em.stack.push_value(nif_val);
-                    em.ip_next()
+
+                    if *tc == TailCall::Yes {
+                        match em.rets.pop() {
+                            None => return Ok(Some(nif_val)),
+                            Some(call_frame) => do_ret(em, call_frame, nif_val),
+                        }
+                    } else {
+                        em.stack.push_value(nif_val);
+                        em.ip_next()
+                    }
                 }
             }
         }
@@ -209,19 +275,29 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
             let val = em.stack.pop_value();
             match em.rets.pop() {
                 None => return Ok(Some(val)),
-                Some((ret, sp, stack_size, arity)) => {
-                    em.sp_unlocal(em.current_stack_size);
-                    em.current_stack_size = stack_size;
-                    em.stack.pop_call(arity);
-                    em.sp = sp;
-                    em.stack.push_value(val);
-                    em.ip_set(ret)
-                }
+                Some(call_frame) => do_ret(em, call_frame, val),
             }
         }
     }
     //println!("IP={} SP={} STACK={}", em.ip, em.sp.0, em.stack2.top().0);
     Ok(None)
+}
+
+fn do_ret<'m, 'e, A: WAllocator, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+    CallSave { ip, sp, arity }: CallSave,
+    value: V,
+) {
+    // remove any value after the current stack pointer (remove all local and temp values)
+    em.stack.truncate(em.sp.0);
+    // pop the calls from the stack
+    em.stack.pop_call(em.current_arity);
+    // restore state of the caller
+    em.current_arity = arity;
+    em.sp = sp;
+    em.ip_set(ip);
+    // push the return value to replace
+    em.stack.push_value(value);
 }
 
 enum CallResult<V> {
@@ -256,6 +332,7 @@ fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
             let call_def = &em.module.funs[funid];
             if call_def.arity != arity {
                 return Err(ExecutionError::ArityError {
+                    funid,
                     expected: call_def.arity,
                     got: arity,
                 });
