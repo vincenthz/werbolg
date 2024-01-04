@@ -40,7 +40,7 @@ where
 ///
 /// The Eq instance of Span, doesn't check that the span are equal,
 /// for explicit checking using `span_eq`
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub struct Spanned<T> {
     /// The span of T
     pub span: Span,
