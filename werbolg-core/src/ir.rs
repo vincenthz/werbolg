@@ -182,5 +182,5 @@ pub enum Expr {
 }
 
 /// A variable (function parameter)
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Variable(pub Spanned<Ident>);
