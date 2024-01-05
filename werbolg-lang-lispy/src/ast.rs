@@ -12,6 +12,8 @@ pub enum Ast {
     // (define (id args) expr+)
     // (define id expr+)
     Define(Spanned<Ident>, Vec<Variable>, Vec<Spanned<Ast>>),
+    // (lambda (args) expr+)
+    Lambda(Vec<Variable>, Vec<Spanned<Ast>>),
     // (struct id (field+))
     Struct(Spanned<Ident>, Vec<Spanned<Ident>>),
     // (if cond then_expr else_expr)

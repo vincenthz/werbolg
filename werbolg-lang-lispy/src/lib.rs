@@ -144,6 +144,16 @@ fn statement(ast: Spanned<Ast>) -> Result<ir::Statement, ParseError> {
             then_expr: Box::new(spanned_expr(then_expr.as_ref().clone())?),
             else_expr: Box::new(spanned_expr(else_expr.as_ref().clone())?),
         })),
+        Ast::Lambda(args, body) => {
+            let body = exprs_into_let(body)?;
+            Ok(ir::Statement::Expr(ir::Expr::Lambda(
+                ast.span,
+                Box::new(ir::FunImpl {
+                    vars: args,
+                    body: body,
+                }),
+            )))
+        }
         Ast::Define(name, args, body) => {
             let body = exprs_into_let(body)?;
             Ok(ir::Statement::Function(
@@ -174,6 +184,13 @@ fn expr(ast: Spanned<Ast>) -> Result<ir::Expr, ParseError> {
     match ast.inner {
         Ast::Atom(ident) => Ok(ir::Expr::Path(ast.span, ir::Path::relative(ident))),
         Ast::Literal(lit) => Ok(ir::Expr::Literal(ast.span, literal(lit))),
+        Ast::Lambda(vars, body) => {
+            let body = exprs_into_let(body)?;
+            Ok(ir::Expr::Lambda(
+                ast.span,
+                Box::new(ir::FunImpl { vars: vars, body }),
+            ))
+        }
         Ast::List(e) => exprs(ast.span, e),
         Ast::If(cond_expr, then_expr, else_expr) => Ok(ir::Expr::If {
             span: ast.span,

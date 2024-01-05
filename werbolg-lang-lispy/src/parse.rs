@@ -110,6 +110,8 @@ impl<'a> Parser<'a> {
             Some(first_elem) => {
                 if first_elem.atom_eq("define") {
                     parse_define(list_span.clone(), exprs).map(|a| Spanned::new(list_span, a))
+                } else if first_elem.atom_eq("lambda") {
+                    parse_lambda(list_span.clone(), exprs).map(|a| Spanned::new(list_span, a))
                 } else if first_elem.atom_eq("struct") {
                     parse_struct(list_span.clone(), exprs).map(|a| Spanned::new(list_span, a))
                 } else if first_elem.atom_eq("if") {
@@ -202,6 +204,16 @@ fn parse_if(list_span: Span, exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError
         Box::new(then_expr),
         Box::new(else_expr),
     ))
+}
+
+fn parse_lambda(_list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
+    let vars = parse_atom_list(&exprs[1])?
+        .into_iter()
+        .map(|si| werbolg_core::Variable(si))
+        .collect();
+
+    vec_drop_start(&mut exprs, 1);
+    Ok(Ast::Lambda(vars, exprs))
 }
 
 fn parse_define(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
