@@ -247,16 +247,6 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
         self.module.code.get(self.ip)
     }
 
-    /*
-    /// unlocalise the stack
-    #[inline]
-    fn sp_unlocal(&mut self, current_stack_size: LocalStackSize) {
-        for _ in 0..current_stack_size.0 {
-            self.stack.values.pop();
-        }
-    }
-    */
-
     /// Set value at stack pointer + local bind to the value in parameter
     #[inline]
     pub fn sp_set_local_value_at(&mut self, bind_index: LocalBindIndex, value: V) {

@@ -178,14 +178,8 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             assert_eq!(funid, lirid)
         }
 
-        // merge the lambdas code with the main code
-        // also remap the fundef of all lambdas to include this new offset
-        let lambda_instruction_diff = state.main_code.merge(state.lambdas_code);
-        state
-            .lambdas
-            .remap(|fundef| fundef.code_pos += lambda_instruction_diff);
-
-        state.funs_vec.concat(&mut state.lambdas);
+        // merge the lambdas vec with the main fun vec
+        state.funs_vec.concat(&mut state.lambdas_vec);
         let funs = state.funs_vec;
 
         Ok(CompilationUnit {

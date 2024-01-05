@@ -4,7 +4,7 @@ mod value;
 use hashbrown::{HashMap, HashSet};
 use value::{Value, HASHMAP_KIND};
 use werbolg_compile::{code_dump, compile, CompilationError, Environment, InstructionAddress};
-use werbolg_core::{AbsPath, Ident, Literal, Namespace};
+use werbolg_core::{id::IdF, AbsPath, Ident, Literal, Namespace};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
     WAllocator, NIF,
@@ -225,9 +225,9 @@ fn main() -> Result<(), ()> {
     let execution_params = ExecutionParams { literal_to_value };
     let mut em = ExecutionMachine::new(&exec_module, &ee, execution_params, DummyAlloc, ());
 
-    let stepper = HashSet::<InstructionAddress>::new();
-    /*
+    let mut stepper = HashSet::<InstructionAddress>::new();
     stepper.insert(InstructionAddress::from_collection_len(0x04));
+    /*
     stepper.insert(InstructionAddress::from_collection_len(0x13));
     stepper.insert(InstructionAddress::from_collection_len(0x14));
     stepper.insert(InstructionAddress::from_collection_len(0x24));

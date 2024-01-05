@@ -6,7 +6,7 @@ use super::instructions::*;
 use super::resolver::SymbolResolver;
 use super::symbols::*;
 use super::CompilationParams;
-use alloc::{vec, vec::Vec};
+use alloc::{format, vec, vec::Vec};
 use werbolg_core as ir;
 use werbolg_core::{
     AbsPath, ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, PathType, Span,
@@ -16,12 +16,11 @@ pub(crate) struct CodeBuilder<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) params: &'a CompilationParams<L>,
     pub(crate) funs_tbl: SymbolsTable<FunId>,
     pub(crate) funs_vec: IdVec<FunId, FunDef>,
+    pub(crate) lambdas_vec: IdVecAfter<FunId, FunDef>,
     pub(crate) constrs: SymbolsTableData<ConstrId, ConstrDef>,
     pub(crate) lits: UniqueTableBuilder<LitId, L>,
     pub(crate) main_code: Code,
-    pub(crate) lambdas: IdVecAfter<FunId, FunDef>,
-    pub(crate) lambdas_code: Code,
-    pub(crate) in_lambda: CodeState,
+    pub(crate) lambdas: Vec<(CodeRef, ir::FunImpl)>,
     pub(crate) globals: GlobalBindings<BindingType>,
     pub(crate) resolver: Option<SymbolResolver>,
 }
@@ -88,51 +87,33 @@ pub enum BindingType {
     Local(LocalBindIndex),
 }
 
-#[derive(Clone, Copy, Default)]
-pub enum CodeState {
-    #[default]
-    InMain,
-    InLambda,
-}
-
 impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
     pub fn new(
         params: &'a CompilationParams<L>,
         funs_tbl: SymbolsTable<FunId>,
-        lambdas: IdVecAfter<FunId, FunDef>,
+        lambdas_vec: IdVecAfter<FunId, FunDef>,
         globals: GlobalBindings<BindingType>,
     ) -> Self {
         Self {
             params,
             funs_tbl,
             funs_vec: IdVec::new(),
+            lambdas_vec,
             main_code: Code::new(),
-            lambdas,
-            lambdas_code: Code::new(),
+            lambdas: Vec::new(),
             constrs: SymbolsTableData::new(),
             lits: UniqueTableBuilder::new(),
-            in_lambda: CodeState::default(),
             globals,
             resolver: None,
         }
     }
 
-    #[must_use = "code state need to be restore using restore_codestate"]
-    fn set_in_lambda(&mut self) -> CodeState {
-        let saved = self.in_lambda;
-        self.in_lambda = CodeState::InLambda;
-        saved
-    }
-
-    fn restore_codestate(&mut self, code_state: CodeState) {
-        self.in_lambda = code_state;
+    fn lambda_setaside(&mut self, code_ref: CodeRef, fun_impl: ir::FunImpl) {
+        self.lambdas.push((code_ref, fun_impl));
     }
 
     fn get_instruction_address(&self) -> InstructionAddress {
-        match self.in_lambda {
-            CodeState::InMain => self.main_code.position(),
-            CodeState::InLambda => self.lambdas_code.position(),
-        }
+        self.main_code.position()
     }
 
     pub fn set_module_resolver(&mut self, uses: &SymbolResolver) {
@@ -140,10 +121,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
     }
 
     fn write_code(&mut self) -> &mut Code {
-        match self.in_lambda {
-            CodeState::InMain => &mut self.main_code,
-            CodeState::InLambda => &mut self.lambdas_code,
-        }
+        &mut self.main_code
     }
 }
 
@@ -179,11 +157,28 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
 
     let code_pos = state.get_instruction_address();
     let tc = generate_expression_code(state, &mut local, FunPos::Root, body.clone())?;
-
-    let stack_size = local.scope_terminate();
-
     if !tc {
         state.write_code().push(Instruction::Ret);
+    }
+    let stack_size = local.scope_terminate();
+
+    // now compute the code for the lambdas. This is in a loop
+    // since it can generate further lambdas
+    while !state.lambdas.is_empty() {
+        let mut lambdas = Vec::new();
+        core::mem::swap(&mut state.lambdas, &mut lambdas);
+
+        for (code_ref, fun_impl) in lambdas {
+            let lirdef =
+                generate_func_code(state, None, fun_impl).map_err(|e: CompilationError| {
+                    e.context(format!("function lambda code {:?}", name))
+                })?;
+            let lambda_funid = state.lambdas_vec.push(lirdef);
+
+            state
+                .write_code()
+                .resolve_temp(code_ref, Instruction::FetchFun(lambda_funid));
+        }
     }
 
     Ok(FunDef {
@@ -283,10 +278,14 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             Ok(false)
         }
         ir::Expr::Lambda(_span, funimpl) => {
-            let prev = state.set_in_lambda();
-            generate_func_code(state, None, *funimpl)?;
+            //let prev = state.set_in_lambda();
+            //generate_func_code(state, None, *funimpl)?;
+            //state.restore_codestate(prev);
 
-            state.restore_codestate(prev);
+            let lambda_fetch = state.write_code().push_temp();
+
+            state.lambda_setaside(lambda_fetch, *funimpl);
+
             Ok(false)
         }
         ir::Expr::Call(_span, args) => {

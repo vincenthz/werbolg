@@ -1,5 +1,5 @@
 use super::instructions::Instruction;
-use super::symbols::{IdVec, IdVecAfter};
+use super::symbols::IdVec;
 use werbolg_core::id::{IdArith, IdF};
 
 /// Instruction Address
@@ -109,14 +109,13 @@ impl Code {
         self.temps -= 1;
     }
 
-    pub fn merge(&mut self, later: Code) -> InstructionDiff {
-        let ofs = self.stmts.next_id();
-        self.stmts
-            .concat(&mut IdVecAfter::from_idvec(later.stmts, ofs));
-        InstructionDiff(ofs.as_index() as u32)
-    }
-
     pub fn finalize(self) -> IdVec<InstructionAddress, Instruction> {
+        if self.temps > 0 {
+            panic!(
+                "internal error: temporary code is still in place : {} instances",
+                self.temps
+            )
+        }
         self.stmts
     }
 }
