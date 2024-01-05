@@ -221,7 +221,7 @@ fn parse_lambda(_list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, P
         .map(|si| werbolg_core::Variable(si))
         .collect();
 
-    vec_drop_start(&mut exprs, 1);
+    vec_drop_start(&mut exprs, 2);
     Ok(Ast::Lambda(vars, exprs))
 }
 

@@ -102,7 +102,11 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
         match e.inner {
             Ast::Define(name, args, body) => {
                 let body = exprs_into_let(body)?;
-                let span_args = spans_merge(&mut args.iter().map(|sargs| &sargs.0.span));
+                let span_args = if args.len() > 0 {
+                    spans_merge(&mut args.iter().map(|sargs| &sargs.0.span))
+                } else {
+                    name.span.clone()
+                };
                 accumulator = ir::Expr::Let(
                     ir::Binder::Ident(name.clone().unspan()),
                     Box::new(ir::Expr::Lambda(
