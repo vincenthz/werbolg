@@ -19,6 +19,6 @@ setup, it illustrates the security default of the model.
 ## TODO
 
 * Value Allocator - Exec
-* Closure
+* Closure - Exec/Core
 * Binary serialization for core - Core
 * Binary serialization for instructions - Compile
