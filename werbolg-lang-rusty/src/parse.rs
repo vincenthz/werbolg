@@ -179,15 +179,6 @@ fn expr_parser() -> impl Parser<Token, Spanned<Expr>, Error = Simple<Token>> + C
                 .or(ident.map(Expr::Local))
                 .or(let_)
                 .or(list)
-                // In Nano Rust, `print` is just a keyword, just like Python 2, for simplicity
-                /*
-                .or(just(Token::Print)
-                    .ignore_then(
-                        expr.clone()
-                            .delimited_by(just(Token::Ctrl('(')), just(Token::Ctrl(')'))),
-                    )
-                    .map(|expr| Expr::Print(Box::new(expr))))
-                    */
                 .map_with_span(|expr, span| (expr, span))
                 // Atoms can also just be normal expressions, but surrounded with parentheses
                 .or(expr
@@ -398,36 +389,16 @@ fn funcs_parser() -> impl Parser<Token, Vec<(String, Span, Func)>, Error = Simpl
         .then_ignore(end())
 }
 
-/*
-struct Error {
-    span: Span,
-    msg: String,
-}
-*/
-
 pub fn module(src: &str) -> Result<Vec<(String, Span, Func)>, ()> {
     let (tokens, errs) = lexer().parse_recovery(src);
 
     let parse_errs = if let Some(tokens) = tokens {
-        //dbg!(tokens);
         let len = src.chars().count();
         let (ast, parse_errs) =
             funcs_parser().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
-        //dbg!(ast);
         if let Some(funcs) = ast.filter(|_| errs.len() + parse_errs.len() == 0) {
             return Ok(funcs);
-            /*
-            if let Some(main) = funcs.get("main") {
-                assert_eq!(main.args.len(), 0);
-                match eval_expr(&main.body, &funcs, &mut Vec::new()) {
-                    Ok(val) => println!("Return value: {}", val),
-                    Err(e) => errs.push(Simple::custom(e.span, e.msg)),
-                }
-            } else {
-                panic!("No main function!");
-            }
-            */
         }
         parse_errs
     } else {

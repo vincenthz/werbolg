@@ -285,7 +285,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             generate_func_code(state, None, *funimpl)?;
 
             state.restore_codestate(prev);
-            todo!()
+            Ok(false)
         }
         ir::Expr::Call(_span, args) => {
             assert!(args.len() > 0);
@@ -298,7 +298,6 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                 state
                     .write_code()
                     .push(Instruction::Call(TailCall::Yes, CallArity(len as u8)));
-                //state.write_code().push(Instruction::Ret);
                 Ok(true)
             } else {
                 state
