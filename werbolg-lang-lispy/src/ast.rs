@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use werbolg_core::{Ident, Spanned, Variable};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Ast {
     /// Atom is just some ident like 'foo' or '+'
     Atom(Ident),
@@ -44,7 +44,7 @@ impl Ast {
 
 type ListExpr = Vec<Spanned<Ast>>;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Literal {
     Bytes(Vec<u8>),
     Number(String),

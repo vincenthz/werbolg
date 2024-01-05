@@ -115,10 +115,13 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
                     Box::new(accumulator),
                 )
             }
-            _ => {
+            x => {
                 return Err(ParseError {
                     location: e.span,
-                    kind: ParseErrorKind::Str(format!("trying to have a non function in let")),
+                    kind: ParseErrorKind::Str(format!(
+                        "trying to have a non function in let: {:?}",
+                        x
+                    )),
                 });
             }
         }
