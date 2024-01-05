@@ -14,6 +14,10 @@ impl<'a> Lexer<'a> {
         let lex = Token::lexer(content);
         Lexer(lex)
     }
+
+    pub fn slice(&self) -> &'a str {
+        self.0.slice()
+    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -45,9 +49,10 @@ pub struct Parser<'a> {
 pub enum ParseError {
     NotStartedList(Span),
     UnterminatedList(Span),
-    LexingError(Span), //
+    LexingError(Span, char), //
     IfArityFailed {
         if_span: Span,
+        nb_args: usize,
     },
     DefineEmptyName {
         define_span: Span,
@@ -191,9 +196,13 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn parse_if(list_span: Span, exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
+fn parse_if(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
+    vec_drop_start(&mut exprs, 1);
     if exprs.len() != 3 {
-        return Err(ParseError::IfArityFailed { if_span: list_span });
+        return Err(ParseError::IfArityFailed {
+            if_span: list_span,
+            nb_args: exprs.len(),
+        });
     }
     let mut e = exprs.into_iter();
     let cond_expr = e.next().unwrap();
@@ -325,7 +334,10 @@ impl<'a> Iterator for Parser<'a> {
             let Spanned { span, inner } = next;
             let stok = match inner {
                 Err(_) => {
-                    return Some(self.ret_error(ParseError::LexingError(span)));
+                    return Some(self.ret_error(ParseError::LexingError(
+                        span,
+                        self.lex.slice().chars().next().unwrap(),
+                    )));
                 }
                 Ok(n) => Spanned::new(span, n),
             };

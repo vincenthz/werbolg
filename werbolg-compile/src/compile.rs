@@ -228,7 +228,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             Ok(false)
         }
         ir::Expr::List(_span, _l) => {
-            todo!()
+            todo!("list ?")
         }
         ir::Expr::Let(binder, body, in_expr) => {
             let _: bool = generate_expression_code(state, local, FunPos::NotRoot, *body)?;

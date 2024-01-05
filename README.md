@@ -22,3 +22,25 @@ setup, it illustrates the security default of the model.
 * Closure - Exec/Core
 * Binary serialization for core - Core
 * Binary serialization for instructions - Compile
+
+## Architecture
+
+```
+┌───────────┐
+│           │
+│           ├───────────┐
+│           │           │
+│           │           │
+│           │           ▼
+│           │     ┌──────────┐   ┌──────────┐   ┌──────┐
+│           │     │          │   │          │   │      │
+│Frontends  ├────►│ Core AST ├──►│ Compiler ├──►│ Exec │
+│           │     │          │   │          │   │      │
+│ * lispy   │     └──────────┘   └──────────┘   └──────┘
+│ * rusty   │           ▲
+│ * ...     │           │
+│           │           │
+│           ├───────────┘
+│           │
+└───────────┘
+```

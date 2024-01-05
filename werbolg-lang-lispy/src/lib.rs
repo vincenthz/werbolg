@@ -34,9 +34,9 @@ fn remap_err(e: parse::ParseError) -> ParseError {
             location: span,
             kind: ParseErrorKind::Str(String::from("unterminated list")),
         },
-        parse::ParseError::LexingError(span) => ParseError {
+        parse::ParseError::LexingError(span, ch) => ParseError {
             location: span,
-            kind: ParseErrorKind::Str(String::from("unknown character")),
+            kind: ParseErrorKind::Str(format!("unknown character {}", ch)),
         },
         parse::ParseError::DefineEmptyName {
             define_span,
@@ -45,9 +45,9 @@ fn remap_err(e: parse::ParseError) -> ParseError {
             location: define_span,
             kind: ParseErrorKind::Str(String::from("define with empty name")),
         },
-        parse::ParseError::IfArityFailed { if_span } => ParseError {
+        parse::ParseError::IfArityFailed { if_span, nb_args } => ParseError {
             location: if_span,
-            kind: ParseErrorKind::Str(String::from("if expect 3 parameters")),
+            kind: ParseErrorKind::Str(format!("if required 3 parameters, but {} given", nb_args)),
         },
         parse::ParseError::DefineArgumentNotIdent {
             define_span,

@@ -19,6 +19,6 @@ pub enum Token {
     Bytes(String),
     #[regex(r#""([^"\\]|\\["\\bnfrt]|u[a-fA-F0-9]{4})*""#, |lex| lex.slice().to_owned())]
     String(String),
-    #[regex(r#"[-_a-zA-Z!@#$%^&*+/][-_a-zA-Z0-9!@#$%^&*+/]*"#, |lex| lex.slice().to_owned())]
+    #[regex(r#"[-_a-zA-Z!@#$%^&*+/=<>][-_a-zA-Z0-9!@#$%^&*+/=<>]*"#, |lex| lex.slice().to_owned())]
     Ident(String),
 }

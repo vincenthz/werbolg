@@ -10,6 +10,11 @@
     (* (* a b) (* c d))
 )
 
+(define
+    (fact acc x)
+    (if (== x 0) 1 (fact (* acc x) (- x 1)))
+)
+
 (define main
 	(table_get (table_new ()) 20)
 )
