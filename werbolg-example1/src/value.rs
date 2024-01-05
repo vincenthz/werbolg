@@ -2,12 +2,14 @@ use hashbrown::HashMap;
 use werbolg_core::{ConstrId, ValueFun};
 use werbolg_exec::{ExecutionError, Valuable, ValueKind};
 
+pub type ValueInt = u64;
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Unit,
     Bool(bool),
-    Integral(u64),
-    HashMap(HashMap<u32, u64>),
+    Integral(ValueInt),
+    HashMap(HashMap<u32, ValueInt>),
     Fun(ValueFun),
 }
 
@@ -66,7 +68,7 @@ impl Valuable for Value {
 }
 
 impl Value {
-    pub fn int(&self) -> Result<u64, ExecutionError> {
+    pub fn int(&self) -> Result<ValueInt, ExecutionError> {
         match self {
             Value::Integral(o) => Ok(*o),
             _ => Err(ExecutionError::ValueKindUnexpected {

@@ -231,7 +231,9 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             todo!("list ?")
         }
         ir::Expr::Let(binder, body, in_expr) => {
-            let _: bool = generate_expression_code(state, local, FunPos::NotRoot, *body)?;
+            let x = body.clone();
+            let _: bool = generate_expression_code(state, local, FunPos::NotRoot, *body)
+                .map_err(|e| e.context(alloc::format!("{:?}", *x)))?;
             match binder {
                 ir::Binder::Ident(ident) => {
                     let bind = local.add_local(ident.clone());

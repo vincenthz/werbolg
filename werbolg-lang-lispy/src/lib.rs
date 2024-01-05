@@ -1,6 +1,7 @@
 #![no_std]
 
 extern crate alloc;
+extern crate std;
 
 mod ast;
 mod parse;
@@ -101,23 +102,32 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
     while let Some(e) = exprs.next() {
         match e.inner {
             Ast::Define(name, args, body) => {
-                let body = exprs_into_let(body)?;
-                let span_args = if args.len() > 0 {
-                    spans_merge(&mut args.iter().map(|sargs| &sargs.0.span))
+                if args.len() == 0 && body.len() == 1 {
+                    let bind_expr = expr(body[0].clone())?;
+                    accumulator = ir::Expr::Let(
+                        ir::Binder::Ident(name.clone().unspan()),
+                        Box::new(bind_expr),
+                        Box::new(accumulator),
+                    );
                 } else {
-                    name.span.clone()
-                };
-                accumulator = ir::Expr::Let(
-                    ir::Binder::Ident(name.clone().unspan()),
-                    Box::new(ir::Expr::Lambda(
-                        span_args,
-                        Box::new(ir::FunImpl {
-                            vars: args,
-                            body: body,
-                        }),
-                    )),
-                    Box::new(accumulator),
-                )
+                    let body = exprs_into_let(body)?;
+                    let span_args = if args.len() > 0 {
+                        spans_merge(&mut args.iter().map(|sargs| &sargs.0.span))
+                    } else {
+                        name.span.clone()
+                    };
+                    accumulator = ir::Expr::Let(
+                        ir::Binder::Ident(name.clone().unspan()),
+                        Box::new(ir::Expr::Lambda(
+                            span_args,
+                            Box::new(ir::FunImpl {
+                                vars: args,
+                                body: body,
+                            }),
+                        )),
+                        Box::new(accumulator),
+                    )
+                }
             }
             x => {
                 return Err(ParseError {

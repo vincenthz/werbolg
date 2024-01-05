@@ -148,6 +148,10 @@ impl<V: Valuable> ValueStack<V> {
     /// Get the call value (which should be a ValueFun) from the stack
     pub fn get_call(&self, arity: CallArity) -> &V {
         let top = self.values.len();
+        let rewind = (arity.0 as usize) + 1;
+        if top < rewind {
+            panic!("trying to get-call {:?}, but only {}", arity, top);
+        }
         &self.values[top - (arity.0 as usize) - 1]
     }
 
