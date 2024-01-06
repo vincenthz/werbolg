@@ -1,22 +1,16 @@
 [package]
-name = "werbolg-example1"
+name = "werbolg-tales"
 version = "0.1.0"
 edition = "2021"
-description = "a multi language high level dynamic platform to execute in a safe environment with traps to rust defined function"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "tools to tell the werbolg tales"
 
 [features]
 default = ["lang-lispy", "lang-rusty"]
 lang-lispy = ["werbolg-lang-lispy"]
 lang-rusty = ["werbolg-lang-rusty"]
 
-#[profile.release]
-#panic = 'abort'
-
 [dependencies]
 hashbrown = "0.14"
-
 werbolg-core = { path = "../werbolg-core" }
 werbolg-exec = { path = "../werbolg-exec" }
 werbolg-compile = { path = "../werbolg-compile" }
