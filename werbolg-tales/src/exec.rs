@@ -67,7 +67,6 @@ impl WAllocator for DummyAlloc {
 
 pub fn run_exec<'m, 'e>(
     params: &TalesParams,
-    //env: Environment<NIF<'m, 'e, DummyAlloc, environ::MyLiteral, (), Value>, Value>,
     ee: &'e ExecutionEnviron<'m, 'e, DummyAlloc, environ::MyLiteral, (), Value>,
     exec_module: &'m werbolg_compile::CompilationUnit<environ::MyLiteral>,
 ) -> Result<(), Box<dyn Error>> {
