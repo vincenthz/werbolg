@@ -12,11 +12,17 @@ use params::{Frontend, TalesParams};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Flag {
+    Help,
+    Version,
     DumpIr,
     DumpInstr,
     ExecStepTrace,
     StepAddress(u64),
     Frontend(Frontend),
+}
+
+fn version() {
+    println!("v0.0.1")
 }
 
 fn help() {
@@ -25,6 +31,8 @@ fn help() {
 usage: werbolg-tales [options] <file>
 
 Options:
+  --help              Print this help
+  --version           Print the version of werbolg-tales
   --dump-ir           Dump the IR on stdout
   --dump-instr        Dump the Code Instructions on stdout
   --exec-step-trace   Trace every step of execution
@@ -38,6 +46,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let options = args::ArgOptions {
         short: &[],
         long: &[
+            ("help", args::FlagDescr::NoArg(Box::new(|| Flag::Help))),
+            (
+                "version",
+                args::FlagDescr::NoArg(Box::new(|| Flag::Version)),
+            ),
             ("dump-ir", args::FlagDescr::NoArg(Box::new(|| Flag::DumpIr))),
             (
                 "dump-instr",
@@ -72,6 +85,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         ],
     };
     let (flags, args) = args::args(options)?;
+
+    let help_req = flags.contains(&Flag::Help);
+    let ver_req = flags.contains(&Flag::Version);
+
+    if help_req {
+        help();
+        return Ok(());
+    }
+    if ver_req {
+        version();
+        return Ok(());
+    }
 
     let dump_ir = flags.contains(&Flag::DumpIr);
     let dump_instr = flags.contains(&Flag::DumpInstr);
