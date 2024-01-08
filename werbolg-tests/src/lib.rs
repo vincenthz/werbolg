@@ -14,14 +14,19 @@ use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, WAllocator, NIF,
 };
 
-fn nif_bool_eq(args: &[Value]) -> Result<Value, ExecutionError> {
+pub struct DummyAlloc;
+impl WAllocator for DummyAlloc {
+    type Value = Value;
+}
+
+fn nif_bool_eq(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].bool()?;
     let n2 = args[1].bool()?;
     let ret = n1 == n2;
     Ok(Value::Bool(ret))
 }
 
-fn nif_expect_bool_eq(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_expect_bool_eq(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].bool()?;
     let n2 = args[1].bool()?;
     assert_eq!(n1, n2);
@@ -29,14 +34,14 @@ fn nif_expect_bool_eq(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(Value::Bool(ret))
 }
 
-fn nif_int_eq(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_int_eq(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
     let ret = n1 == n2;
     Ok(Value::Bool(ret))
 }
 
-fn nif_expect_int_eq(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_expect_int_eq(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
     assert_eq!(n1, n2);
@@ -85,10 +90,6 @@ pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
             let path = AbsPath::new(&Namespace::root(), &Ident::from($i));
             $env.add_nif(&path, nif);
         };
-    }
-    pub struct DummyAlloc;
-    impl WAllocator for DummyAlloc {
-        type Value = Value;
     }
     let module_ns = Namespace::root().append(Ident::from("main"));
     let modules = vec![(module_ns.clone(), mod1)];

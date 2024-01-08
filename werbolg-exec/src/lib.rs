@@ -67,8 +67,6 @@ pub struct ExecutionMachine<'m, 'e, A, L, T, V> {
     pub sp: StackPointer,
     /// arity current function
     pub current_arity: CallArity,
-    // /// Current stack size
-    // pub current_stack_size: LocalStackSize,
     /// Execution params
     pub params: ExecutionParams<L, V>,
     /// Allocator
@@ -81,7 +79,6 @@ pub struct ExecutionMachine<'m, 'e, A, L, T, V> {
 pub struct CallSave {
     ip: InstructionAddress,
     sp: StackPointer,
-    //local_stack: LocalStackSize,
     arity: CallArity,
 }
 

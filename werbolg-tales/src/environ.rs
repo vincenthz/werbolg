@@ -1,10 +1,9 @@
-use super::value::{self, Value, HASHMAP_KIND};
-use hashbrown::HashMap;
+use super::value::{self, Value};
 use werbolg_compile::{CompilationError, Environment};
 use werbolg_core::{AbsPath, Ident, Literal, Namespace};
-use werbolg_exec::{ExecutionError, NIFCall, Valuable, NIF};
+use werbolg_exec::{ExecutionError, NIFCall, WAllocator, NIF};
 
-fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_plus<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -13,7 +12,7 @@ fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(ret)
 }
 
-fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_sub<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -22,7 +21,7 @@ fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(ret)
 }
 
-fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_mul<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -31,7 +30,7 @@ fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(ret)
 }
 
-fn nif_neg(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_neg<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
 
     let ret = !n1;
@@ -39,7 +38,7 @@ fn nif_neg(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(Value::Integral(ret))
 }
 
-fn nif_eq(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_eq<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -48,40 +47,13 @@ fn nif_eq(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(Value::Bool(ret))
 }
 
-fn nif_le(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_le<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
     let ret = n1 <= n2;
 
     Ok(Value::Bool(ret))
-}
-
-fn nif_hashtable(_args: &[Value]) -> Result<Value, ExecutionError> {
-    let mut h = HashMap::new();
-    h.insert(10, 20);
-    h.insert(20, 40);
-    Ok(Value::HashMap(h))
-}
-
-fn nif_hashtable_get(args: &[Value]) -> Result<Value, ExecutionError> {
-    let Value::HashMap(h) = &args[0] else {
-        return Err(ExecutionError::ValueKindUnexpected {
-            value_expected: HASHMAP_KIND,
-            value_got: args[0].descriptor(),
-        });
-    };
-    let index_bignum = args[1].int()?;
-    let index: u32 = index_bignum
-        .try_into()
-        .map_err(|_| ExecutionError::UserPanic {
-            message: String::from("cannot convert Integral to u32"),
-        })?;
-
-    match h.get(&index) {
-        None => Ok(Value::Unit),
-        Some(value) => Ok(Value::Integral(*value)),
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -136,8 +108,6 @@ pub fn create_env<'m, 'e>(
     add_pure_nif!(env, "==", nif_eq);
     add_pure_nif!(env, "<=", nif_le);
     add_pure_nif!(env, "neg", nif_neg);
-    add_pure_nif!(env, "table_new", nif_hashtable);
-    add_pure_nif!(env, "table_get", nif_hashtable_get);
 
     env
 }

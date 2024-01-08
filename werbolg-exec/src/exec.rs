@@ -79,7 +79,7 @@ pub struct NIF<'m, 'e, A, L, T, V> {
 /// * "Mut" function that have access to the execution machine and have more power / responsability.
 pub enum NIFCall<'m, 'e, A, L, T, V> {
     /// "Pure" NIF call only takes the input parameter and return an output
-    Pure(fn(&[V]) -> Result<V, ExecutionError>),
+    Pure(fn(&A, &[V]) -> Result<V, ExecutionError>),
     /// "Raw" NIF takes the execution machine in parameter and return an output
     Raw(fn(&mut ExecutionMachine<'m, 'e, A, L, T, V>) -> Result<V, ExecutionError>),
 }
@@ -326,7 +326,7 @@ fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
             let res = match &em.environ.nifs[nifid].call {
                 NIFCall::Pure(nif) => {
                     let (_first, args) = em.stack.get_call_and_args(arity);
-                    nif(args)?
+                    nif(&em.allocator, args)?
                 }
                 NIFCall::Raw(nif) => nif(em)?,
             };

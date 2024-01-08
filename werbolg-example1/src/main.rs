@@ -17,7 +17,7 @@ impl WAllocator for DummyAlloc {
     type Value = Value;
 }
 
-fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_plus(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -26,7 +26,7 @@ fn nif_plus(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(ret)
 }
 
-fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_sub(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -35,7 +35,7 @@ fn nif_sub(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(ret)
 }
 
-fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_mul(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -44,7 +44,7 @@ fn nif_mul(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(ret)
 }
 
-fn nif_neg(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_neg(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
 
     let ret = !n1;
@@ -52,7 +52,7 @@ fn nif_neg(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(Value::Integral(ret))
 }
 
-fn nif_eq(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_eq(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -61,7 +61,7 @@ fn nif_eq(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(Value::Bool(ret))
 }
 
-fn nif_le(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_le(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let n1 = args[0].int()?;
     let n2 = args[1].int()?;
 
@@ -70,14 +70,14 @@ fn nif_le(args: &[Value]) -> Result<Value, ExecutionError> {
     Ok(Value::Bool(ret))
 }
 
-fn nif_hashtable(_args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable(_: &DummyAlloc, _args: &[Value]) -> Result<Value, ExecutionError> {
     let mut h = HashMap::new();
     h.insert(10, 20);
     h.insert(20, 40);
     Ok(Value::HashMap(h))
 }
 
-fn nif_hashtable_get(args: &[Value]) -> Result<Value, ExecutionError> {
+fn nif_hashtable_get(_: &DummyAlloc, args: &[Value]) -> Result<Value, ExecutionError> {
     let Value::HashMap(h) = &args[0] else {
         return Err(ExecutionError::ValueKindUnexpected {
             value_expected: HASHMAP_KIND,

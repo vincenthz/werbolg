@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use werbolg_core::{ConstrId, ValueFun};
 use werbolg_exec::{ExecutionError, Valuable, ValueKind};
 
@@ -9,7 +8,6 @@ pub enum Value {
     Unit,
     Bool(bool),
     Integral(ValueInt),
-    HashMap(HashMap<u32, ValueInt>),
     Fun(ValueFun),
 }
 
@@ -18,7 +16,6 @@ impl Value {
         match self {
             Value::Unit => UNIT_KIND,
             Value::Bool(_) => BOOL_KIND,
-            Value::HashMap(_) => HASHMAP_KIND,
             Value::Integral(_) => INT_KIND,
             Value::Fun(_) => FUN_KIND,
         }
@@ -27,7 +24,6 @@ impl Value {
 
 pub const UNIT_KIND: ValueKind = "    unit";
 pub const BOOL_KIND: ValueKind = "    bool";
-pub const HASHMAP_KIND: ValueKind = " hashmap";
 pub const INT_KIND: ValueKind = "     int";
 pub const FUN_KIND: ValueKind = "     fun";
 
