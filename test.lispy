@@ -16,5 +16,5 @@
 )
 
 (define main
-	(table_get (table_new ()) 20)
+	(fact 1 4)
 )
