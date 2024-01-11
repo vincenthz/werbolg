@@ -62,6 +62,9 @@ pub enum ParseError {
         define_span: Span,
         arg_span: Span,
     },
+    DefineExpectingThreeArguments {
+        define_span: Span,
+    },
     StructArgumentNotIdent {
         struct_span: Span,
         arg_span: Span,
@@ -226,6 +229,11 @@ fn parse_lambda(_list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, P
 }
 
 fn parse_define(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
+    if exprs.len() != 3 {
+        return Err(ParseError::DefineExpectingThreeArguments {
+            define_span: list_span,
+        });
+    }
     // (define (name args*) body)
     // (define name body)
     let span_name = exprs[1].span.clone();

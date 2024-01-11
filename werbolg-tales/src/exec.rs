@@ -7,7 +7,7 @@ use hashbrown::HashSet;
 use werbolg_compile::{code_dump, compile, Environment, InstructionAddress};
 use werbolg_core::{id::IdF, AbsPath, Ident, Module, Namespace};
 use werbolg_exec::{ExecutionEnviron, ExecutionMachine, ExecutionParams, WAllocator, NIF};
-use werbolg_lang_common::FileUnit;
+use werbolg_lang_common::{FileUnit, LinesMap, Report, ReportKind};
 
 pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box<dyn Error>> {
     if args.is_empty() {
@@ -17,6 +17,7 @@ pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box
 
     let path = std::path::PathBuf::from(&args[0]);
     let file_unit = get_file(&path)?;
+    let file_map = LinesMap::new(&file_unit.content);
 
     let parsing_res = match params.frontend {
         Frontend::Rusty => werbolg_lang_rusty::module(&file_unit),
@@ -24,7 +25,16 @@ pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box
     };
     let module = match parsing_res {
         Err(e) => {
-            return Err(format!("parse error \"{}\" : {:?}", path.to_string_lossy(), e).into());
+            let report = Report::new(ReportKind::Error, format!("Parse Error: {:?}", e))
+                .lines_before(1)
+                .lines_after(1)
+                .highlight(e.location);
+
+            let mut s = String::new();
+            report.write(&file_unit, &file_map, &mut s)?;
+            println!("{}", s);
+            return Err(format!("parse error").into());
+            //return Err(format!("parse error \"{}\" : {:?}", path.to_string_lossy(), e).into());
         }
         Ok(module) => module,
     };

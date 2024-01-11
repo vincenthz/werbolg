@@ -39,6 +39,10 @@ fn remap_err(e: parse::ParseError) -> ParseError {
             location: span,
             kind: ParseErrorKind::Str(format!("unknown character {}", ch)),
         },
+        parse::ParseError::DefineExpectingThreeArguments { define_span } => ParseError {
+            location: define_span,
+            kind: ParseErrorKind::Str(String::from("define expect 2 arguments")),
+        },
         parse::ParseError::DefineEmptyName {
             define_span,
             args_span: _,
