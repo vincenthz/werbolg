@@ -16,6 +16,10 @@
     (if (== x 0) 1 (fact (* acc x) (- x 1)))
 )
 
+(define x
+    (+ x 100)
+)
+
 (define main
 	(fact 1 4)
 )

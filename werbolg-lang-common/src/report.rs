@@ -6,6 +6,7 @@ use super::span::Span;
 
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::cmp;
 use core::fmt::Write;
 
@@ -13,9 +14,7 @@ const BOXING: [char; 11] = ['╭', '╮', '╯', '╰', '─', '│', '├', '�
 const TL: usize = 0;
 #[allow(unused)]
 const TR: usize = 1;
-#[allow(unused)]
 const BR: usize = 2;
-#[allow(unused)]
 const BL: usize = 3;
 const H: usize = 4;
 const V: usize = 5;
@@ -23,7 +22,6 @@ const V: usize = 5;
 const HR: usize = 6;
 #[allow(unused)]
 const HL: usize = 7;
-#[allow(unused)]
 const TD: usize = 8;
 #[allow(unused)]
 const BU: usize = 9;
@@ -37,6 +35,7 @@ pub struct Report {
     context: Option<Span>,
     context_before: Option<usize>,
     context_after: Option<usize>,
+    notes: Vec<String>,
     highlight: Option<(Span, String)>,
 }
 
@@ -55,6 +54,7 @@ impl Report {
             context: None,
             context_before: None,
             context_after: None,
+            notes: Vec::new(),
             highlight: None,
         }
     }
@@ -81,6 +81,11 @@ impl Report {
 
     pub fn lines_after(mut self, context_after: usize) -> Self {
         self.context_after = Some(context_after);
+        self
+    }
+
+    pub fn note(mut self, s: String) -> Self {
+        self.notes.push(s);
         self
     }
 
@@ -120,23 +125,6 @@ impl Report {
         };
 
         Ok(file_map.lines_iterator(context_start_line, context_end_line))
-        /*
-        let start_slice = file_map.line_start(context_start_line);
-        let end_slice = file_map.line_end(context_end_line);
-
-        let context_text = file_unit.slice(Range {
-            start: start_slice,
-            end: end_slice,
-        });
-
-        Ok(context_text
-            .lines()
-            .enumerate()
-            .map(move |(line_i_rel, str)| {
-                let line_nb = context_start_line + line_i_rel;
-                (line_nb, str)
-            }))
-            */
     }
 
     pub fn write<W: Write>(
@@ -158,22 +146,17 @@ impl Report {
         };
         writeln!(writer, "{}{}: {}", code_format, hd, self.header)?;
 
-        /*
-        std::println!(
-            "context line start {} -> {} line end {} -> {}\n\"{}\"",
-            context_start_line,
-            start_slice,
-            context_end_line,
-            end_slice,
-            context_text,
-        );
-        */
-
         let context_lines = match self.context_lines(file_map) {
             Ok(o) => o,
             Err(None) => return Ok(()),
             Err(Some(_)) => return Ok(()),
         };
+
+        let Some(highlight) = self.highlight else {
+            unreachable!();
+        };
+        let (start_highlight, end_highlight) = file_map.resolve_span(&highlight.0).unwrap();
+        let multiline = !(start_highlight.line() == end_highlight.line());
 
         writeln!(
             writer,
@@ -183,12 +166,6 @@ impl Report {
             BOXING[H],
             file_unit.filename
         )?;
-
-        let Some(highlight) = self.highlight else {
-            unreachable!();
-        };
-        let (start_highlight, end_highlight) = file_map.resolve_span(&highlight.0).unwrap();
-        let multiline = !(start_highlight.line() == end_highlight.line());
 
         for line in context_lines {
             let line_text = file_map.get_line_trim(file_unit, line);
@@ -204,7 +181,6 @@ impl Report {
                     let col_start = start_highlight.col();
                     let col_end = end_highlight.col();
                     let under = col_end - col_start;
-                    //std::println!("{} {} {}", col_start, col_end, under);
 
                     let s = string_repeat(col_start as usize, ' ');
                     writeln!(
@@ -227,6 +203,15 @@ impl Report {
                         highlight.1,
                     )?;
                 }
+            }
+        }
+
+        if !self.notes.is_empty() {
+            writeln!(writer, "{} {}", line_format(None), BOXING[V])?;
+            writeln!(writer, "{} {} {}", line_format(None), BOXING[V], "Notes")?;
+            for note in self.notes.iter() {
+                writeln!(writer, "{} {}", line_format(None), BOXING[V])?;
+                writeln!(writer, "{} {}   {}", line_format(None), BOXING[V], note)?;
             }
         }
 

@@ -1,6 +1,6 @@
 use super::value::{self, Value};
 use werbolg_compile::{CompilationError, Environment};
-use werbolg_core::{AbsPath, Ident, Literal, Namespace};
+use werbolg_core::{AbsPath, Ident, Literal, Namespace, Span};
 use werbolg_exec::{ExecutionError, NIFCall, WAllocator, NIF};
 
 fn nif_plus<A: WAllocator>(_: &A, args: &[Value]) -> Result<Value, ExecutionError> {
@@ -70,7 +70,7 @@ pub fn literal_to_value(lit: &MyLiteral) -> Value {
 }
 
 // only support bool and number from the werbolg core literal
-pub fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
+pub fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, CompilationError> {
     match lit {
         Literal::Bool(b) => {
             let b = b.as_ref() == "true";
@@ -82,9 +82,9 @@ pub fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
             };
             Ok(MyLiteral::Int(v))
         }
-        Literal::String(_) => Err(CompilationError::LiteralNotSupported(lit)),
-        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(lit)),
-        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(lit)),
+        Literal::String(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
+        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
+        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
     }
 }
 

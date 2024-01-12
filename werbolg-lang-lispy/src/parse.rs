@@ -62,8 +62,9 @@ pub enum ParseError {
         define_span: Span,
         arg_span: Span,
     },
-    DefineExpectingThreeArguments {
+    DefineArityFailed {
         define_span: Span,
+        nb_args: usize,
     },
     StructArgumentNotIdent {
         struct_span: Span,
@@ -230,8 +231,9 @@ fn parse_lambda(_list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, P
 
 fn parse_define(list_span: Span, mut exprs: Vec<Spanned<Ast>>) -> Result<Ast, ParseError> {
     if exprs.len() != 3 {
-        return Err(ParseError::DefineExpectingThreeArguments {
+        return Err(ParseError::DefineArityFailed {
             define_span: list_span,
+            nb_args: exprs.len(),
         });
     }
     // (define (name args*) body)

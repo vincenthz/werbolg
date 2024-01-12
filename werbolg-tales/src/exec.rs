@@ -9,7 +9,15 @@ use werbolg_core::{id::IdF, AbsPath, Ident, Module, Namespace};
 use werbolg_exec::{ExecutionEnviron, ExecutionMachine, ExecutionParams, WAllocator, NIF};
 use werbolg_lang_common::{FileUnit, LinesMap, Report, ReportKind};
 
-pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box<dyn Error>> {
+pub struct Source {
+    file_unit: FileUnit,
+    file_map: LinesMap,
+}
+
+pub fn run_frontend(
+    params: &TalesParams,
+    args: &[String],
+) -> Result<(Source, Module), Box<dyn Error>> {
     if args.is_empty() {
         crate::help();
         return Err(format!("no file specified").into());
@@ -18,10 +26,14 @@ pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box
     let path = std::path::PathBuf::from(&args[0]);
     let file_unit = get_file(&path)?;
     let file_map = LinesMap::new(&file_unit.content);
+    let source = Source {
+        file_unit,
+        file_map,
+    };
 
     let parsing_res = match params.frontend {
-        Frontend::Rusty => werbolg_lang_rusty::module(&file_unit),
-        Frontend::Lispy => werbolg_lang_lispy::module(&file_unit),
+        Frontend::Rusty => werbolg_lang_rusty::module(&source.file_unit),
+        Frontend::Lispy => werbolg_lang_lispy::module(&source.file_unit),
     };
     let module = match parsing_res {
         Err(e) => {
@@ -30,9 +42,7 @@ pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box
                 .lines_after(1)
                 .highlight(e.location, format!("parse error here"));
 
-            let mut s = String::new();
-            report.write(&file_unit, &file_map, &mut s)?;
-            println!("{}", s);
+            report_print(&source, report)?;
             return Err(format!("parse error").into());
             //return Err(format!("parse error \"{}\" : {:?}", path.to_string_lossy(), e).into());
         }
@@ -42,12 +52,20 @@ pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box
     if params.dump_ir {
         std::println!("{:#?}", module);
     }
-    Ok(module)
+    Ok((source, module))
+}
+
+pub fn report_print(source: &Source, report: Report) -> Result<(), Box<dyn Error>> {
+    let mut s = String::new();
+    report.write(&source.file_unit, &source.file_map, &mut s)?;
+    println!("{}", s);
+    Ok(())
 }
 
 pub fn run_compile<'m, 'e, A>(
     params: &TalesParams,
     env: &mut Environment<NIF<'m, 'e, A, environ::MyLiteral, (), Value>, Value>,
+    source: Source,
     module: Module,
 ) -> Result<werbolg_compile::CompilationUnit<environ::MyLiteral>, Box<dyn Error>> {
     let module_ns = Namespace::root().append(Ident::from("main"));
@@ -57,8 +75,17 @@ pub fn run_compile<'m, 'e, A>(
         literal_mapper: environ::literal_mapper,
     };
 
-    let exec_module = compile(&compilation_params, modules, env)
-        .map_err(|e| format!("compilation error {:?}", e))?;
+    let exec_module = match compile(&compilation_params, modules, env) {
+        Err(e) => {
+            let report = Report::new(ReportKind::Error, format!("Compilation Error: {:?}", e))
+                .lines_before(1)
+                .lines_after(1)
+                .highlight(e.span(), format!("compilation error here"));
+            report_print(&source, report)?;
+            return Err(format!("compilation error {:?}", e).into());
+        }
+        Ok(m) => m,
+    };
 
     if params.dump_instr {
         let mut out = String::new();

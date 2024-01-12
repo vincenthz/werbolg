@@ -28,62 +28,105 @@ pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
 fn remap_err(e: parse::ParseError) -> ParseError {
     match e {
         parse::ParseError::NotStartedList(span) => ParseError {
+            context: None,
             location: span,
+            description: format!("Terminating an un-existing list"),
+            note: Some(format!("try inserting a matching '(' before")),
             kind: ParseErrorKind::Str(String::from("list not start")),
         },
         parse::ParseError::UnterminatedList(span) => ParseError {
+            context: None,
             location: span,
+            description: format!("Unterminated list"),
+            note: Some(format!("try inserting a matching ')'")),
             kind: ParseErrorKind::Str(String::from("unterminated list")),
         },
         parse::ParseError::LexingError(span, ch) => ParseError {
+            context: None,
             location: span,
+            description: format!("Unknown character '{}'", ch),
+            note: None,
             kind: ParseErrorKind::Str(format!("unknown character {}", ch)),
         },
-        parse::ParseError::DefineExpectingThreeArguments { define_span } => ParseError {
+        parse::ParseError::DefineArityFailed {
+            define_span,
+            nb_args,
+        } => ParseError {
+            context: None,
             location: define_span,
-            kind: ParseErrorKind::Str(String::from("define expect 2 arguments")),
+            description: format!("Wrong number of argument for define"),
+            note: Some(format!(
+                "define takes 2 arguments: define (name param1) (expression)"
+            )),
+            kind: ParseErrorKind::Str(format!("define expect 2 arguments but got {}", nb_args)),
         },
         parse::ParseError::DefineEmptyName {
             define_span,
             args_span: _,
         } => ParseError {
+            context: None,
             location: define_span,
+            description: format!("define has empty binding name"),
+            note: Some(format!(
+                "give a name to the define, `define name` or `define (name args..)`"
+            )),
             kind: ParseErrorKind::Str(String::from("define with empty name")),
         },
         parse::ParseError::IfArityFailed { if_span, nb_args } => ParseError {
+            context: None,
             location: if_span,
+            description: format!(
+                "if parameter doesn't have the right number of arguments, expecting 3 but {} given",
+                nb_args
+            ),
+            note: Some(format!("expecting to use `if (cond) (then) (else)`")),
             kind: ParseErrorKind::Str(format!("if required 3 parameters, but {} given", nb_args)),
         },
         parse::ParseError::DefineArgumentNotIdent {
             define_span,
             arg_span: _,
         } => ParseError {
+            context: None,
             location: define_span,
+            description: format!("define parameters arguments need to be variable name"),
+            note: Some(format!("argument name should be valid variable name")),
             kind: ParseErrorKind::Str(String::from("define argument not ident")),
         },
         parse::ParseError::DefineArgumentNotList {
             define_span,
             args_span: _,
         } => ParseError {
+            context: None,
             location: define_span,
+            description: format!("define first argument is not a list"),
+            note: None,
             kind: ParseErrorKind::Str(String::from("define argument not a list")),
         },
         parse::ParseError::AtomListNotList { arg_span } => ParseError {
+            context: None,
             location: arg_span,
+            description: format!("Expecting atom list but not list"),
+            note: None,
             kind: ParseErrorKind::Str(String::from("atom list is not a list")),
         },
         parse::ParseError::ArgumentNotAtom {
             args_span,
             arg_invalid_span: _,
         } => ParseError {
+            context: None,
             location: args_span,
+            description: format!("Argument list of atoms, contains non atom"),
+            note: None,
             kind: ParseErrorKind::Str(String::from("argument not an atom in list")),
         },
         parse::ParseError::StructArgumentNotIdent {
             struct_span,
             arg_span: _,
         } => ParseError {
+            context: None,
             location: struct_span,
+            description: format!("Struct argument name is not a valid identifier"),
+            note: None,
             kind: ParseErrorKind::Str(String::from("struct argument not ident")),
         },
     }
@@ -97,7 +140,10 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
 
     let Some(last) = exprs.next() else {
         return Err(ParseError {
+            context: None,
             location: Span { start: 0, end: 0 },
+            description: format!(""),
+            note: None,
             kind: ParseErrorKind::Str(format!("no expression found")),
         });
     };
@@ -135,7 +181,10 @@ fn exprs_into_let(exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
             }
             x => {
                 return Err(ParseError {
+                    context: None,
                     location: e.span,
+                    description: format!(""),
+                    note: None,
                     kind: ParseErrorKind::Str(format!(
                         "trying to have a non function in let: {:?}",
                         x
@@ -220,11 +269,17 @@ fn expr(ast: Spanned<Ast>) -> Result<ir::Expr, ParseError> {
             else_expr: Box::new(spanned_expr(else_expr.as_ref().clone())?),
         }),
         Ast::Define(_, _, _) => Err(ParseError {
-            location: Span { start: 0, end: 0 },
+            context: None,
+            location: ast.span,
+            description: format!(""),
+            note: None,
             kind: ParseErrorKind::Str(format!("cannot have define in expression")),
         }),
         Ast::Struct(_, _) => Err(ParseError {
-            location: Span { start: 0, end: 0 },
+            context: None,
+            location: ast.span,
+            description: format!(""),
+            note: None,
             kind: ParseErrorKind::Str(format!("cannot have struct in expression")),
         }),
     }

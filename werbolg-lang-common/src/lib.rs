@@ -17,14 +17,20 @@ pub use report::{Report, ReportKind};
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
+    pub context: Option<ir::Span>,
     pub location: ir::Span,
+    pub description: String,
+    pub note: Option<String>,
     pub kind: ParseErrorKind,
 }
 
 impl ParseError {
     pub fn scope(self, scope: &str) -> ParseError {
         ParseError {
+            context: self.context,
             location: self.location,
+            description: self.description,
+            note: self.note,
             kind: match self.kind {
                 ParseErrorKind::Str(s) => ParseErrorKind::Str(format!("{}{}", scope, s)),
                 ParseErrorKind::Unknown => ParseErrorKind::Str(format!("{} Unknown", scope)),

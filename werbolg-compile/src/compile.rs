@@ -142,18 +142,14 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     let mut local = LocalBindings::new();
     local.scope_enter();
 
-    let arity = vars
-        .len()
-        .try_into()
-        .map(|n| CallArity(n))
-        .map_err(|_| CompilationError::FunctionParamsMoreThanLimit(vars.len()))?;
-
     for (var_i, var) in vars.iter().enumerate() {
-        let var_i = var_i
-            .try_into()
-            .map_err(|_| CompilationError::FunctionParamsMoreThanLimit(vars.len()))?;
+        let var_i = var_i.try_into().map_err(|_| {
+            CompilationError::FunctionParamsMoreThanLimit(var.0.span.clone(), vars.len())
+        })?;
         local.add_param(var.0.clone().unspan(), var_i);
     }
+
+    let arity = vars.len().try_into().map(|n| CallArity(n)).unwrap();
 
     let code_pos = state.get_instruction_address();
     let tc = generate_expression_code(state, &mut local, FunPos::Root, body.clone())?;
@@ -196,8 +192,8 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
     expr: ir::Expr,
 ) -> Result<bool, CompilationError> {
     match expr {
-        ir::Expr::Literal(_span, lit) => {
-            let lit_id = state.lits.add((state.params.literal_mapper)(lit)?);
+        ir::Expr::Literal(span, lit) => {
+            let lit_id = state.lits.add((state.params.literal_mapper)(span, lit)?);
             state.write_code().push(Instruction::PushLiteral(lit_id));
             Ok(false)
         }
@@ -278,10 +274,6 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             Ok(false)
         }
         ir::Expr::Lambda(_span, funimpl) => {
-            //let prev = state.set_in_lambda();
-            //generate_func_code(state, None, *funimpl)?;
-            //state.restore_codestate(prev);
-
             let lambda_fetch = state.write_code().push_temp();
 
             state.lambda_setaside(lambda_fetch, *funimpl);

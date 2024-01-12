@@ -9,7 +9,7 @@ use alloc::vec;
 use value::Value;
 use werbolg_compile::{compile as comp, CompilationError, Environment};
 use werbolg_core::Literal;
-use werbolg_core::{AbsPath, Ident, Namespace};
+use werbolg_core::{AbsPath, Ident, Namespace, Span};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, WAllocator, NIF,
 };
@@ -62,7 +62,7 @@ fn literal_to_value(lit: &MyLiteral) -> Value {
     }
 }
 
-fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
+fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, CompilationError> {
     match lit {
         Literal::Bool(b) => {
             let b = b.as_ref() == "true";
@@ -74,9 +74,9 @@ fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
             };
             Ok(MyLiteral::Int(v))
         }
-        Literal::String(_) => Err(CompilationError::LiteralNotSupported(lit)),
-        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(lit)),
-        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(lit)),
+        Literal::String(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
+        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
+        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
     }
 }
 

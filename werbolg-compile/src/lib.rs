@@ -87,16 +87,16 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                 ir::Statement::Use(u) => {
                     uses.push(u);
                 }
-                ir::Statement::Function(_span, fundef, funimpl) => {
+                ir::Statement::Function(span, fundef, funimpl) => {
                     let ident = fundef.name.clone();
                     let path = AbsPath::new(namespace, &ident);
                     let _funid = self
                         .funs
                         .add(&path, (namespace.clone(), fundef, funimpl))
-                        .ok_or_else(|| CompilationError::DuplicateSymbol(ident))?;
+                        .ok_or_else(|| CompilationError::DuplicateSymbol(span, ident))?;
                     ()
                 }
-                ir::Statement::Struct(_span, structdef) => {
+                ir::Statement::Struct(span, structdef) => {
                     let stru = StructDef {
                         name: structdef.name.unspan(),
                         fields: structdef.fields.into_iter().map(|v| v.unspan()).collect(),
@@ -105,7 +105,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
                     let path = AbsPath::new(namespace, &name);
                     self.constrs
                         .add(&path, ConstrDef::Struct(stru))
-                        .ok_or_else(|| CompilationError::DuplicateSymbol(name))?;
+                        .ok_or_else(|| CompilationError::DuplicateSymbol(span, name))?;
                 }
                 ir::Statement::Expr(_) => (),
             }

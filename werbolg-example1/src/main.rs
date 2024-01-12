@@ -4,7 +4,7 @@ mod value;
 use hashbrown::{HashMap, HashSet};
 use value::{Value, HASHMAP_KIND};
 use werbolg_compile::{code_dump, compile, CompilationError, Environment, InstructionAddress};
-use werbolg_core::{id::IdF, AbsPath, Ident, Literal, Namespace};
+use werbolg_core::{id::IdF, AbsPath, Ident, Literal, Namespace, Span};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
     WAllocator, NIF,
@@ -111,7 +111,7 @@ fn literal_to_value(lit: &MyLiteral) -> Value {
 }
 
 // only support bool and number from the werbolg core literal
-fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
+fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, CompilationError> {
     match lit {
         Literal::Bool(b) => {
             let b = b.as_ref() == "true";
@@ -123,9 +123,9 @@ fn literal_mapper(lit: Literal) -> Result<MyLiteral, CompilationError> {
             };
             Ok(MyLiteral::Int(v))
         }
-        Literal::String(_) => Err(CompilationError::LiteralNotSupported(lit)),
-        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(lit)),
-        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(lit)),
+        Literal::String(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
+        Literal::Decimal(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
+        Literal::Bytes(_) => Err(CompilationError::LiteralNotSupported(span, lit)),
     }
 }
 
