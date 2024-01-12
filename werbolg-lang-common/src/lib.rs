@@ -11,7 +11,7 @@ mod span;
 use alloc::{format, string::String, vec::Vec};
 use werbolg_core as ir;
 
-pub use filemap::LinesMap;
+pub use filemap::{Line, LineCol, LinesMap};
 pub use fileunit::FileUnit;
 pub use report::{Report, ReportKind};
 
@@ -49,8 +49,6 @@ pub fn hex_decode(s: &str) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::filemap::LineCol;
-
     use super::*;
 
     #[test]
@@ -60,15 +58,39 @@ mod tests {
 
     #[test]
     fn linesmap() {
+        let source = "aaa";
+        let linemap = LinesMap::new(source);
+        assert_eq!(linemap.resolve(0), Some(LineCol::new(Line(0), 0)));
+        assert_eq!(linemap.resolve(1), Some(LineCol::new(Line(0), 1)));
+        assert_eq!(linemap.resolve(2), Some(LineCol::new(Line(0), 2)));
+        assert_eq!(linemap.resolve(3), None);
+
+        let source = "aaa\n";
+        let linemap = LinesMap::new(source);
+        assert_eq!(linemap.resolve(0), Some(LineCol::new(Line(0), 0)));
+        assert_eq!(linemap.resolve(1), Some(LineCol::new(Line(0), 1)));
+        assert_eq!(linemap.resolve(2), Some(LineCol::new(Line(0), 2)));
+        assert_eq!(linemap.resolve(3), Some(LineCol::new(Line(0), 3)));
+        assert_eq!(linemap.resolve(4), None);
+
+        let source = "aaa\nb";
+        let linemap = LinesMap::new(source);
+        assert_eq!(linemap.resolve(0), Some(LineCol::new(Line(0), 0)));
+        assert_eq!(linemap.resolve(1), Some(LineCol::new(Line(0), 1)));
+        assert_eq!(linemap.resolve(2), Some(LineCol::new(Line(0), 2)));
+        assert_eq!(linemap.resolve(3), Some(LineCol::new(Line(0), 3)));
+        assert_eq!(linemap.resolve(4), Some(LineCol::new(Line(1), 0)));
+        assert_eq!(linemap.resolve(5), None);
+
         let source = "this\nis\ntest\n";
         let linemap = LinesMap::new(source);
-        assert_eq!(linemap.resolve(0), Some(LineCol::new(1, 0)));
-        assert_eq!(linemap.resolve(4), Some(LineCol::new(1, 4)));
-        assert_eq!(linemap.resolve(5), Some(LineCol::new(2, 0)));
-        assert_eq!(linemap.resolve(6), Some(LineCol::new(2, 1)));
-        assert_eq!(linemap.resolve(7), Some(LineCol::new(2, 2)));
-        assert_eq!(linemap.resolve(8), Some(LineCol::new(3, 0)));
-        assert_eq!(linemap.resolve(13), Some(LineCol::new(4, 0)));
-        assert_eq!(linemap.resolve(14), None);
+        assert_eq!(linemap.resolve(0), Some(LineCol::new(Line(0), 0)));
+        assert_eq!(linemap.resolve(4), Some(LineCol::new(Line(0), 4)));
+        assert_eq!(linemap.resolve(5), Some(LineCol::new(Line(1), 0)));
+        assert_eq!(linemap.resolve(6), Some(LineCol::new(Line(1), 1)));
+        assert_eq!(linemap.resolve(7), Some(LineCol::new(Line(1), 2)));
+        assert_eq!(linemap.resolve(8), Some(LineCol::new(Line(2), 0)));
+        assert_eq!(linemap.resolve(12), Some(LineCol::new(Line(2), 4)));
+        assert_eq!(linemap.resolve(13), None);
     }
 }

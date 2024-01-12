@@ -28,7 +28,7 @@ pub fn run_frontend(params: &TalesParams, args: &[String]) -> Result<Module, Box
             let report = Report::new(ReportKind::Error, format!("Parse Error: {:?}", e))
                 .lines_before(1)
                 .lines_after(1)
-                .highlight(e.location);
+                .highlight(e.location, format!("parse error here"));
 
             let mut s = String::new();
             report.write(&file_unit, &file_map, &mut s)?;

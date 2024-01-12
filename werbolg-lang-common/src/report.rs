@@ -1,11 +1,13 @@
+use crate::filemap::Line;
+
 use super::filemap::LinesMap;
 use super::fileunit::FileUnit;
 use super::span::Span;
 
 use alloc::format;
 use alloc::string::String;
+use core::cmp;
 use core::fmt::Write;
-use core::ops::Range;
 
 const BOXING: [char; 11] = ['╭', '╮', '╯', '╰', '─', '│', '├', '┤', '┬', '┴', '┼'];
 const TL: usize = 0;
@@ -35,7 +37,7 @@ pub struct Report {
     context: Option<Span>,
     context_before: Option<usize>,
     context_after: Option<usize>,
-    highlight: Option<Span>,
+    highlight: Option<(Span, String)>,
 }
 
 pub enum ReportKind {
@@ -67,8 +69,8 @@ impl Report {
         self
     }
 
-    pub fn highlight(mut self, highlight: Span) -> Self {
-        self.highlight = Some(highlight);
+    pub fn highlight(mut self, highlight: Span, message: String) -> Self {
+        self.highlight = Some((highlight, message));
         self
     }
 
@@ -82,6 +84,61 @@ impl Report {
         self
     }
 
+    fn context_lines<'a>(
+        &self,
+        file_map: &LinesMap,
+    ) -> Result<impl Iterator<Item = Line>, Option<String>> {
+        let Some(highlight) = &self.highlight else {
+            return Err(None);
+        };
+        let Some((highlight_start, highlight_end)) = file_map.resolve_span(&highlight.0) else {
+            return Err(Some(format!("cannot resolve highlight span")));
+        };
+
+        let (_context, context_start_line, context_end_line) = if let Some(context) = &self.context
+        {
+            let Some((context_start, context_end)) = file_map.resolve_span(&context) else {
+                //writeln!(writer, "internal error resolving span {:?}", context)?;
+                return Err(None);
+            };
+            (context, context_start.line(), context_end.line())
+        } else {
+            let context_start = if let Some(before) = self.context_before {
+                highlight_start.line() - before
+            } else {
+                highlight_start.line()
+            };
+
+            let context_end = if let Some(after) = self.context_after {
+                let r = highlight_end.line() + after;
+                cmp::min(r, file_map.last_line())
+            } else {
+                highlight_end.line()
+            };
+
+            (&highlight.0, context_start, context_end)
+        };
+
+        Ok(file_map.lines_iterator(context_start_line, context_end_line))
+        /*
+        let start_slice = file_map.line_start(context_start_line);
+        let end_slice = file_map.line_end(context_end_line);
+
+        let context_text = file_unit.slice(Range {
+            start: start_slice,
+            end: end_slice,
+        });
+
+        Ok(context_text
+            .lines()
+            .enumerate()
+            .map(move |(line_i_rel, str)| {
+                let line_nb = context_start_line + line_i_rel;
+                (line_nb, str)
+            }))
+            */
+    }
+
     pub fn write<W: Write>(
         self,
         file_unit: &FileUnit,
@@ -89,7 +146,7 @@ impl Report {
         writer: &mut W,
     ) -> Result<(), core::fmt::Error> {
         // write the first line
-        let code_format = if let Some(code) = self.code {
+        let code_format = if let Some(code) = &self.code {
             format!("[{}] ", code)
         } else {
             String::new()
@@ -101,51 +158,6 @@ impl Report {
         };
         writeln!(writer, "{}{}: {}", code_format, hd, self.header)?;
 
-        let Some(highlight) = self.highlight else {
-            return Ok(());
-        };
-        let Some((highlight_start, highlight_end)) = file_map.resolve_span(&highlight) else {
-            writeln!(writer, "internal error resolving span {:?}", highlight)?;
-            return Ok(());
-        };
-
-        let (_context, context_start_line, context_end_line) = if let Some(context) = self.context {
-            let Some((context_start, context_end)) = file_map.resolve_span(&context) else {
-                writeln!(writer, "internal error resolving span {:?}", context)?;
-                return Ok(());
-            };
-            (context, context_start.line(), context_end.line())
-        } else {
-            let context_start = if let Some(before) = self.context_before {
-                if highlight_start.line() - 1 < before as u32 {
-                    1
-                } else {
-                    highlight_start.line() - before as u32
-                }
-            } else {
-                highlight_start.line()
-            };
-
-            let context_end = if let Some(after) = self.context_after {
-                if highlight_end.line() + (after as u32) > file_map.last_line() {
-                    file_map.last_line()
-                } else {
-                    highlight_end.line() + (after as u32)
-                }
-            } else {
-                highlight_end.line()
-            };
-
-            (highlight, context_start, context_end)
-        };
-
-        let start_slice = file_map.line_start(context_start_line);
-        let end_slice = file_map.line_end(context_end_line);
-
-        let context_text = file_unit.slice(Range {
-            start: start_slice,
-            end: end_slice,
-        });
         /*
         std::println!(
             "context line start {} -> {} line end {} -> {}\n\"{}\"",
@@ -157,22 +169,135 @@ impl Report {
         );
         */
 
+        let context_lines = match self.context_lines(file_map) {
+            Ok(o) => o,
+            Err(None) => return Ok(()),
+            Err(Some(_)) => return Ok(()),
+        };
+
         writeln!(
             writer,
-            "     {}{}[{}]",
-            BOXING[TL], BOXING[H], file_unit.filename
+            "{} {}{}[{}]",
+            line_format(None),
+            BOXING[TL],
+            BOXING[H],
+            file_unit.filename
         )?;
-        for (line_i_rel, line) in context_text.lines().enumerate() {
-            let line_nb = context_start_line + line_i_rel as u32;
-            writeln!(writer, "{:4} {} {}", line_nb, BOXING[V], line)?;
+
+        let Some(highlight) = self.highlight else {
+            unreachable!();
+        };
+        let (start_highlight, end_highlight) = file_map.resolve_span(&highlight.0).unwrap();
+        let multiline = !(start_highlight.line() == end_highlight.line());
+
+        for line in context_lines {
+            let line_text = file_map.get_line_trim(file_unit, line);
+            writeln!(
+                writer,
+                "{} {} {}",
+                line_format(Some(line)),
+                BOXING[V],
+                line_text
+            )?;
+            if !multiline {
+                if start_highlight.line() == line {
+                    let col_start = start_highlight.col();
+                    let col_end = end_highlight.col();
+                    let under = col_end - col_start;
+                    //std::println!("{} {} {}", col_start, col_end, under);
+
+                    let s = string_repeat(col_start as usize, ' ');
+                    writeln!(
+                        writer,
+                        "{} {} {}{}{}",
+                        line_format(None),
+                        BOXING[V],
+                        &s,
+                        underline(under as usize),
+                        string_repeat(col_end as usize, ' '),
+                    )?;
+                    writeln!(
+                        writer,
+                        "{} {} {}{}{} {}",
+                        line_format(None),
+                        BOXING[V],
+                        &s,
+                        underline2(under as usize),
+                        string_repeat(2, BOXING[H]),
+                        highlight.1,
+                    )?;
+                }
+            }
         }
 
         writeln!(
             writer,
-            "{}{}{}{}{}{}",
-            BOXING[H], BOXING[H], BOXING[H], BOXING[H], BOXING[H], BOXING[BR],
+            "{}{}{}",
+            string_repeat(LINE_SZ, BOXING[H]),
+            BOXING[H],
+            BOXING[BR],
         )?;
 
         Ok(())
     }
+}
+
+const LINE_SZ: usize = 4;
+
+fn line_format(r: Option<Line>) -> String {
+    pad_left(LINE_SZ, r.map(|x| x.0 + 1))
+}
+
+fn pad_left(sz: usize, r: Option<u32>) -> String {
+    let mut out = String::new();
+
+    let x = match r {
+        None => String::new(),
+        Some(r) => format!("{}", r),
+    };
+    let pad_chars = if x.len() < sz { sz - x.len() } else { 0 };
+
+    for _ in 0..pad_chars {
+        out.push(' ');
+    }
+    out.push_str(&x);
+    out
+}
+
+fn string_repeat(sz: usize, c: char) -> String {
+    let mut out = String::new();
+    for _ in 0..sz {
+        out.push(c);
+    }
+    out
+}
+
+fn underline(sz: usize) -> String {
+    assert!(sz > 0);
+
+    let mut out = String::new();
+    let middle = sz / 2;
+    for i in 0..sz {
+        if i == middle {
+            out.push(BOXING[TD]);
+        } else {
+            out.push(BOXING[H]);
+        }
+    }
+    out
+}
+
+fn underline2(sz: usize) -> String {
+    assert!(sz > 0);
+
+    let mut out = String::new();
+    let middle = sz / 2;
+    for i in 0..=middle {
+        if i == middle {
+            out.push(BOXING[BL]);
+        } else {
+            out.push(' ');
+        }
+    }
+    out
 }
