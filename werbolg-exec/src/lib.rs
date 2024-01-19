@@ -130,7 +130,7 @@ impl<V: Valuable> ValueStack<V> {
         self.values.extend_from_slice(args);
     }
 
-    /// Pop a call from the stack
+    /// Pop a call from the stack without a function associated
     pub fn pop_call_nofun(&mut self, arity: CallArity) {
         for _ in 0..(arity.0 as usize) + 1 {
             self.values.pop();
