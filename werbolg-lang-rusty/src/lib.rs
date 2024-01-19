@@ -47,7 +47,7 @@ fn rewrite_expr(span_expr: &(parse::Expr, parse::Span)) -> ir::Expr {
     match &span_expr.0 {
         parse::Expr::Error => todo!(),
         parse::Expr::Literal(lit) => ir::Expr::Literal(span_expr.1.clone(), lit.clone()),
-        parse::Expr::List(list) => ir::Expr::List(
+        parse::Expr::List(list) => ir::Expr::Sequence(
             span_expr.1.clone(),
             list.iter().map(|se| rewrite_expr(se)).collect::<Vec<_>>(),
         ),

@@ -160,8 +160,8 @@ pub enum Expr {
     /// either by disambiguating at the frontend level by adding explicit struct name
     /// or by other methods
     Field(Box<Expr>, Spanned<Path>, Spanned<Ident>),
-    /// A List expression
-    List(Span, Vec<Expr>),
+    /// A Sequence of expressions
+    Sequence(Span, Vec<Expr>),
     /// A Let binding of the form `let $binder = $expr in $expr`
     Let(Binder, Box<Expr>, Box<Expr>),
     /// An anonymous function definition expression, e.g. `|a| ...` or `\x -> ...`

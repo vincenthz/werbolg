@@ -63,7 +63,7 @@ use super::allocator::WAllocator;
 use super::{ExecutionError, ExecutionMachine};
 use werbolg_compile::{CallArity, Instruction, InstructionAddress, LocalStackSize, TailCall};
 use werbolg_core as ir;
-use werbolg_core::ValueFun;
+use werbolg_core::{NifId, ValueFun};
 
 /// Native Implemented Function
 pub struct NIF<'m, 'e, A, L, T, V> {
@@ -224,6 +224,12 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
             let _ = em.stack.pop_value();
             em.ip_next();
         }
+        Instruction::CallNif(nif, arity) => {
+            let nif_value = process_nif_call(em, *nif, *arity)?;
+            em.stack.pop_call_nofun(*arity);
+            em.stack.push_value(nif_value);
+            em.ip_next()
+        }
         Instruction::Call(tc, arity) => {
             let val = process_call(em, *arity)?;
             match val {
@@ -323,13 +329,7 @@ fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
 
     match fun {
         ValueFun::Native(nifid) => {
-            let res = match &em.environ.nifs[nifid].call {
-                NIFCall::Pure(nif) => {
-                    let (_first, args) = em.stack.get_call_and_args(arity);
-                    nif(&em.allocator, args)?
-                }
-                NIFCall::Raw(nif) => nif(em)?,
-            };
+            let res = process_nif_call(em, nifid, arity)?;
             Ok(CallResult::Value(res))
         }
         ValueFun::Fun(funid) => {
@@ -344,4 +344,19 @@ fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
             Ok(CallResult::Jump(call_def.code_pos, call_def.stack_size))
         }
     }
+}
+
+fn process_nif_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+    nifid: NifId,
+    arity: CallArity,
+) -> Result<V, ExecutionError> {
+    let res = match &em.environ.nifs[nifid].call {
+        NIFCall::Pure(nif) => {
+            let args = em.stack.get_call_args(arity);
+            nif(&em.allocator, args)?
+        }
+        NIFCall::Raw(nif) => nif(em)?,
+    };
+    Ok(res)
 }

@@ -218,8 +218,23 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             }
             Ok(false)
         }
-        ir::Expr::List(_span, _l) => {
-            todo!("list ?")
+        ir::Expr::Sequence(span, l) => {
+            let call_arity = l
+                .len()
+                .try_into()
+                .map_err(|sz| CompilationError::CallTooManyArguments(span.clone(), sz))?;
+            for e in l {
+                let _: bool = generate_expression_code(state, local, FunPos::NotRoot, e)?;
+            }
+            match &state.params.sequence_constructor {
+                None => return Err(CompilationError::SequenceNotSupported(span)),
+                Some(nifid) => {
+                    state
+                        .write_code()
+                        .push(Instruction::CallNif(*nifid, call_arity));
+                    Ok(true)
+                }
+            }
         }
         ir::Expr::Let(binder, body, in_expr) => {
             let x = body.clone();
@@ -280,22 +295,25 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
 
             Ok(false)
         }
-        ir::Expr::Call(_span, args) => {
+        ir::Expr::Call(span, args) => {
             assert!(args.len() > 0);
             let len = args.len() - 1;
             for arg in args {
                 let _: bool = generate_expression_code(state, local, FunPos::NotRoot, arg)?;
                 ()
             }
+            let call_arity = len
+                .try_into()
+                .map_err(|sz| CompilationError::CallTooManyArguments(span, sz))?;
             if funpos == FunPos::Root {
                 state
                     .write_code()
-                    .push(Instruction::Call(TailCall::Yes, CallArity(len as u8)));
+                    .push(Instruction::Call(TailCall::Yes, call_arity));
                 Ok(true)
             } else {
                 state
                     .write_code()
-                    .push(Instruction::Call(TailCall::No, CallArity(len as u8)));
+                    .push(Instruction::Call(TailCall::No, call_arity));
                 Ok(false)
             }
         }

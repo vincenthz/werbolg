@@ -26,6 +26,10 @@ pub enum Instruction {
     ///
     /// expecting N+1 value on the value stack
     Call(TailCall, CallArity),
+    /// Call the Nif function on the stack with the N value in arguments.
+    ///
+    /// expecting N value on the value stack, as the NifId is embedded in the instruction
+    CallNif(NifId, CallArity),
     /// Jump by N instructions
     Jump(InstructionDiff),
     /// Jump by N instructions if stack\[top\] is true
@@ -64,3 +68,20 @@ pub struct StructFieldIndex(pub u8);
 /// This is limited (arbitrarily) to a maximum of 255
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CallArity(pub u8);
+
+impl TryFrom<usize> for CallArity {
+    type Error = usize;
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        value.try_into().map(|v| CallArity(v)).map_err(|_| value)
+    }
+}
+
+impl TryFrom<u32> for CallArity {
+    type Error = usize;
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        value
+            .try_into()
+            .map(|v| CallArity(v))
+            .map_err(|_| value as usize)
+    }
+}

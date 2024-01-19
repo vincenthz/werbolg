@@ -293,12 +293,12 @@ fn exprs(span: Span, exprs: Vec<Spanned<Ast>>) -> Result<ir::Expr, ParseError> {
         .collect::<Result<Vec<_>, _>>()?;
 
     if build_list {
-        Ok(ir::Expr::List(span, params))
+        Ok(ir::Expr::Sequence(span, params))
     } else {
         let params = params
             .into_iter()
             .filter(|e| match e {
-                ir::Expr::List(_, e) if e.is_empty() => false,
+                ir::Expr::Sequence(_, e) if e.is_empty() => false,
                 _ => true,
             })
             .collect();

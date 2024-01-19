@@ -98,7 +98,10 @@ pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
     add_pure_nif!(environ, "bool_eq", nif_bool_eq);
     add_pure_nif!(environ, "expect_int", nif_expect_int_eq);
     add_pure_nif!(environ, "int_eq", nif_int_eq);
-    let compilation_params = werbolg_compile::CompilationParams { literal_mapper };
+    let compilation_params = werbolg_compile::CompilationParams {
+        literal_mapper,
+        sequence_constructor: None,
+    };
     let exec_module =
         comp(&compilation_params, modules, &mut environ).expect("no compilation error");
     let ee = ExecutionEnviron::from_compile_environment(environ.finalize());

@@ -207,7 +207,10 @@ fn main() -> Result<(), ()> {
     add_pure_nif!(env, "table_new", nif_hashtable);
     add_pure_nif!(env, "table_get", nif_hashtable_get);
 
-    let compilation_params = werbolg_compile::CompilationParams { literal_mapper };
+    let compilation_params = werbolg_compile::CompilationParams {
+        literal_mapper,
+        sequence_constructor: None,
+    };
     let exec_module =
         compile(&compilation_params, modules, &mut env).expect("no compilation error");
 

@@ -131,6 +131,13 @@ impl<V: Valuable> ValueStack<V> {
     }
 
     /// Pop a call from the stack
+    pub fn pop_call_nofun(&mut self, arity: CallArity) {
+        for _ in 0..(arity.0 as usize) + 1 {
+            self.values.pop();
+        }
+    }
+
+    /// Pop a call from the stack
     pub fn pop_call(&mut self, arity: CallArity) {
         for _ in 0..(arity.0 as usize) + 1 {
             self.values.pop();
@@ -185,6 +192,12 @@ impl<V: Valuable> ValueStack<V> {
             &self.values[top - (arity.0 as usize) - 1],
             &self.values[top - (arity.0 as usize)..top],
         )
+    }
+
+    /// Get the associated arguments with a call
+    pub fn get_call_args(&self, arity: CallArity) -> &[V] {
+        let top = self.values.len();
+        &self.values[top - (arity.0 as usize)..top]
     }
 
     /// Iterate over all values in the stack, starting from the bottom, towards the end

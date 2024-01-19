@@ -16,12 +16,16 @@ pub enum CompilationError {
     FunctionParamsMoreThanLimit(Span, usize),
     /// Core's Literal is not supported by this compiler
     LiteralNotSupported(Span, Literal),
+    /// Core's Sequence is not supported by this compiler
+    SequenceNotSupported(Span),
     /// The constructor specified is a not a structure, but trying to access inner field
     ConstructorNotStructure(Span, Path),
     /// The structure specified doesn't have a field of the right name
     StructureFieldNotExistant(Span, Path, Ident),
     /// Namespace Error
     NamespaceError(NamespaceError),
+    /// Too Many argument to call
+    CallTooManyArguments(Span, usize),
     /// A recursive compilation with some context added
     Context(String, Box<CompilationError>),
 }
@@ -35,9 +39,11 @@ impl CompilationError {
             CompilationError::MissingConstructor(span, _) => span.clone(),
             CompilationError::FunctionParamsMoreThanLimit(span, _) => span.clone(),
             CompilationError::LiteralNotSupported(span, _) => span.clone(),
+            CompilationError::SequenceNotSupported(span) => span.clone(),
             CompilationError::ConstructorNotStructure(span, _) => span.clone(),
             CompilationError::StructureFieldNotExistant(span, _, _) => span.clone(),
             CompilationError::NamespaceError(_) => todo!(),
+            CompilationError::CallTooManyArguments(span, _) => span.clone(),
             CompilationError::Context(_, e) => e.span(),
         }
     }
