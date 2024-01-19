@@ -132,7 +132,7 @@ impl<V: Valuable> ValueStack<V> {
 
     /// Pop a call from the stack without a function associated
     pub fn pop_call_nofun(&mut self, arity: CallArity) {
-        for _ in 0..(arity.0 as usize) + 1 {
+        for _ in 0..(arity.0 as usize) {
             self.values.pop();
         }
     }
