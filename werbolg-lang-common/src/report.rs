@@ -1,8 +1,8 @@
 use crate::filemap::Line;
 
 use super::filemap::LinesMap;
-use super::fileunit::FileUnit;
 use super::span::Span;
+use super::Source;
 
 use alloc::format;
 use alloc::string::String;
@@ -127,12 +127,7 @@ impl Report {
         Ok(file_map.lines_iterator(context_start_line, context_end_line))
     }
 
-    pub fn write<W: Write>(
-        self,
-        file_unit: &FileUnit,
-        file_map: &LinesMap,
-        writer: &mut W,
-    ) -> Result<(), core::fmt::Error> {
+    pub fn write<W: Write>(self, source: &Source, writer: &mut W) -> Result<(), core::fmt::Error> {
         // write the first line
         let code_format = if let Some(code) = &self.code {
             format!("[{}] ", code)
@@ -146,7 +141,7 @@ impl Report {
         };
         writeln!(writer, "{}{}: {}", code_format, hd, self.header)?;
 
-        let context_lines = match self.context_lines(file_map) {
+        let context_lines = match self.context_lines(&source.lines_map) {
             Ok(o) => o,
             Err(None) => return Ok(()),
             Err(Some(_)) => return Ok(()),
@@ -155,7 +150,7 @@ impl Report {
         let Some(highlight) = self.highlight else {
             unreachable!();
         };
-        let (start_highlight, end_highlight) = file_map.resolve_span(&highlight.0).unwrap();
+        let (start_highlight, end_highlight) = source.lines_map.resolve_span(&highlight.0).unwrap();
         let multiline = !(start_highlight.line() == end_highlight.line());
 
         writeln!(
@@ -164,11 +159,11 @@ impl Report {
             line_format(None),
             BOXING[TL],
             BOXING[H],
-            file_unit.filename
+            source.file_unit.filename
         )?;
 
         for line in context_lines {
-            let line_text = file_map.get_line_trim(file_unit, line);
+            let line_text = source.lines_map.get_line_trim(&source.file_unit, line);
             writeln!(
                 writer,
                 "{} {} {}",

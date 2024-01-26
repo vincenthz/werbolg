@@ -15,6 +15,22 @@ pub use filemap::{Line, LineCol, LinesMap};
 pub use fileunit::FileUnit;
 pub use report::{Report, ReportKind};
 
+pub struct Source {
+    pub file_unit: FileUnit,
+    pub lines_map: LinesMap,
+}
+
+impl Source {
+    pub fn from_string(filename: String, content: String) -> Self {
+        let file_unit = FileUnit::from_string(filename, content);
+        let lines_map = LinesMap::new(&file_unit.content);
+        Self {
+            file_unit,
+            lines_map,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ParseError {
     pub context: Option<ir::Span>,
