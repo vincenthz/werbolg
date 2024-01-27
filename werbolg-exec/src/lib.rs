@@ -4,7 +4,7 @@
 
 extern crate alloc;
 
-use ir::{ConstrId, FunId, GlobalId, NifId};
+use ir::{ConstrId, GlobalId, NifId, ValueFun};
 use werbolg_compile::{
     CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex, StructFieldIndex,
 };
@@ -361,7 +361,7 @@ pub enum ExecutionError {
     /// The functions is being called with a different number of parameter it was expecting
     ArityError {
         /// FunId
-        funid: FunId,
+        funid: ValueFun,
         /// The expected number by the function
         expected: CallArity,
         /// The number of actual parameters received by the function
@@ -387,6 +387,11 @@ pub enum ExecutionError {
         field_index: StructFieldIndex,
         /// the actual structure length
         struct_len: usize,
+    },
+    /// Trying to access a NIF id that doesn't exist
+    NifOutOfBound {
+        /// Constructor Id of the structure
+        nifid: NifId,
     },
     /// Value is not a function
     CallingNotFunc {

@@ -3,11 +3,13 @@ mod value;
 
 use hashbrown::{HashMap, HashSet};
 use value::{Value, HASHMAP_KIND};
-use werbolg_compile::{code_dump, compile, CompilationError, Environment, InstructionAddress};
+use werbolg_compile::{
+    code_dump, compile, CallArity, CompilationError, Environment, InstructionAddress,
+};
 use werbolg_core::{id::IdF, AbsPath, Ident, Literal, Namespace, Span};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, Valuable,
-    WAllocator, NIF,
+    WAllocator,
 };
 use werbolg_lang_common::FileUnit;
 
@@ -187,25 +189,22 @@ fn main() -> Result<(), ()> {
     let modules = vec![(module_ns.clone(), module)];
 
     macro_rules! add_pure_nif {
-        ($env:ident, $i:literal, $e:expr) => {
-            let nif = NIF {
-                name: $i,
-                call: NIFCall::Pure($e),
-            };
+        ($env:ident, $i:literal, $arity:literal, $e:expr) => {
+            let nif = NIFCall::Pure($e).info($i, CallArity::try_from($arity as usize).unwrap());
             let path = AbsPath::new(&Namespace::root(), &Ident::from($i));
             $env.add_nif(&path, nif);
         };
     }
 
     let mut env = Environment::new();
-    add_pure_nif!(env, "+", nif_plus);
-    add_pure_nif!(env, "-", nif_sub);
-    add_pure_nif!(env, "*", nif_mul);
-    add_pure_nif!(env, "==", nif_eq);
-    add_pure_nif!(env, "<=", nif_le);
-    add_pure_nif!(env, "neg", nif_neg);
-    add_pure_nif!(env, "table_new", nif_hashtable);
-    add_pure_nif!(env, "table_get", nif_hashtable_get);
+    add_pure_nif!(env, "+", 2, nif_plus);
+    add_pure_nif!(env, "-", 2, nif_sub);
+    add_pure_nif!(env, "*", 2, nif_mul);
+    add_pure_nif!(env, "==", 2, nif_eq);
+    add_pure_nif!(env, "<=", 2, nif_le);
+    add_pure_nif!(env, "neg", 1, nif_neg);
+    add_pure_nif!(env, "table_new", 0, nif_hashtable);
+    add_pure_nif!(env, "table_get", 1, nif_hashtable_get);
 
     let compilation_params = werbolg_compile::CompilationParams {
         literal_mapper,

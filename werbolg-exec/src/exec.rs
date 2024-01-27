@@ -69,6 +69,8 @@ use werbolg_core::{NifId, ValueFun};
 pub struct NIF<'m, 'e, A, L, T, V> {
     /// name of the NIF
     pub name: &'static str,
+    /// arity of the call
+    pub arity: CallArity,
     /// the call itself
     pub call: NIFCall<'m, 'e, A, L, T, V>,
 }
@@ -82,6 +84,17 @@ pub enum NIFCall<'m, 'e, A, L, T, V> {
     Pure(fn(&A, &[V]) -> Result<V, ExecutionError>),
     /// "Raw" NIF takes the execution machine in parameter and return an output
     Raw(fn(&mut ExecutionMachine<'m, 'e, A, L, T, V>) -> Result<V, ExecutionError>),
+}
+
+impl<'m, 'e, A, L, T, V> NIFCall<'m, 'e, A, L, T, V> {
+    /// Create a NIF from a NIFCall, by adding the necessary definition operations (name and arity)
+    pub fn info(self, name: &'static str, arity: CallArity) -> NIF<'m, 'e, A, L, T, V> {
+        NIF {
+            name,
+            arity,
+            call: self,
+        }
+    }
 }
 
 /// Execute the module, calling function identified by FunId, with the arguments in parameters.
@@ -336,7 +349,7 @@ fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
             let call_def = &em.module.funs[funid];
             if call_def.arity != arity {
                 return Err(ExecutionError::ArityError {
-                    funid,
+                    funid: ValueFun::Fun(funid),
                     expected: call_def.arity,
                     got: arity,
                 });
@@ -351,7 +364,17 @@ fn process_nif_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
     nifid: NifId,
     arity: CallArity,
 ) -> Result<V, ExecutionError> {
-    let res = match &em.environ.nifs[nifid].call {
+    let Some(nif) = &em.environ.nifs.get(nifid) else {
+        return Err(ExecutionError::NifOutOfBound { nifid });
+    };
+    if nif.arity != arity {
+        return Err(ExecutionError::ArityError {
+            funid: ValueFun::Native(nifid),
+            expected: nif.arity,
+            got: arity,
+        });
+    }
+    let res = match nif.call {
         NIFCall::Pure(nif) => {
             let args = em.stack.get_call_args(arity);
             nif(&em.allocator, args)?

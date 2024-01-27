@@ -7,7 +7,7 @@ mod value;
 
 use alloc::vec;
 use value::Value;
-use werbolg_compile::{compile as comp, CompilationError, Environment};
+use werbolg_compile::{compile as comp, CallArity, CompilationError, Environment};
 use werbolg_core::Literal;
 use werbolg_core::{AbsPath, Ident, Namespace, Span};
 use werbolg_exec::{
@@ -82,9 +82,10 @@ fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, CompilationErro
 
 pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
     macro_rules! add_pure_nif {
-        ($env:ident, $i:literal, $e:expr) => {
+        ($env:ident, $i:literal, $arity:literal, $e:expr) => {
             let nif = NIF {
                 name: $i,
+                arity: CallArity::try_from($arity as usize).unwrap(),
                 call: NIFCall::Pure($e),
             };
             let path = AbsPath::new(&Namespace::root(), &Ident::from($i));
@@ -94,10 +95,10 @@ pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
     let module_ns = Namespace::root().append(Ident::from("main"));
     let modules = vec![(module_ns.clone(), mod1)];
     let mut environ = Environment::new();
-    add_pure_nif!(environ, "expect_bool", nif_expect_bool_eq);
-    add_pure_nif!(environ, "bool_eq", nif_bool_eq);
-    add_pure_nif!(environ, "expect_int", nif_expect_int_eq);
-    add_pure_nif!(environ, "int_eq", nif_int_eq);
+    add_pure_nif!(environ, "expect_bool", 1, nif_expect_bool_eq);
+    add_pure_nif!(environ, "bool_eq", 2, nif_bool_eq);
+    add_pure_nif!(environ, "expect_int", 1, nif_expect_int_eq);
+    add_pure_nif!(environ, "int_eq", 1, nif_int_eq);
     let compilation_params = werbolg_compile::CompilationParams {
         literal_mapper,
         sequence_constructor: None,

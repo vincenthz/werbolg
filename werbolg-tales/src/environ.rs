@@ -1,5 +1,5 @@
 use super::value::{self, Value};
-use werbolg_compile::{CompilationError, Environment};
+use werbolg_compile::{CallArity, CompilationError, Environment};
 use werbolg_core::{AbsPath, Ident, Literal, Namespace, Span};
 use werbolg_exec::{ExecutionError, NIFCall, WAllocator, NIF};
 
@@ -91,23 +91,20 @@ pub fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, Compilation
 pub fn create_env<'m, 'e>(
 ) -> Environment<NIF<'m, 'e, crate::DummyAlloc, MyLiteral, (), Value>, Value> {
     macro_rules! add_pure_nif {
-        ($env:ident, $i:literal, $e:expr) => {
-            let nif = NIF {
-                name: $i,
-                call: NIFCall::Pure($e),
-            };
+        ($env:ident, $i:literal, $arity:literal, $e:expr) => {
+            let nif = NIFCall::Pure($e).info($i, CallArity::try_from($arity as usize).unwrap());
             let path = AbsPath::new(&Namespace::root(), &Ident::from($i));
             $env.add_nif(&path, nif);
         };
     }
 
     let mut env = Environment::new();
-    add_pure_nif!(env, "+", nif_plus);
-    add_pure_nif!(env, "-", nif_sub);
-    add_pure_nif!(env, "*", nif_mul);
-    add_pure_nif!(env, "==", nif_eq);
-    add_pure_nif!(env, "<=", nif_le);
-    add_pure_nif!(env, "neg", nif_neg);
+    add_pure_nif!(env, "+", 2, nif_plus);
+    add_pure_nif!(env, "-", 2, nif_sub);
+    add_pure_nif!(env, "*", 2, nif_mul);
+    add_pure_nif!(env, "==", 2, nif_eq);
+    add_pure_nif!(env, "<=", 2, nif_le);
+    add_pure_nif!(env, "neg", 1, nif_neg);
 
     env
 }
