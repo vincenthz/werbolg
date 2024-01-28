@@ -95,10 +95,10 @@ pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
     let module_ns = Namespace::root().append(Ident::from("main"));
     let modules = vec![(module_ns.clone(), mod1)];
     let mut environ = Environment::new();
-    add_pure_nif!(environ, "expect_bool", 1, nif_expect_bool_eq);
+    add_pure_nif!(environ, "expect_bool", 2, nif_expect_bool_eq);
     add_pure_nif!(environ, "bool_eq", 2, nif_bool_eq);
-    add_pure_nif!(environ, "expect_int", 1, nif_expect_int_eq);
-    add_pure_nif!(environ, "int_eq", 1, nif_int_eq);
+    add_pure_nif!(environ, "expect_int", 2, nif_expect_int_eq);
+    add_pure_nif!(environ, "int_eq", 2, nif_int_eq);
     let compilation_params = werbolg_compile::CompilationParams {
         literal_mapper,
         sequence_constructor: None,
