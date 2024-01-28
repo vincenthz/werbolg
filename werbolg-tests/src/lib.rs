@@ -11,7 +11,7 @@ use werbolg_compile::{compile as comp, CallArity, CompilationError, Environment}
 use werbolg_core::Literal;
 use werbolg_core::{AbsPath, Ident, Namespace, Span};
 use werbolg_exec::{
-    ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, WAllocator, NIF,
+    ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, WAllocator,
 };
 
 pub struct DummyAlloc;
@@ -83,11 +83,7 @@ fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, CompilationErro
 pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
     macro_rules! add_pure_nif {
         ($env:ident, $i:literal, $arity:literal, $e:expr) => {
-            let nif = NIF {
-                name: $i,
-                arity: CallArity::try_from($arity as usize).unwrap(),
-                call: NIFCall::Pure($e),
-            };
+            let nif = NIFCall::Pure($e).info($i, CallArity::try_from($arity as usize).unwrap());
             let path = AbsPath::new(&Namespace::root(), &Ident::from($i));
             $env.add_nif(&path, nif);
         };
