@@ -44,3 +44,12 @@ setup, it illustrates the security default of the model.
 │           │
 └───────────┘
 ```
+
+
+## Tales
+
+Basic way to test parsing and execution is using `werbolg-tales`
+
+```
+cargo run --bin werbolg-tales <TESTFILE>
+```
