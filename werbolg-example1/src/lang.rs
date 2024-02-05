@@ -7,7 +7,7 @@ pub enum Lang {
     Rusty,
 }
 
-pub fn parse(lang: Lang, file: &FileUnit) -> Result<ir::Module, ParseError> {
+pub fn parse(lang: Lang, file: &FileUnit) -> Result<ir::Module, Vec<ParseError>> {
     match lang {
         Lang::Lispy => {
             #[cfg(feature = "lang-lispy")]

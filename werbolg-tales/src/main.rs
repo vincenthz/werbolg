@@ -114,8 +114,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Flag::Frontend(f) => Some(*f),
             _ => None,
         })
-        .last()
-        .unwrap_or(Frontend::Rusty);
+        .last();
 
     let params = TalesParams {
         dump_ir,

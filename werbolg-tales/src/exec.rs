@@ -22,17 +22,26 @@ pub fn run_frontend(
     let source = get_file(&path)?;
 
     let parsing_res = match params.frontend {
-        Frontend::Rusty => werbolg_lang_rusty::module(&source.file_unit),
-        Frontend::Lispy => werbolg_lang_lispy::module(&source.file_unit),
+        Some(Frontend::Rusty) => werbolg_lang_rusty::module(&source.file_unit),
+        Some(Frontend::Lispy) => werbolg_lang_lispy::module(&source.file_unit),
+        None => {
+            // work similar to auto detect
+            let parse1 = werbolg_lang_rusty::module(&source.file_unit);
+            let parse2 = werbolg_lang_lispy::module(&source.file_unit);
+
+            parse1.or_else(|_e1| parse2)
+        }
     };
     let module = match parsing_res {
-        Err(e) => {
-            let report = Report::new(ReportKind::Error, format!("Parse Error: {:?}", e))
-                .lines_before(1)
-                .lines_after(1)
-                .highlight(e.location, format!("parse error here"));
+        Err(es) => {
+            for e in es.into_iter() {
+                let report = Report::new(ReportKind::Error, format!("Parse Error: {:?}", e))
+                    .lines_before(1)
+                    .lines_after(1)
+                    .highlight(e.location, format!("parse error here"));
 
-            report_print(&source, report)?;
+                report_print(&source, report)?;
+            }
             return Err(format!("parse error").into());
         }
         Ok(module) => module,

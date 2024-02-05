@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ariadne = { version = "0.3" }
 chumsky = { version = "0.9", features = [] }
 logos = { version = "0.13" }
 werbolg-lang-common = { path = "../werbolg-lang-common" }

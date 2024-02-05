@@ -13,14 +13,35 @@ use alloc::{boxed::Box, format, string::String, vec::Vec};
 use ast::Ast;
 use werbolg_core::{self as ir, spans_merge, Span, Spanned};
 
-pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
+fn partition_map<I, T, E>(it: I) -> (Vec<T>, Vec<E>)
+where
+    I: Iterator<Item = Result<T, E>>,
+{
+    let mut ts = Vec::new();
+    let mut es = Vec::new();
+
+    for i in it {
+        match i {
+            Ok(t) => ts.push(t),
+            Err(e) => es.push(e),
+        }
+    }
+
+    (ts, es)
+}
+
+pub fn module(fileunit: &FileUnit) -> Result<ir::Module, Vec<ParseError>> {
     let lex = parse::Lexer::new(&fileunit.content);
     let parser = parse::Parser::new(lex);
 
-    let statements = parser
-        .into_iter()
-        .map(|re| re.map_err(remap_err).and_then(|e| statement(e)))
-        .collect::<Result<Vec<_>, _>>()?;
+    let (statements, errs) = partition_map(parser.into_iter());
+    if !errs.is_empty() {
+        return Err(errs.into_iter().map(remap_err).collect());
+    }
+    let (statements, errs) = partition_map(statements.into_iter().map(statement));
+    if !errs.is_empty() {
+        return Err(errs);
+    }
 
     Ok(ir::Module { statements })
 }

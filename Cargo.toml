@@ -9,6 +9,5 @@ members = [
     "werbolg-lang-lispy",
     "werbolg-ir-write",
     "werbolg-tests",
-    "werbolg-example1",
     "werbolg-tales",
 ]

@@ -8,13 +8,63 @@ mod ast;
 mod parse;
 mod token;
 
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use werbolg_core::{self as ir, Spanned, Statement};
 
-use werbolg_lang_common::{FileUnit, ParseError};
+use werbolg_lang_common::{FileUnit, ParseError, ParseErrorKind};
 
-pub fn module(fileunit: &FileUnit) -> Result<ir::Module, ParseError> {
-    let m = parse::module(&fileunit.content).map_err(|_| todo!())?;
+fn simple_to_perr(e: chumsky::error::Simple<String>) -> ParseError {
+    match e.reason() {
+        chumsky::error::SimpleReason::Unclosed { span: _, delimiter } => ParseError {
+            context: None,
+            location: e.span(),
+            description: format!("Unclosed delimiter {}", delimiter),
+            note: Some(format!("delimiter must be closed before")),
+            kind: ParseErrorKind::Unknown,
+        },
+        chumsky::error::SimpleReason::Unexpected => {
+            let found = if e.found().is_some() {
+                "Unexpected token in input"
+            } else {
+                "Unexpected end of input"
+            };
+            let expected = if e.expected().len() == 0 {
+                String::from("Something else")
+            } else {
+                e.expected()
+                    .map(|expected| match expected {
+                        Some(expected) => String::from(expected),
+                        None => String::from("end of input"),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let description = format!("{}, expected {}", found, expected);
+            ParseError {
+                context: None,
+                location: e.span(),
+                description,
+                note: None,
+                kind: ParseErrorKind::Unknown,
+            }
+        }
+
+        chumsky::error::SimpleReason::Custom(msg) => ParseError {
+            context: None,
+            location: e.span(),
+            description: format!("{}", msg),
+            note: None,
+            kind: ParseErrorKind::Unknown,
+        },
+    }
+}
+
+pub fn module(fileunit: &FileUnit) -> Result<ir::Module, Vec<ParseError>> {
+    let m = parse::module(&fileunit.content).map_err(|errs| {
+        errs.into_iter()
+            .map(|err| simple_to_perr(err))
+            .collect::<Vec<_>>()
+    })?;
 
     let statements = m
         .into_iter()
