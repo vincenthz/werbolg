@@ -18,6 +18,9 @@ setup, it illustrates the security default of the model.
 
 ## TODO
 
+* Struct support in lispy and rusty
+* Enum in lispy and rusty and Compile
+* Pattern match - Frontend/Compile/Exec
 * Value Allocator - Exec
 * Closure - Exec/Core
 * Binary serialization for core - Core
@@ -53,3 +56,18 @@ Basic way to test parsing and execution is using `werbolg-tales`
 ```
 cargo run --bin werbolg-tales <TESTFILE>
 ```
+
+By default `werbolg-tales` will try to auto-detect the type of file, from the supported frontend (rusty or lispy).
+You can specify the backend explicitely using the frontend flags
+
+```
+cargo run --bin werbolg-tales -- --frontend rusty test.rusty
+```
+
+
+## Exec & Compile
+
+Compile turns the IR into a very basic set of instructions that Exec will run.
+Exec works like a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machine)
+
+The list of instructions for this stack machine can be found in instructions.rs
