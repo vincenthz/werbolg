@@ -9,6 +9,7 @@ mod value;
 use environ::create_env;
 use exec::*;
 use params::{Frontend, TalesParams};
+use werbolg_exec::WerRefCount;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Flag {
@@ -129,8 +130,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut env = create_env();
     let compile_unit = run_compile(&params, &mut env, source, module)?;
 
-    let ee = werbolg_exec::ExecutionEnviron::from_compile_environment(env.finalize());
-    run_exec(&params, &ee, &compile_unit)?;
+    let ee = werbolg_exec::WerRefCount::new(
+        werbolg_exec::ExecutionEnviron::from_compile_environment(env.finalize()),
+    );
+    run_exec(&params, ee, WerRefCount::new(compile_unit))?;
 
     Ok(())
 }

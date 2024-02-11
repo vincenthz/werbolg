@@ -66,29 +66,29 @@ use werbolg_core as ir;
 use werbolg_core::{NifId, ValueFun};
 
 /// Native Implemented Function
-pub struct NIF<'m, 'e, A, L, T, V> {
+pub struct NIF<A, L, T, V> {
     /// name of the NIF
     pub name: &'static str,
     /// arity of the call
     pub arity: CallArity,
     /// the call itself
-    pub call: NIFCall<'m, 'e, A, L, T, V>,
+    pub call: NIFCall<A, L, T, V>,
 }
 
 /// 2 Variants of Native calls
 ///
 /// * "Pure" function that don't have access to the execution machine
 /// * "Mut" function that have access to the execution machine and have more power / responsability.
-pub enum NIFCall<'m, 'e, A, L, T, V> {
+pub enum NIFCall<A, L, T, V> {
     /// "Pure" NIF call only takes the input parameter and return an output
     Pure(fn(&A, &[V]) -> Result<V, ExecutionError>),
     /// "Raw" NIF takes the execution machine in parameter and return an output
-    Raw(fn(&mut ExecutionMachine<'m, 'e, A, L, T, V>) -> Result<V, ExecutionError>),
+    Raw(fn(&mut ExecutionMachine<A, L, T, V>) -> Result<V, ExecutionError>),
 }
 
-impl<'m, 'e, A, L, T, V> NIFCall<'m, 'e, A, L, T, V> {
+impl<A, L, T, V> NIFCall<A, L, T, V> {
     /// Create a NIF from a NIFCall, by adding the necessary definition operations (name and arity)
-    pub fn info(self, name: &'static str, arity: CallArity) -> NIF<'m, 'e, A, L, T, V> {
+    pub fn info(self, name: &'static str, arity: CallArity) -> NIF<A, L, T, V> {
         NIF {
             name,
             arity,
@@ -98,8 +98,8 @@ impl<'m, 'e, A, L, T, V> NIFCall<'m, 'e, A, L, T, V> {
 }
 
 /// Execute the module, calling function identified by FunId, with the arguments in parameters.
-pub fn exec<'module, 'environ, A: WAllocator<Value = V>, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'module, 'environ, A, L, T, V>,
+pub fn exec<A: WAllocator<Value = V>, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
     call: ir::FunId,
     args: &[V],
 ) -> Result<V, ExecutionError> {
@@ -113,8 +113,8 @@ pub fn exec<'module, 'environ, A: WAllocator<Value = V>, L, T, V: Valuable>(
 
 /// Initialize the execution machine with a call to the specified function (by FunId)
 /// and the arguments to this function as values
-pub fn initialize<'module, 'environ, A: WAllocator<Value = V>, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'module, 'environ, A, L, T, V>,
+pub fn initialize<A: WAllocator<Value = V>, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
     call: ir::FunId,
     args: &[V],
 ) -> Result<Option<V>, ExecutionError> {
@@ -143,8 +143,8 @@ pub fn initialize<'module, 'environ, A: WAllocator<Value = V>, L, T, V: Valuable
 /// Resume execution
 ///
 /// If the stack is empty (if the program is terminated already), then it returns an ExecutionFinished error
-pub fn exec_continue<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+pub fn exec_continue<A: WAllocator<Value = V>, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
 ) -> Result<V, ExecutionError> {
     if em.rets.is_empty() {
         return Err(ExecutionError::ExecutionFinished);
@@ -152,8 +152,8 @@ pub fn exec_continue<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
     exec_loop(em)
 }
 
-fn exec_loop<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+fn exec_loop<A: WAllocator<Value = V>, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
 ) -> Result<V, ExecutionError> {
     loop {
         match step(em)? {
@@ -171,37 +171,37 @@ type StepResult<V> = Result<Option<V>, ExecutionError>;
 /// * not an error : Either no value or a value if the execution of the program is finished
 ///
 /// The step function need to update the execution IP
-pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+pub fn step<A: WAllocator<Value = V>, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
 ) -> StepResult<V> {
     // fetch the next instruction from ip, if ip points to a random place, raise an error
-    let Some(instr) = &em.module.code.get(em.ip) else {
+    let Some(instr) = em.module.code.get(em.ip).cloned() else {
         return Err(ExecutionError::IpInvalid { ip: em.ip });
     };
     match instr {
         Instruction::PushLiteral(lit) => {
-            let literal = &em.module.lits[*lit];
+            let literal = &em.module.lits[lit];
             em.stack.push_value((em.params.literal_to_value)(literal));
             em.ip_next();
         }
         Instruction::FetchGlobal(global_id) => {
-            em.sp_push_value_from_global(*global_id);
+            em.sp_push_value_from_global(global_id);
             em.ip_next();
         }
         Instruction::FetchNif(nif_id) => {
-            em.stack.push_value(V::make_fun(ValueFun::Native(*nif_id)));
+            em.stack.push_value(V::make_fun(ValueFun::Native(nif_id)));
             em.ip_next();
         }
         Instruction::FetchFun(fun_id) => {
-            em.stack.push_value(V::make_fun(ValueFun::Fun(*fun_id)));
+            em.stack.push_value(V::make_fun(ValueFun::Fun(fun_id)));
             em.ip_next();
         }
         Instruction::FetchStackLocal(local_bind) => {
-            em.sp_push_value_from_local(*local_bind);
+            em.sp_push_value_from_local(local_bind);
             em.ip_next()
         }
         Instruction::FetchStackParam(param_bind) => {
-            em.sp_push_value_from_param(*param_bind);
+            em.sp_push_value_from_param(param_bind);
             em.ip_next()
         }
         Instruction::AccessField(expected_cid, idx) => {
@@ -212,16 +212,16 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
                 });
             };
 
-            if got_cid != *expected_cid {
+            if got_cid != expected_cid {
                 return Err(ExecutionError::StructMismatch {
-                    constr_expected: *expected_cid,
+                    constr_expected: expected_cid,
                     constr_got: got_cid,
                 });
             }
             if idx.0 as usize >= inner.len() {
                 return Err(ExecutionError::StructFieldOutOfBound {
                     constr: got_cid,
-                    field_index: *idx,
+                    field_index: idx,
                     struct_len: inner.len(),
                 });
             }
@@ -230,7 +230,7 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
         }
         Instruction::LocalBind(local_bind) => {
             let val = em.stack.pop_value();
-            em.sp_set_local_value_at(*local_bind, val);
+            em.sp_set_local_value_at(local_bind, val);
             em.ip_next();
         }
         Instruction::IgnoreOne => {
@@ -238,21 +238,21 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
             em.ip_next();
         }
         Instruction::CallNif(nif, arity) => {
-            let nif_value = process_nif_call(em, *nif, *arity)?;
-            em.stack.pop_call_nofun(*arity);
+            let nif_value = process_nif_call(em, nif, arity)?;
+            em.stack.pop_call_nofun(arity);
             em.stack.push_value(nif_value);
             em.ip_next()
         }
         Instruction::Call(tc, arity) => {
-            let val = process_call(em, *arity)?;
+            let val = process_call(em, arity)?;
             match val {
                 CallResult::Jump(fun_ip, local_stack_size) => {
-                    if *tc == TailCall::Yes {
+                    if tc == TailCall::Yes {
                         // if we have a tail call, we don't need to save the current call frame
                         // we just shift the values to replace the call stack and
                         // replace the current state (sp, ip, current_arity)
-                        em.sp_move_rel(*arity, em.current_arity, local_stack_size);
-                        em.current_arity = *arity;
+                        em.sp_move_rel(arity, em.current_arity, local_stack_size);
+                        em.current_arity = arity;
                         em.ip_set(fun_ip);
                     } else {
                         em.rets.push(CallSave {
@@ -260,15 +260,15 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
                             sp: em.sp,
                             arity: em.current_arity,
                         });
-                        em.current_arity = *arity;
+                        em.current_arity = arity;
                         em.sp_set(local_stack_size);
                         em.ip_set(fun_ip);
                     }
                 }
                 CallResult::Value(nif_val) => {
-                    em.stack.pop_call(*arity);
+                    em.stack.pop_call(arity);
 
-                    if *tc == TailCall::Yes {
+                    if tc == TailCall::Yes {
                         match em.rets.pop() {
                             None => return Ok(Some(nif_val)),
                             Some(call_frame) => do_ret(em, call_frame, nif_val),
@@ -280,7 +280,7 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
                 }
             }
         }
-        Instruction::Jump(d) => em.ip_jump(*d),
+        Instruction::Jump(d) => em.ip_jump(d),
         Instruction::CondJump(d) => {
             let val = em.stack.pop_value();
             let Some(b) = val.conditional() else {
@@ -291,7 +291,7 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
             if b {
                 em.ip_next()
             } else {
-                em.ip_jump(*d)
+                em.ip_jump(d)
             }
         }
         Instruction::Ret => {
@@ -306,8 +306,8 @@ pub fn step<'m, 'e, A: WAllocator<Value = V>, L, T, V: Valuable>(
     Ok(None)
 }
 
-fn do_ret<'m, 'e, A: WAllocator, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+fn do_ret<A: WAllocator, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
     CallSave { ip, sp, arity }: CallSave,
     value: V,
 ) {
@@ -328,8 +328,8 @@ enum CallResult<V> {
     Value(V),
 }
 
-fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+fn process_call<A: WAllocator, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
     arity: CallArity,
 ) -> Result<CallResult<V>, ExecutionError> {
     let first = em.stack.get_call(arity);
@@ -359,8 +359,8 @@ fn process_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
     }
 }
 
-fn process_nif_call<'m, 'e, A: WAllocator, L, T, V: Valuable>(
-    em: &mut ExecutionMachine<'m, 'e, A, L, T, V>,
+fn process_nif_call<A: WAllocator, L, T, V: Valuable>(
+    em: &mut ExecutionMachine<A, L, T, V>,
     nifid: NifId,
     arity: CallArity,
 ) -> Result<V, ExecutionError> {

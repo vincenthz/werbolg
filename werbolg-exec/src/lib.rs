@@ -4,6 +4,9 @@
 
 extern crate alloc;
 
+#[cfg(feature = "threadsafe")]
+extern crate std;
+
 use ir::{ConstrId, GlobalId, NifId, ValueFun};
 use werbolg_compile::{
     CallArity, LocalBindIndex, LocalStackSize, ParamBindIndex, StructFieldIndex,
@@ -14,28 +17,31 @@ use werbolg_core::idvec::IdVec;
 
 mod allocator;
 mod exec;
+mod refcount;
 mod valuable;
 
 use alloc::{string::String, vec::Vec};
 pub use allocator::WAllocator;
 pub use valuable::{Valuable, ValueKind};
 
+pub use refcount::WerRefCount;
+
 pub use exec::{exec, exec_continue, initialize, step, NIFCall, NIF};
 
 /// Execution environment with index Nifs by their NifId, and global variable with their GlobalId
-pub struct ExecutionEnviron<'m, 'e, A, L, T, V> {
+pub struct ExecutionEnviron<A, L, T, V> {
     /// Indexed NIFs
-    pub nifs: IdVec<NifId, NIF<'m, 'e, A, L, T, V>>,
+    pub nifs: IdVec<NifId, NIF<A, L, T, V>>,
     /// Indexed Globals
     pub globals: IdVec<GlobalId, V>,
 }
 
-impl<'m, 'e, A, L, T, V> ExecutionEnviron<'m, 'e, A, L, T, V> {
+impl<A, L, T, V> ExecutionEnviron<A, L, T, V> {
     /// Pack a streamlined compilation environment into an execution environment
     ///
     /// this is the result of calling `Environment::finalize()`
     pub fn from_compile_environment(
-        tuple: (IdVec<GlobalId, V>, IdVec<NifId, NIF<'m, 'e, A, L, T, V>>),
+        tuple: (IdVec<GlobalId, V>, IdVec<NifId, NIF<A, L, T, V>>),
     ) -> Self {
         Self {
             nifs: tuple.1,
@@ -52,11 +58,11 @@ pub struct ExecutionParams<L, V> {
 }
 
 /// Execution machine
-pub struct ExecutionMachine<'m, 'e, A, L, T, V> {
+pub struct ExecutionMachine<A, L, T, V> {
     /// Environ
-    pub environ: &'e ExecutionEnviron<'m, 'e, A, L, T, V>,
+    pub environ: WerRefCount<ExecutionEnviron<A, L, T, V>>,
     /// Module
-    pub module: &'m CompilationUnit<L>,
+    pub module: WerRefCount<CompilationUnit<L>>,
     /// call frame return values
     pub rets: Vec<CallSave>,
     /// stack
@@ -209,11 +215,11 @@ impl<V: Valuable> ValueStack<V> {
     }
 }
 
-impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
+impl<A, L, T, V: Valuable> ExecutionMachine<A, L, T, V> {
     /// Create a new execution machine
     pub fn new(
-        module: &'m CompilationUnit<L>,
-        environ: &'e ExecutionEnviron<'m, 'e, A, L, T, V>,
+        module: WerRefCount<CompilationUnit<L>>,
+        environ: WerRefCount<ExecutionEnviron<A, L, T, V>>,
         params: ExecutionParams<L, V>,
         allocator: A,
         userdata: T,
@@ -253,8 +259,8 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
     }
 
     /// Get the current instruction
-    pub fn get_current_instruction(&self) -> Option<&'m werbolg_compile::Instruction> {
-        self.module.code.get(self.ip)
+    pub fn get_current_instruction(&self) -> Option<werbolg_compile::Instruction> {
+        self.module.code.get(self.ip).cloned()
     }
 
     /// Set value at stack pointer + local bind to the value in parameter
@@ -315,7 +321,7 @@ impl<'m, 'e, A, L, T, V: Valuable> ExecutionMachine<'m, 'e, A, L, T, V> {
     }
 }
 
-impl<'m, 'e, A, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, A, L, T, V> {
+impl<A, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<A, L, T, V> {
     /// print the debug state of the execution machine in a writer
     pub fn debug_state<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
         let instr = self.get_current_instruction();
@@ -324,7 +330,7 @@ impl<'m, 'e, A, L, T, V: Valuable + core::fmt::Debug> ExecutionMachine<'m, 'e, A
             "ip={} sp={:?} instruction={:?}",
             self.ip,
             self.sp.0,
-            instr.unwrap_or(&werbolg_compile::Instruction::IgnoreOne)
+            instr.unwrap_or(werbolg_compile::Instruction::IgnoreOne)
         )?;
 
         for (stack_index, value) in self.stack.iter_pos() {

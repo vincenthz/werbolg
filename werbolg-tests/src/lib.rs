@@ -12,6 +12,7 @@ use werbolg_core::Literal;
 use werbolg_core::{AbsPath, Ident, Namespace, Span};
 use werbolg_exec::{
     ExecutionEnviron, ExecutionError, ExecutionMachine, ExecutionParams, NIFCall, WAllocator,
+    WerRefCount,
 };
 
 pub struct DummyAlloc;
@@ -107,6 +108,12 @@ pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
         .get(&AbsPath::new(&module_ns, &Ident::from("main")))
         .expect("existing function as entry point");
     let execution_params = ExecutionParams { literal_to_value };
-    let mut em = ExecutionMachine::new(&exec_module, &ee, execution_params, DummyAlloc, ());
+    let mut em = ExecutionMachine::new(
+        WerRefCount::new(exec_module),
+        WerRefCount::new(ee),
+        execution_params,
+        DummyAlloc,
+        (),
+    );
     werbolg_exec::exec(&mut em, entry_point, &[])
 }

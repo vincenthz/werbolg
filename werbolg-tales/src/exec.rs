@@ -60,9 +60,9 @@ pub fn report_print(source: &Source, report: Report) -> Result<(), Box<dyn Error
     Ok(())
 }
 
-pub fn run_compile<'m, 'e, A>(
+pub fn run_compile<A>(
     params: &TalesParams,
-    env: &mut Environment<NIF<'m, 'e, A, environ::MyLiteral, (), Value>, Value>,
+    env: &mut Environment<NIF<A, environ::MyLiteral, (), Value>, Value>,
     source: Source,
     module: Module,
 ) -> Result<werbolg_compile::CompilationUnit<environ::MyLiteral>, Box<dyn Error>> {
@@ -101,10 +101,10 @@ impl WAllocator for DummyAlloc {
     type Value = Value;
 }
 
-pub fn run_exec<'m, 'e>(
+pub fn run_exec(
     params: &TalesParams,
-    ee: &'e ExecutionEnviron<'m, 'e, DummyAlloc, environ::MyLiteral, (), Value>,
-    exec_module: &'m werbolg_compile::CompilationUnit<environ::MyLiteral>,
+    ee: werbolg_exec::WerRefCount<ExecutionEnviron<DummyAlloc, environ::MyLiteral, (), Value>>,
+    exec_module: werbolg_exec::WerRefCount<werbolg_compile::CompilationUnit<environ::MyLiteral>>,
 ) -> Result<(), Box<dyn Error>> {
     let module_ns = Namespace::root().append(Ident::from("main"));
 
@@ -117,7 +117,7 @@ pub fn run_exec<'m, 'e>(
         literal_to_value: environ::literal_to_value,
     };
 
-    let mut em = ExecutionMachine::new(&exec_module, &ee, execution_params, DummyAlloc, ());
+    let mut em = ExecutionMachine::new(exec_module, ee, execution_params, DummyAlloc, ());
 
     let mut stepper = HashSet::<InstructionAddress>::new();
     for a in params.step_address.iter() {

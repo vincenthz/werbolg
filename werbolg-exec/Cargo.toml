@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 werbolg-core = { path = "../werbolg-core" }
 werbolg-compile = { path = "../werbolg-compile" }
+
+[features]
+default = []
+threadsafe = []

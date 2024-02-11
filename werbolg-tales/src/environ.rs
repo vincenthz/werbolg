@@ -88,8 +88,7 @@ pub fn literal_mapper(span: Span, lit: Literal) -> Result<MyLiteral, Compilation
     }
 }
 
-pub fn create_env<'m, 'e>(
-) -> Environment<NIF<'m, 'e, crate::DummyAlloc, MyLiteral, (), Value>, Value> {
+pub fn create_env() -> Environment<NIF<crate::DummyAlloc, MyLiteral, (), Value>, Value> {
     macro_rules! add_pure_nif {
         ($env:ident, $i:literal, $arity:literal, $e:expr) => {
             let nif = NIFCall::Pure($e).info($i, CallArity::try_from($arity as usize).unwrap());
