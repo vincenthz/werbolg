@@ -144,6 +144,26 @@ pub enum Binder {
     Ignore,
     /// equivalent of `let $ident = ...`
     Ident(Ident),
+    /// equivalent of `let <path> (<sequential-binder>) = ...` or `let <path> {<named-binder>} = ...`
+    Deconstruct(Path, FieldsBinder),
+}
+
+/// Fields to bind inside a struct or enum
+#[derive(Clone, Debug)]
+pub enum FieldsBinder {
+    /// Sequential fields binder, where the fields are bind sequentially in order of declaration
+    Sequential(Vec<Binder>, BindEllipsis),
+    /// Named fields binder, where the fields are bound by their name
+    Named(Vec<(Ident, Binder)>, BindEllipsis),
+}
+
+/// Whether to only allow partially bind for struct/enum
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BindEllipsis {
+    /// Expect all the fields of a struct/enum to be matched
+    No,
+    /// Similar to `...` in a sequence/tuple matching, ignore all the unspecified field for matching
+    Yes,
 }
 
 /// Expression

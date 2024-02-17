@@ -252,6 +252,9 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                     // TODO, not sure ignore one is the best to do here
                     state.write_code().push(Instruction::IgnoreOne);
                 }
+                ir::Binder::Deconstruct(_name, _) => {
+                    todo!()
+                }
             }
             let tc = generate_expression_code(state, local, funpos, *in_expr)?;
             Ok(tc)
