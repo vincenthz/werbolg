@@ -56,9 +56,9 @@ impl core::fmt::Debug for Path {
             PathType::Absolute => write!(f, "::")?,
             PathType::Relative => {}
         }
-        for (is_final, component) in self.components() {
+        for (component, remaining) in self.components() {
             write!(f, "{:?}", component)?;
-            if !is_final {
+            if !remaining.is_empty() {
                 write!(f, "::")?
             }
         }
@@ -67,12 +67,14 @@ impl core::fmt::Debug for Path {
 }
 
 impl Path {
+    /*
     /// Split a path to a namespace and an ident
     pub fn split(&self) -> (Namespace, Ident) {
         let mut x = self.1.clone();
         let ident = x.pop().unwrap();
         (Namespace(x), ident)
     }
+    */
 
     /// Return the path type of this path
     pub fn path_type(&self) -> PathType {
@@ -132,12 +134,49 @@ impl Path {
         self
     }
 
+    /*
     /// Iterate over all components of the path, associate whether the element is final (i.e. a leaf)
     pub fn components(&self) -> impl Iterator<Item = (bool, &Ident)> {
         self.1
             .iter()
             .enumerate()
             .map(|(i, id)| (i + 1 == self.1.len(), id))
+    }
+    */
+
+    /// Iterate over all components of the path, associate whether the element is final (i.e. a leaf)
+    pub fn components(&self) -> impl Iterator<Item = (&Ident, &[Ident])> {
+        PathDecomposer::new(self)
+    }
+
+    /// Decompose a path into its components in a Vec
+    pub fn idents(&self) -> Vec<Ident> {
+        self.1.clone()
+    }
+}
+
+/// Path decomposer Iterator
+pub struct PathDecomposer<'a> {
+    dropped: usize,
+    path: &'a Path,
+}
+
+impl<'a> PathDecomposer<'a> {
+    /// Create a new path decomposer using the given path
+    pub fn new(path: &'a Path) -> Self {
+        Self { dropped: 0, path }
+    }
+}
+
+impl<'a> Iterator for PathDecomposer<'a> {
+    type Item = (&'a Ident, &'a [Ident]);
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.dropped == self.path.1.len() {
+            return None;
+        }
+        let rem = &self.path.1[self.dropped..];
+        self.dropped += 1;
+        Some((&rem[0], &rem[1..]))
     }
 }
 

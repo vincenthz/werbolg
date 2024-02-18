@@ -4,6 +4,7 @@ use werbolg_core::Namespace;
 /// Symbol Resolver
 #[derive(Clone)]
 pub struct SymbolResolver {
+    #[allow(unused)]
     pub(crate) current: Namespace,
     #[allow(unused)]
     pub(crate) uses: Vec<werbolg_core::Use>,

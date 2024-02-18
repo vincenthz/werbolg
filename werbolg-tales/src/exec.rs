@@ -76,11 +76,13 @@ pub fn run_compile<A>(
 
     let exec_module = match compile(&compilation_params, modules, env) {
         Err(e) => {
-            let report = Report::new(ReportKind::Error, format!("Compilation Error: {:?}", e))
-                .lines_before(1)
-                .lines_after(1)
-                .highlight(e.span(), format!("compilation error here"));
-            report_print(&source, report)?;
+            if let Some(span) = e.span() {
+                let report = Report::new(ReportKind::Error, format!("Compilation Error: {:?}", e))
+                    .lines_before(1)
+                    .lines_after(1)
+                    .highlight(span, format!("compilation error here"));
+                report_print(&source, report)?;
+            }
             return Err(format!("compilation error {:?}", e).into());
         }
         Ok(m) => m,

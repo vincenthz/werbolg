@@ -1,4 +1,4 @@
-use werbolg_core::{Ident, Literal, Path, Span};
+use werbolg_core::{AbsPath, Ident, Literal, Path, Span};
 
 use super::symbols::NamespaceError;
 use alloc::{boxed::Box, format, string::String};
@@ -6,10 +6,14 @@ use alloc::{boxed::Box, format, string::String};
 /// Compilation error
 #[derive(Debug)]
 pub enum CompilationError {
+    /// Duplicate symbol during environment population (e.g. 2 functions with the name)
+    DuplicateSymbolEnv(String, AbsPath),
     /// Duplicate symbol during compilation (e.g. 2 functions with the name)
     DuplicateSymbol(Span, Ident),
     /// Cannot find the symbol during compilation
     MissingSymbol(Span, Path),
+    /// Multiple symbol found for this symbol during compilation
+    MultipleSymbol(Span, Path),
     /// Cannot find the constructor symbol during compilation
     MissingConstructor(Span, Path),
     /// Number of parameters for a functions is above the limit we chose
@@ -32,18 +36,20 @@ pub enum CompilationError {
 
 impl CompilationError {
     /// Get the span of this compilation error
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> Option<Span> {
         match self {
-            CompilationError::DuplicateSymbol(span, _) => span.clone(),
-            CompilationError::MissingSymbol(span, _) => span.clone(),
-            CompilationError::MissingConstructor(span, _) => span.clone(),
-            CompilationError::FunctionParamsMoreThanLimit(span, _) => span.clone(),
-            CompilationError::LiteralNotSupported(span, _) => span.clone(),
-            CompilationError::SequenceNotSupported(span) => span.clone(),
-            CompilationError::ConstructorNotStructure(span, _) => span.clone(),
-            CompilationError::StructureFieldNotExistant(span, _, _) => span.clone(),
-            CompilationError::NamespaceError(_) => todo!(),
-            CompilationError::CallTooManyArguments(span, _) => span.clone(),
+            CompilationError::DuplicateSymbolEnv(_, _) => None,
+            CompilationError::DuplicateSymbol(span, _) => Some(span.clone()),
+            CompilationError::MissingSymbol(span, _) => Some(span.clone()),
+            CompilationError::MultipleSymbol(span, _) => Some(span.clone()),
+            CompilationError::MissingConstructor(span, _) => Some(span.clone()),
+            CompilationError::FunctionParamsMoreThanLimit(span, _) => Some(span.clone()),
+            CompilationError::LiteralNotSupported(span, _) => Some(span.clone()),
+            CompilationError::SequenceNotSupported(span) => Some(span.clone()),
+            CompilationError::ConstructorNotStructure(span, _) => Some(span.clone()),
+            CompilationError::StructureFieldNotExistant(span, _, _) => Some(span.clone()),
+            CompilationError::NamespaceError(_) => None,
+            CompilationError::CallTooManyArguments(span, _) => Some(span.clone()),
             CompilationError::Context(_, e) => e.span(),
         }
     }

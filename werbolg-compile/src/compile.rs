@@ -9,11 +9,19 @@ use super::CompilationParams;
 use alloc::{format, vec, vec::Vec};
 use werbolg_core as ir;
 use werbolg_core::{
-    AbsPath, ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, PathType, Span,
+    ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, PathType, Span,
 };
 
+pub(crate) struct CompilationSharedState {}
+pub(crate) struct CompilationLocalState {
+    namespace: Namespace,
+    bindings: LocalBindings,
+}
+
 pub(crate) struct CodeBuilder<'a, L: Clone + Eq + core::hash::Hash> {
-    pub(crate) params: &'a CompilationParams<L>,
+    #[allow(unused)]
+    pub(crate) shared: &'a CompilationSharedState,
+    pub(crate) params: CompilationParams<L>,
     pub(crate) funs_tbl: SymbolsTable<FunId>,
     pub(crate) funs_vec: IdVec<FunId, FunDef>,
     pub(crate) lambdas_vec: IdVecAfter<FunId, FunDef>,
@@ -89,12 +97,14 @@ pub enum BindingType {
 
 impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
     pub fn new(
-        params: &'a CompilationParams<L>,
+        shared: &'a CompilationSharedState,
+        params: CompilationParams<L>,
         funs_tbl: SymbolsTable<FunId>,
         lambdas_vec: IdVecAfter<FunId, FunDef>,
         globals: GlobalBindings<BindingType>,
     ) -> Self {
         Self {
+            shared,
             params,
             funs_tbl,
             funs_vec: IdVec::new(),
@@ -133,20 +143,24 @@ enum FunPos {
 
 pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut CodeBuilder<'a, L>,
+    namespace: &Namespace,
     fundef: Option<ir::FunDef>,
     funimpl: ir::FunImpl,
 ) -> Result<FunDef, CompilationError> {
     let name = fundef.map(|x| x.name.clone());
     let ir::FunImpl { vars, body } = funimpl;
 
-    let mut local = LocalBindings::new();
-    local.scope_enter();
+    let mut local = CompilationLocalState {
+        bindings: LocalBindings::new(),
+        namespace: namespace.clone(),
+    };
+    local.bindings.scope_enter();
 
     for (var_i, var) in vars.iter().enumerate() {
         let var_i = var_i.try_into().map_err(|_| {
             CompilationError::FunctionParamsMoreThanLimit(var.0.span.clone(), vars.len())
         })?;
-        local.add_param(var.0.clone().unspan(), var_i);
+        local.bindings.add_param(var.0.clone().unspan(), var_i);
     }
 
     let arity = vars.len().try_into().map(|n| CallArity(n)).unwrap();
@@ -156,7 +170,7 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
     if !tc {
         state.write_code().push(Instruction::Ret);
     }
-    let stack_size = local.scope_terminate();
+    let stack_size = local.bindings.scope_terminate();
 
     // now compute the code for the lambdas. This is in a loop
     // since it can generate further lambdas
@@ -165,10 +179,9 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
         core::mem::swap(&mut state.lambdas, &mut lambdas);
 
         for (code_ref, fun_impl) in lambdas {
-            let lirdef =
-                generate_func_code(state, None, fun_impl).map_err(|e: CompilationError| {
-                    e.context(format!("function lambda code {:?}", name))
-                })?;
+            let lirdef = generate_func_code(state, namespace, None, fun_impl).map_err(
+                |e: CompilationError| e.context(format!("function lambda code {:?}", name)),
+            )?;
             let lambda_funid = state.lambdas_vec.push(lirdef);
 
             state
@@ -187,7 +200,7 @@ pub(crate) fn generate_func_code<'a, L: Clone + Eq + core::hash::Hash>(
 
 fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
     state: &mut CodeBuilder<'a, L>,
-    local: &mut LocalBindings,
+    local: &mut CompilationLocalState,
     funpos: FunPos,
     expr: ir::Expr,
 ) -> Result<bool, CompilationError> {
@@ -226,12 +239,12 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             for e in l {
                 let _: bool = generate_expression_code(state, local, FunPos::NotRoot, e)?;
             }
-            match &state.params.sequence_constructor {
+            match state.params.sequence_constructor {
                 None => return Err(CompilationError::SequenceNotSupported(span)),
                 Some(nifid) => {
                     state
                         .write_code()
-                        .push(Instruction::CallNif(*nifid, call_arity));
+                        .push(Instruction::CallNif(nifid, call_arity));
                     Ok(true)
                 }
             }
@@ -242,7 +255,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                 .map_err(|e| e.context(alloc::format!("{:?}", *x)))?;
             match binder {
                 ir::Binder::Ident(ident) => {
-                    let bind = local.add_local(ident.clone());
+                    let bind = local.bindings.add_local(ident.clone());
                     state.write_code().push(Instruction::LocalBind(bind));
                 }
                 ir::Binder::Ignore => {
@@ -260,11 +273,36 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             Ok(tc)
         }
         ir::Expr::Field(expr, struct_ident, field_ident) => {
-            let (struct_path, _) = resolve_path(&state.resolver, &struct_ident.inner);
-            let (constr_id, constr_def) =
+            let resolved = resolve_symbol(&state, &local, &struct_ident.inner);
+            let result = resolved
+                .into_iter()
+                .filter_map(|res| match res {
+                    Resolution::Constructor(c, _) => Some(c),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+
+            let constr_id = if result.is_empty() {
+                return Err(CompilationError::MissingSymbol(
+                    struct_ident.span,
+                    struct_ident.inner,
+                ));
+            } else if result.len() > 1 {
+                /*
+                return Err(CompilationError::DuplicateSymbol(
+                    struct_ident.span,
+                    struct_ident.inner,
+                ));
+                */
+                todo!()
+            } else {
+                &result[0]
+            };
+
+            let constr_def =
                 state
                     .constrs
-                    .get(&struct_path)
+                    .get_by_id(*constr_id)
                     .ok_or(CompilationError::MissingConstructor(
                         struct_ident.span.clone(),
                         struct_ident.inner.clone(),
@@ -288,7 +326,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             let _: bool = generate_expression_code(state, local, funpos, *expr)?;
             state
                 .write_code()
-                .push(Instruction::AccessField(constr_id, index));
+                .push(Instruction::AccessField(*constr_id, index));
             Ok(false)
         }
         ir::Expr::Lambda(_span, funimpl) => {
@@ -332,9 +370,9 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
             let cond_jump_ref = state.write_code().push_temp();
             let cond_pos = state.get_instruction_address();
 
-            local.scope_enter();
+            local.bindings.scope_enter();
             let tc_then = generate_expression_code(state, local, funpos, (*then_expr).unspan())?;
-            local.scope_leave();
+            local.bindings.scope_leave();
 
             // if we are at the root, check if we need to ret or not, otherwise
             // push a temporary for jumping to the end of the block
@@ -349,9 +387,9 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
 
             let else_pos = state.get_instruction_address();
 
-            local.scope_enter();
+            local.bindings.scope_enter();
             let tc_else = generate_expression_code(state, local, funpos, (*else_expr).unspan())?;
-            local.scope_leave();
+            local.bindings.scope_leave();
 
             let end_pos = state.get_instruction_address();
 
@@ -379,50 +417,124 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
 
 fn fetch_ident<'a, L: Clone + Eq + core::hash::Hash>(
     state: &CodeBuilder<'a, L>,
-    local: &LocalBindings,
+    local: &CompilationLocalState,
     span: Span,
     path: Path,
 ) -> Result<BindingType, CompilationError> {
-    if let Some(local_path) = path.get_local() {
-        if let Some(bound) = local.bindings.get(local_path) {
-            return Ok(*bound);
-        }
-    }
+    let resolved = resolve_symbol(state, local, &path);
 
-    let resolved = resolve_path(&state.resolver, &path);
-
-    if let Some(bound) = state.globals.get(&resolved.0) {
-        Ok(*bound)
+    if resolved.is_empty() {
+        std::println!("resolution empty");
+        Err(CompilationError::MissingSymbol(span, path))
+    } else if resolved.len() > 1 {
+        Err(CompilationError::MultipleSymbol(span, path))
     } else {
-        if let Some(resolved) = &resolved.1 {
-            if let Some(bound) = state.globals.get(resolved) {
-                Ok(*bound)
-            } else {
-                Err(CompilationError::MissingSymbol(span, path))
+        let r = &resolved[0];
+        match r {
+            Resolution::Constructor(_, _) => {
+                // some error
+                todo!()
             }
-        } else {
-            Err(CompilationError::MissingSymbol(span, path))
+            Resolution::Binding(r) => Ok(*r),
         }
     }
 }
 
-fn resolve_path(resolver: &Option<SymbolResolver>, path: &Path) -> (AbsPath, Option<AbsPath>) {
+pub enum Resolution {
+    Constructor(ConstrId, Vec<Ident>),
+    Binding(BindingType),
+}
+
+pub fn resolve_symbol_at<'a, L: Clone + Eq + core::hash::Hash>(
+    state: &CodeBuilder<'a, L>,
+    namespace: Namespace,
+    path: &Path,
+) -> Vec<Resolution> {
+    let mut out = Vec::new();
+
+    let mut constr_table = Some(&state.constrs.table.0);
+    let mut bind_table = Some(&state.globals.0);
+
+    // if namespace is not empty, we need to tweak those symbol table
+    if !namespace.is_root() {
+        loop {
+            let (ident, ns) = namespace.clone().drop_first();
+            if let Some(tbl) = constr_table {
+                constr_table = tbl.get_sub(&ident).ok();
+            } else {
+                panic!("missing module {:?}", namespace)
+            }
+            if let Some(tbl) = bind_table {
+                bind_table = tbl.get_sub(&ident).ok();
+            } else {
+                panic!("missing module {:?}", namespace)
+            }
+
+            if ns.is_root() {
+                break;
+            }
+        }
+    }
+
+    let mut idents = path.components();
+    let mut current_ns = namespace;
+
+    while let Some((ident, remaining)) = idents.next() {
+        let mut namespace_entered = false;
+        // check in the constructor symbols (struct / enum)
+        if let Some(tbl) = constr_table {
+            if let Some(constr) = tbl.current().get(ident) {
+                out.push(Resolution::Constructor(constr, remaining.to_vec()))
+            }
+            constr_table = tbl.get_sub(ident).ok();
+            if constr_table.is_some() {
+                namespace_entered = true;
+            }
+        }
+        // check in the function symbols
+        if let Some(tbl) = bind_table {
+            if let Some(bty) = tbl.current().get(ident) {
+                if remaining.is_empty() {
+                    out.push(Resolution::Binding(*bty))
+                }
+            }
+            bind_table = tbl.get_sub(ident).ok();
+            if bind_table.is_some() {
+                namespace_entered = true;
+            }
+        }
+
+        if !namespace_entered {
+            // error now ?
+            break;
+        }
+
+        current_ns = current_ns.append(ident.clone())
+    }
+    out
+}
+
+pub fn resolve_symbol<'a, L: Clone + Eq + core::hash::Hash>(
+    state: &CodeBuilder<'a, L>,
+    local: &CompilationLocalState,
+    path: &Path,
+) -> Vec<Resolution> {
     match path.path_type() {
         PathType::Absolute => {
-            let (namespace, ident) = path.split();
-            (AbsPath::new(&namespace, &ident), None)
+            // if the path is absolute, we only lookup through the defined symbols, so we never
+            // look in the local bindings
+            resolve_symbol_at(state, Namespace::root(), path)
         }
         PathType::Relative => {
-            if let Some(resolver) = resolver {
-                let (namespace, ident) = path.split();
-                let full_namespace = resolver.current.append_namespace(&namespace);
-                (
-                    AbsPath::new(&full_namespace, &ident),
-                    Some(AbsPath::new(&Namespace::root(), &ident)),
-                )
-            } else {
-                panic!("no resolver")
+            if let Some(local_path) = path.get_local() {
+                if let Some(bound) = local.bindings.bindings.get(local_path) {
+                    return vec![Resolution::Binding(*bound)];
+                }
             }
+            let mut result = resolve_symbol_at(state, local.namespace.clone(), path);
+            let mut root_result = resolve_symbol_at(state, Namespace::root(), path);
+            result.append(&mut root_result);
+            result
         }
     }
 }

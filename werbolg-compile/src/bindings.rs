@@ -1,17 +1,21 @@
+use crate::hier::Hier;
 use alloc::{vec, vec::Vec};
 use hashbrown::HashMap;
-use werbolg_core::{AbsPath, Ident, Namespace};
+use werbolg_core::{AbsPath, Ident};
 
 #[derive(Clone)]
 pub struct Bindings<T>(HashMap<Ident, T>);
 
-pub struct GlobalBindings<T> {
-    root: Bindings<T>,
-    ns: HashMap<Namespace, Bindings<T>>,
-}
+pub struct GlobalBindings<T>(pub(crate) Hier<Bindings<T>>);
 
 pub struct BindingsStack<T> {
     stack: Vec<Bindings<T>>,
+}
+
+impl<T> Default for Bindings<T> {
+    fn default() -> Self {
+        Bindings::new()
+    }
 }
 
 impl<T> Bindings<T> {
@@ -40,40 +44,28 @@ impl<T> Bindings<T> {
     }
 }
 
-impl<T> GlobalBindings<T> {
+impl<T: Clone> GlobalBindings<T> {
     pub fn new() -> Self {
-        Self {
-            root: Bindings::new(),
-            ns: HashMap::new(),
-        }
+        Self(Hier::default())
     }
 
-    pub fn add(&mut self, name: AbsPath, value: T) {
+    pub fn add(&mut self, name: AbsPath, value: T) -> Result<(), ()> {
         let (namespace, ident) = name.split();
-        if namespace.is_root() {
-            self.root.add(ident, value)
-        } else {
-            if let Some(ns_bindings) = self.ns.get_mut(&namespace) {
-                ns_bindings.add(ident, value);
-            } else {
-                let mut b = Bindings::new();
-                b.add(ident, value);
-                self.ns.insert(namespace, b);
-            }
+
+        if !self.0.namespace_exist(namespace.clone()) {
+            self.0.add_ns_hier(namespace.clone()).unwrap()
         }
+
+        self.0.on_mut(&namespace, |bindings| {
+            bindings.add(ident.clone(), value.clone())
+        })
     }
 
+    #[allow(unused)]
     pub fn get(&self, name: &AbsPath) -> Option<&T> {
         let (namespace, ident) = name.split();
-        if namespace.is_root() {
-            self.root.get(&ident)
-        } else {
-            if let Some(ns_bindings) = self.ns.get(&namespace) {
-                ns_bindings.get(&ident)
-            } else {
-                None
-            }
-        }
+        let bindings = self.0.get(&namespace).unwrap();
+        bindings.get(&ident)
     }
 }
 
@@ -98,7 +90,6 @@ impl<T> BindingsStack<T> {
             }
             Some(bindings) => {
                 bindings.add(name.clone(), value);
-                return;
             }
         }
     }
