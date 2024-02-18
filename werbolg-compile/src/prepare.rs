@@ -103,20 +103,16 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
         let mut root_bindings = GlobalBindings::new();
 
         for (path, id) in environ.symbols.to_vec(Namespace::root()) {
-            root_bindings
-                .add(path.clone(), BindingType::Nif(id))
-                .map_err(|()| {
-                    CompilationError::DuplicateSymbolEnv(String::from("NIF"), path.clone())
-                        .context(format!("adding NIF"))
-                })?
-        }
-
-        for (path, id) in environ.globals.to_vec(Namespace::root()) {
-            root_bindings
-                .add(path.clone(), BindingType::Global(id))
-                .map_err(|()| {
-                    CompilationError::DuplicateSymbolEnv(String::from("global"), path.clone())
-                })?
+            // unwrap is ok here, the environment should check for duplicate symbol and
+            // missing namespace
+            match id {
+                crate::environ::EnvironmentId::Nif(nif_id) => root_bindings
+                    .add(path.clone(), BindingType::Nif(nif_id))
+                    .unwrap(),
+                crate::environ::EnvironmentId::Global(global_id) => root_bindings
+                    .add(path.clone(), BindingType::Global(global_id))
+                    .unwrap(),
+            }
         }
 
         for (path, fun_id) in table.to_vec(Namespace::root()) {

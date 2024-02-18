@@ -86,7 +86,7 @@ pub fn execute(mod1: werbolg_core::Module) -> Result<Value, ExecutionError> {
         ($env:ident, $i:literal, $arity:literal, $e:expr) => {
             let nif = NIFCall::Pure($e).info($i, CallArity::try_from($arity as usize).unwrap());
             let path = AbsPath::new(&Namespace::root(), &Ident::from($i));
-            $env.add_nif(&path, nif);
+            $env.add_nif(&path, nif).unwrap();
         };
     }
     let module_ns = Namespace::root().append(Ident::from("main"));

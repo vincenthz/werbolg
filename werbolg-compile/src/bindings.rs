@@ -18,12 +18,25 @@ impl<T> Default for Bindings<T> {
     }
 }
 
+pub struct BindingInsertError {
+    pub name: Ident,
+}
+
 impl<T> Bindings<T> {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 
-    pub fn add(&mut self, name: Ident, value: T) {
+    pub fn add(&mut self, name: Ident, value: T) -> Result<(), BindingInsertError> {
+        if self.0.get(&name).is_some() {
+            Err(BindingInsertError { name })
+        } else {
+            self.0.insert(name, value);
+            Ok(())
+        }
+    }
+
+    pub fn add_replace(&mut self, name: Ident, value: T) {
         self.0.insert(name, value);
     }
 
@@ -56,9 +69,11 @@ impl<T: Clone> GlobalBindings<T> {
             self.0.add_ns_hier(namespace.clone()).unwrap()
         }
 
-        self.0.on_mut(&namespace, |bindings| {
-            bindings.add(ident.clone(), value.clone())
-        })
+        self.0
+            .on_mut(&namespace, |bindings| {
+                bindings.add(ident.clone(), value.clone())
+            })
+            .map_err(|_| ())
     }
 
     #[allow(unused)]
@@ -89,7 +104,7 @@ impl<T> BindingsStack<T> {
                 // fall through to the global
             }
             Some(bindings) => {
-                bindings.add(name.clone(), value);
+                bindings.add_replace(name.clone(), value);
             }
         }
     }

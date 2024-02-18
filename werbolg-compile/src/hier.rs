@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 use werbolg_core::{Ident, Namespace};
 
+/// A hierarchical T with recursives namespaces as Ident
 pub struct Hier<T> {
     current: T,
     ns: HashMap<Ident, Hier<T>>,
@@ -11,6 +12,11 @@ impl<T: Default> Default for Hier<T> {
     fn default() -> Self {
         Self::new(T::default())
     }
+}
+
+pub struct HierError<E> {
+    pub namespace: Namespace,
+    pub err: Option<E>,
 }
 
 impl<T: Default> Hier<T> {
@@ -64,37 +70,25 @@ impl<T: Default> Hier<T> {
         &self.current
     }
 
-    pub fn on_mut<F>(&mut self, namespace: &Namespace, mut f: F) -> Result<(), ()>
+    pub fn on_mut<E, F>(&mut self, namespace: &Namespace, mut f: F) -> Result<(), HierError<E>>
     where
-        F: FnMut(&mut T) -> (),
+        F: FnMut(&mut T) -> Result<(), E>,
     {
         if namespace.is_root() {
-            f(&mut self.current);
-            Ok(())
+            f(&mut self.current).map_err(|e| HierError {
+                namespace: namespace.clone(),
+                err: Some(e),
+            })
         } else {
             let (id, next) = namespace.clone().drop_first();
             if let Some(r) = self.ns.get_mut(&id) {
                 r.on_mut(&next, f)
             } else {
-                Err(())
+                Err(HierError {
+                    namespace: namespace.clone(),
+                    err: None,
+                })
             }
-            /*
-            loop {
-                let (id, next) = namespace.drop_first();
-
-                if let Some(mut r) = hier_pointer.ns.get_mut(&id) {
-                    hier_pointer = &mut r;
-                    if next.is_root() {
-                        f(&mut hier_pointer.current);
-                        return Ok(());
-                    } else {
-                        namespace = next;
-                    }
-                } else {
-                    return Err(());
-                }
-            }
-            */
         }
     }
 

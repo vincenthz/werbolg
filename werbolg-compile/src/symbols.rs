@@ -1,4 +1,4 @@
-use crate::hier::Hier;
+use crate::hier::{Hier, HierError};
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::marker::PhantomData;
@@ -11,18 +11,18 @@ use werbolg_core::{AbsPath, Ident, Namespace};
 ///
 /// this is a flat table (only use 1 Ident for lookup/insertion),
 /// for hierarchical table use `SymbolsTable`
-pub struct SymbolsTableFlat<ID: IdF> {
+pub struct SymbolsTableFlat<ID> {
     pub(crate) tbl: HashMap<Ident, ID>,
     phantom: PhantomData<ID>,
 }
 
-impl<ID: IdF> Default for SymbolsTableFlat<ID> {
+impl<ID: Copy> Default for SymbolsTableFlat<ID> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<ID: IdF> SymbolsTableFlat<ID> {
+impl<ID: Copy> SymbolsTableFlat<ID> {
     pub fn new() -> Self {
         Self {
             tbl: Default::default(),
@@ -30,8 +30,13 @@ impl<ID: IdF> SymbolsTableFlat<ID> {
         }
     }
 
-    pub fn insert(&mut self, ident: Ident, id: ID) {
-        self.tbl.insert(ident, id);
+    pub fn insert(&mut self, ident: Ident, id: ID) -> Result<(), SymbolInsertFlatError> {
+        if self.tbl.get(&ident).is_some() {
+            Err(SymbolInsertFlatError { ident })
+        } else {
+            self.tbl.insert(ident, id);
+            Ok(())
+        }
     }
 
     pub fn get(&self, ident: &Ident) -> Option<ID> {
@@ -43,7 +48,7 @@ impl<ID: IdF> SymbolsTableFlat<ID> {
     }
 }
 
-pub struct SymbolsTable<ID: IdF>(pub(crate) Hier<SymbolsTableFlat<ID>>);
+pub struct SymbolsTable<ID>(pub(crate) Hier<SymbolsTableFlat<ID>>);
 
 #[derive(Clone, Debug)]
 pub enum NamespaceError {
@@ -55,7 +60,17 @@ pub enum NamespaceError {
     Missing(Namespace, Ident),
 }
 
-impl<ID: IdF> SymbolsTable<ID> {
+pub struct SymbolInsertFlatError {
+    ident: Ident,
+}
+
+#[derive(Clone, Debug)]
+pub enum SymbolInsertError {
+    AlreadyExist(Namespace, Ident),
+    NamespaceNotPresent(Namespace),
+}
+
+impl<ID: Copy> SymbolsTable<ID> {
     pub fn new() -> Self {
         Self(Hier::default())
     }
@@ -70,9 +85,9 @@ impl<ID: IdF> SymbolsTable<ID> {
     }
     */
 
-    fn on_flat_table_mut<F>(&mut self, namespace: &Namespace, f: F) -> Result<(), ()>
+    fn on_flat_table_mut<F, E>(&mut self, namespace: &Namespace, f: F) -> Result<(), HierError<E>>
     where
-        F: FnMut(&mut SymbolsTableFlat<ID>) -> (),
+        F: FnMut(&mut SymbolsTableFlat<ID>) -> Result<(), E>,
     {
         self.0.on_mut(namespace, f)
     }
@@ -83,13 +98,17 @@ impl<ID: IdF> SymbolsTable<ID> {
             .map_err(|()| NamespaceError::DuplicateLeaf(namespace))
     }
 
-    pub fn insert(&mut self, path: &AbsPath, id: ID) {
+    pub fn insert(&mut self, path: &AbsPath, id: ID) -> Result<(), SymbolInsertError> {
         let (namespace, ident) = path.split();
-        if let Ok(()) = self.on_flat_table_mut(&namespace, |table| table.insert(ident.clone(), id))
-        {
-            ()
-        } else {
-            panic!("unknown namespace {:?}", namespace);
+        match self.on_flat_table_mut(&namespace, |table| table.insert(ident.clone(), id)) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                if let Some(err) = e.err {
+                    Err(SymbolInsertError::AlreadyExist(namespace, err.ident))
+                } else {
+                    Err(SymbolInsertError::NamespaceNotPresent(namespace))
+                }
+            }
         }
     }
 
@@ -121,7 +140,7 @@ impl<ID: IdF> SymbolsTable<ID> {
 }
 
 /// Symbol Table Data maps Ident to ID and store the ID to T
-pub struct SymbolsTableData<ID: IdF, T> {
+pub struct SymbolsTableData<ID, T> {
     pub table: SymbolsTable<ID>,
     pub vecdata: IdVec<ID, T>,
 }
@@ -143,7 +162,7 @@ impl<ID: IdF, T> SymbolsTableData<ID, T> {
             return None;
         }
         let id = self.vecdata.push(v);
-        self.table.insert(path, id);
+        self.table.insert(path, id).unwrap();
         Some(id)
     }
 
