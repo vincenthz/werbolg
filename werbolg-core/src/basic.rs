@@ -261,6 +261,17 @@ impl Namespace {
         Self(out)
     }
 
+    /// Parent namespace
+    pub fn parent(&self) -> Self {
+        if self.is_root() {
+            Namespace::root()
+        } else {
+            let mut vec = self.0.clone();
+            vec.pop().unwrap();
+            Namespace(vec)
+        }
+    }
+
     /// Drop the first element of the namespace
     pub fn drop_first(mut self) -> (Ident, Self) {
         if self.is_root() {

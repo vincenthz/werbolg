@@ -1,6 +1,7 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
-use hashbrown::HashMap;
-use werbolg_core::{Ident, Namespace};
+use hashbrown::{hash_map, HashMap};
+use werbolg_core::{AbsPath, Ident, Namespace};
 
 /// A hierarchical T with recursives namespaces as Ident
 pub struct Hier<T> {
@@ -127,6 +128,88 @@ impl<T: Default> Hier<T> {
         for (ns_name, st) in self.ns.iter() {
             let child_namespace = current.clone().append(ns_name.clone());
             st.dump(child_namespace, out)
+        }
+    }
+}
+
+impl<T> Hier<T> {
+    pub fn iterator<'a, I, J, F>(
+        &'a self,
+        namespace: Namespace,
+        f: alloc::rc::Rc<F>,
+    ) -> HierIterator<'a, I, J, T, F>
+    where
+        F: Fn(&'a T) -> J,
+        J: Iterator<Item = (&'a Ident, &'a I)>,
+    {
+        HierIterator::<'a> {
+            namespace,
+            current_consumed: false,
+            current: CurrentOrSub::Current(f(&self.current)),
+            ns: self.ns.iter(),
+            f: f,
+        }
+    }
+}
+
+/// Hierarchy iterator for Hier<T>
+///
+/// 'a is the lifetime of the initial Hier<T>
+/// I is the item inside the second element of the Iterator of the T
+/// J is the iterator object created from T which return a Tuple of elements, (Ident, I)
+/// T is the object embedded inside Hier
+/// F is the closure to create the iterator associated with T
+pub struct HierIterator<'a, I: 'a, J, T, F: Fn(&'a T) -> J>
+where
+    J: Iterator<Item = (&'a Ident, &'a I)>,
+{
+    namespace: Namespace,
+    current_consumed: bool,
+    current: CurrentOrSub<J, Box<HierIterator<'a, I, J, T, F>>>,
+    ns: hash_map::Iter<'a, Ident, Hier<T>>,
+    f: alloc::rc::Rc<F>,
+}
+
+pub enum CurrentOrSub<A, B> {
+    Current(A),
+    Sub(B),
+}
+
+impl<'a, I, J, T, F: Fn(&'a T) -> J> Iterator for HierIterator<'a, I, J, T, F>
+where
+    J: Iterator<Item = (&'a Ident, &'a I)>,
+{
+    type Item = (AbsPath, &'a I);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = match &mut self.current {
+            CurrentOrSub::Current(c_iter) => {
+                if let Some(x) = c_iter.next() {
+                    let path = AbsPath::new(&self.namespace, x.0);
+                    Some((path, x.1))
+                } else {
+                    None
+                }
+            }
+            CurrentOrSub::Sub(e) => e.next(),
+        };
+        if let Some(x) = next {
+            Some(x)
+        } else {
+            if self.current_consumed {
+                self.namespace = self.namespace.parent();
+            } else {
+                self.current_consumed = true;
+            }
+            match self.ns.next() {
+                None => None,
+                Some((ns, hier)) => {
+                    self.namespace = self.namespace.clone().append(ns.clone());
+                    let x = hier.iterator(self.namespace.clone(), self.f.clone());
+                    self.current = CurrentOrSub::Sub(Box::new(x));
+                    self.next()
+                }
+            }
         }
     }
 }

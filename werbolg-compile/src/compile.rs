@@ -288,6 +288,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                     struct_ident.inner,
                 ));
             } else if result.len() > 1 {
+                // duplicated structs
                 /*
                 return Err(CompilationError::DuplicateSymbol(
                     struct_ident.span,

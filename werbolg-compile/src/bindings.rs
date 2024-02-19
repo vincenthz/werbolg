@@ -1,7 +1,7 @@
 use crate::hier::Hier;
 use alloc::{vec, vec::Vec};
-use hashbrown::HashMap;
-use werbolg_core::{AbsPath, Ident};
+use hashbrown::{hash_map, HashMap};
+use werbolg_core::{AbsPath, Ident, Namespace};
 
 #[derive(Clone)]
 pub struct Bindings<T>(HashMap<Ident, T>);
@@ -15,6 +15,16 @@ pub struct BindingsStack<T> {
 impl<T> Default for Bindings<T> {
     fn default() -> Self {
         Bindings::new()
+    }
+}
+
+pub struct BindingsIterator<'a, T>(hash_map::Iter<'a, Ident, T>);
+
+impl<'a, T> Iterator for BindingsIterator<'a, T> {
+    type Item = (&'a Ident, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
     }
 }
 
@@ -50,10 +60,14 @@ impl<T> Bindings<T> {
     }
 
     pub fn dump<W: core::fmt::Write>(&self, writer: &mut W) -> Result<(), core::fmt::Error> {
-        for (ident, _) in self.0.iter() {
+        for (ident, _) in self.iter() {
             writeln!(writer, "{:?}", ident)?
         }
         Ok(())
+    }
+
+    pub fn iter<'a>(&'a self) -> BindingsIterator<'a, T> {
+        BindingsIterator(self.0.iter())
     }
 }
 
@@ -81,6 +95,17 @@ impl<T: Clone> GlobalBindings<T> {
         let (namespace, ident) = name.split();
         let bindings = self.0.get(&namespace).unwrap();
         bindings.get(&ident)
+    }
+
+    #[allow(unused)]
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (AbsPath, &'a T)>
+    where
+        T: 'a,
+    {
+        self.0.iterator(
+            Namespace::root(),
+            alloc::rc::Rc::new(|x: &'a Bindings<T>| alloc::boxed::Box::new(x.iter())),
+        )
     }
 }
 

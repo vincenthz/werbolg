@@ -2,7 +2,7 @@ use crate::hier::{Hier, HierError};
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::marker::PhantomData;
-use hashbrown::HashMap;
+use hashbrown::{hash_map, HashMap};
 use werbolg_core::id::IdF;
 pub use werbolg_core::idvec::{IdVec, IdVecAfter};
 use werbolg_core::{AbsPath, Ident, Namespace};
@@ -43,8 +43,18 @@ impl<ID: Copy> SymbolsTableFlat<ID> {
         self.tbl.get(ident).map(|i| *i)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&Ident, ID)> {
-        self.tbl.iter().map(|(ident, id)| (ident, *id))
+    pub fn iter<'a>(&'a self) -> SymbolsTableFlatIterator<'a, ID> {
+        SymbolsTableFlatIterator(self.tbl.iter())
+    }
+}
+
+pub struct SymbolsTableFlatIterator<'a, ID>(hash_map::Iter<'a, Ident, ID>);
+
+impl<'a, ID> Iterator for SymbolsTableFlatIterator<'a, ID> {
+    type Item = (&'a Ident, &'a ID);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next()
     }
 }
 
@@ -127,7 +137,7 @@ impl<ID: Copy> SymbolsTable<ID> {
         for (n, t) in ts.iter() {
             for (ident, id) in t.iter() {
                 let path = AbsPath::new(n, ident);
-                vec.push((path, id))
+                vec.push((path, *id))
             }
         }
     }
@@ -136,6 +146,15 @@ impl<ID: Copy> SymbolsTable<ID> {
         let mut v = Vec::new();
         self.dump_path(current, &mut v);
         v
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (AbsPath, ID)> + 'a {
+        self.0
+            .iterator(
+                Namespace::root(),
+                alloc::rc::Rc::new(|s: &'a SymbolsTableFlat<ID>| s.iter()),
+            )
+            .map(|(x, y)| (x, *y))
     }
 }
 
@@ -182,6 +201,10 @@ impl<ID: IdF, T> SymbolsTableData<ID, T> {
 
     pub fn to_vec(&self, current: Namespace) -> Vec<(AbsPath, ID)> {
         self.table.to_vec(current)
+    }
+
+    pub fn iter_symbols<'a>(&'a self) -> impl Iterator<Item = (AbsPath, ID)> + 'a {
+        self.table.iter()
     }
 }
 
