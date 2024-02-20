@@ -1,4 +1,4 @@
-use super::bindings::{BindingsStack, GlobalBindings};
+use super::bindings::{BindingType, GlobalBindings, LocalBindings};
 use super::code::*;
 use super::defs::*;
 use super::errors::*;
@@ -8,9 +8,7 @@ use super::symbols::*;
 use super::CompilationParams;
 use alloc::{format, vec, vec::Vec};
 use werbolg_core as ir;
-use werbolg_core::{
-    ConstrId, FunId, GlobalId, Ident, LitId, Namespace, NifId, Path, PathType, Span,
-};
+use werbolg_core::{ConstrId, FunId, Ident, LitId, Namespace, Path, PathType, Span};
 
 pub(crate) struct CompilationSharedState {}
 pub(crate) struct CompilationLocalState {
@@ -29,70 +27,8 @@ pub(crate) struct CodeBuilder<'a, L: Clone + Eq + core::hash::Hash> {
     pub(crate) lits: UniqueTableBuilder<LitId, L>,
     pub(crate) main_code: Code,
     pub(crate) lambdas: Vec<(CodeRef, ir::FunImpl)>,
-    pub(crate) globals: GlobalBindings<BindingType>,
+    pub(crate) globals: GlobalBindings,
     pub(crate) resolver: Option<SymbolResolver>,
-}
-
-pub struct LocalBindings {
-    bindings: BindingsStack<BindingType>,
-    local: Vec<u16>,
-    max_local: u16,
-}
-
-impl LocalBindings {
-    pub fn new() -> Self {
-        Self {
-            bindings: BindingsStack::new(),
-            local: vec![0],
-            max_local: 0,
-        }
-    }
-
-    pub fn add_param(&mut self, ident: Ident, n: u8) {
-        self.bindings
-            .add(ident, BindingType::Param(ParamBindIndex(n)))
-    }
-
-    pub fn add_local(&mut self, ident: Ident) -> LocalBindIndex {
-        match self.local.last_mut() {
-            None => panic!("internal error: cannot add local without an empty binding stack"),
-            Some(x) => {
-                let local = *x;
-                *x += 1;
-
-                let local = LocalBindIndex(local);
-                self.bindings.add(ident, BindingType::Local(local));
-                local
-            }
-        }
-    }
-
-    pub fn scope_enter(&mut self) {
-        let top = self.local.last().unwrap();
-        self.local.push(*top);
-        self.bindings.scope_enter();
-    }
-
-    pub fn scope_leave(&mut self) {
-        let _x = self.bindings.scope_pop();
-        let local = self.local.pop().unwrap();
-        self.max_local = core::cmp::max(self.max_local, local);
-    }
-
-    pub fn scope_terminate(mut self) -> LocalStackSize {
-        self.scope_leave();
-        assert_eq!(self.local.len(), 1, "internal compilation error");
-        LocalStackSize(self.max_local as u16)
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum BindingType {
-    Global(GlobalId),
-    Nif(NifId),
-    Fun(FunId),
-    Param(ParamBindIndex),
-    Local(LocalBindIndex),
 }
 
 impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
@@ -101,7 +37,7 @@ impl<'a, L: Clone + Eq + core::hash::Hash> CodeBuilder<'a, L> {
         params: CompilationParams<L>,
         funs_tbl: SymbolsTable<FunId>,
         lambdas_vec: IdVecAfter<FunId, FunDef>,
-        globals: GlobalBindings<BindingType>,
+        globals: GlobalBindings,
     ) -> Self {
         Self {
             shared,
@@ -266,7 +202,7 @@ fn generate_expression_code<'a, L: Clone + Eq + core::hash::Hash>(
                     state.write_code().push(Instruction::IgnoreOne);
                 }
                 ir::Binder::Deconstruct(_name, _) => {
-                    todo!()
+                    todo!("")
                 }
             }
             let tc = generate_expression_code(state, local, funpos, *in_expr)?;
@@ -528,7 +464,7 @@ pub fn resolve_symbol<'a, L: Clone + Eq + core::hash::Hash>(
         }
         PathType::Relative => {
             if let Some(local_path) = path.get_local() {
-                if let Some(bound) = local.bindings.bindings.get(local_path) {
+                if let Some(bound) = local.bindings.get(local_path) {
                     return vec![Resolution::Binding(*bound)];
                 }
             }
