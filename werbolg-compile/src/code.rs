@@ -69,12 +69,15 @@ impl core::fmt::Display for InstructionAddress {
     }
 }
 
+/// Code to execute as an array of instruction, generated instructions by instructions
+/// with potential placeholder references `CodeRef`, which we only track how many of them
+/// have not been resolved
 pub struct Code {
     stmts: IdVec<InstructionAddress, Instruction>,
     temps: usize,
 }
 
-/// placeholder instruction
+/// placeholder instruction reference
 pub struct CodeRef(InstructionAddress);
 
 /// A displacement type between instruction. i.e. the number of element between 2 different InstructionAddress
@@ -82,6 +85,7 @@ pub struct CodeRef(InstructionAddress);
 pub struct InstructionDiff(u32);
 
 impl Code {
+    /// Create a new empty Code builder
     pub fn new() -> Self {
         Self {
             stmts: IdVec::new(),
@@ -89,14 +93,19 @@ impl Code {
         }
     }
 
+    /// Append a new instruction at the end of the current instructions
     pub fn push(&mut self, stmt: Instruction) {
         self.stmts.push(stmt);
     }
 
+    /// Return the position of the next instruction
     pub fn position(&self) -> InstructionAddress {
         InstructionAddress(self.stmts.next_id().0)
     }
 
+    /// Push a dummy instruction into the instruction and return a `CodeRef` to
+    /// replace the instruction later using `resolve_temp`
+    #[must_use]
     pub fn push_temp(&mut self) -> CodeRef {
         let r = self.position();
         self.stmts.push(Instruction::IgnoreOne);
@@ -104,11 +113,22 @@ impl Code {
         CodeRef(r)
     }
 
+    /// Resolve the temporary instruction, replacing it by the final instruction
+    ///
+    /// This also reduce the number of temporary instruction by one
+    ///
+    /// Note: that if a temporary is resolve multiple time, which should be difficult
+    /// by design, since the CodeRef is not clone/copy and passed by value,
+    /// this would mess up the counter of temps
     pub fn resolve_temp(&mut self, r: CodeRef, stmt: Instruction) {
         self.stmts[r.0] = stmt;
         self.temps -= 1;
     }
 
+    /// finalize the code into just the instructions vector
+    ///
+    /// this function will panic if the code cannot be finalized, as there
+    /// some unresolved instructions (temps > 0)
     pub fn finalize(self) -> IdVec<InstructionAddress, Instruction> {
         if self.temps > 0 {
             panic!(
