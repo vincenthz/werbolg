@@ -7,7 +7,7 @@ use crate::CompilationUnit;
 use werbolg_core as ir;
 use werbolg_core::{AbsPath, ConstrId, FunId, Namespace};
 
-use crate::bindings::GlobalBindings;
+use crate::bindings::{BindingType, GlobalBindings};
 pub use crate::environ::Environment;
 pub use crate::errors::CompilationError;
 use crate::symbols::{self, IdVecAfter, SymbolsTableData};
