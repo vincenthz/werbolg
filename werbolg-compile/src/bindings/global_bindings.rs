@@ -14,7 +14,7 @@ impl GlobalBindings {
         let (namespace, ident) = name.split();
 
         if !self.0.namespace_exist(namespace.clone()) {
-            self.0.add_ns_hier(namespace.clone()).unwrap()
+            self.0.add_ns_empty_hier(namespace.clone()).unwrap()
         }
 
         self.0
@@ -27,13 +27,13 @@ impl GlobalBindings {
     #[allow(unused)]
     pub fn get(&self, name: &AbsPath) -> Option<&BindingType> {
         let (namespace, ident) = name.split();
-        let bindings = self.0.get(&namespace).unwrap();
+        let bindings = self.0.get(&namespace).ok()?;
         bindings.get(&ident)
     }
 
     #[allow(unused)]
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (AbsPath, &'a BindingType)> {
-        self.0.iterator(
+        self.0.flat_iterator(
             Namespace::root(),
             alloc::rc::Rc::new(|x: &'a Bindings<BindingType>| alloc::boxed::Box::new(x.iter())),
         )

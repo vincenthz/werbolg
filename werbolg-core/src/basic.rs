@@ -5,7 +5,7 @@ use core::num::NonZeroUsize;
 ///
 /// Note that the ident can contains pretty much anything the frontend wants.
 /// For example, Space or '::' could be inside the ident
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident(pub String);
 
 impl core::fmt::Debug for Ident {
@@ -183,7 +183,7 @@ impl<'a> Iterator for PathDecomposer<'a> {
 /// An absolute Path (e.g. namespace::function, or a.g.d)
 ///
 /// The path cannot be empty
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AbsPath(Vec<Ident>);
 
 impl core::fmt::Debug for AbsPath {

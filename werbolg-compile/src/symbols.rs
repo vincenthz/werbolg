@@ -104,7 +104,7 @@ impl<ID: Copy> SymbolsTable<ID> {
 
     pub fn create_namespace(&mut self, namespace: Namespace) -> Result<(), NamespaceError> {
         self.0
-            .add_ns_hier(namespace.clone())
+            .add_ns_empty_hier(namespace.clone())
             .map_err(|()| NamespaceError::DuplicateLeaf(namespace))
     }
 
@@ -150,7 +150,7 @@ impl<ID: Copy> SymbolsTable<ID> {
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (AbsPath, ID)> + 'a {
         self.0
-            .iterator(
+            .flat_iterator(
                 Namespace::root(),
                 alloc::rc::Rc::new(|s: &'a SymbolsTableFlat<ID>| s.iter()),
             )

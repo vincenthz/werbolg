@@ -96,13 +96,15 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
     ) -> Result<CompilationUnit<L>, CompilationError> {
         let SymbolsTableData { table, vecdata } = self.funs;
 
+        /*
         for (p, _id) in table.to_vec(Namespace::root()) {
             std::println!("{:?}", p)
         }
+        */
 
         let mut root_bindings = GlobalBindings::new();
 
-        for (path, id) in environ.symbols.to_vec(Namespace::root()) {
+        for (path, id) in environ.symbols.iter() {
             // unwrap is ok here, the environment should check for duplicate symbol and
             // missing namespace
             match id {
@@ -115,7 +117,7 @@ impl<L: Clone + Eq + core::hash::Hash> CompilationState<L> {
             }
         }
 
-        for (path, fun_id) in table.to_vec(Namespace::root()) {
+        for (path, fun_id) in table.iter() {
             root_bindings
                 .add(path.clone(), BindingType::Fun(fun_id))
                 .map_err(|()| {
