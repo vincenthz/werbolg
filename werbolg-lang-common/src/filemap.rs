@@ -54,7 +54,7 @@ impl Iterator for LineIteratorInclusive {
             None
         } else {
             let l = self.0;
-            self.0 = Line(self.0 .0 + 1);
+            self.0 = Line(self.0.0 + 1);
             Some(l)
         }
     }

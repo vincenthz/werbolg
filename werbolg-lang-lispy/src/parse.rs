@@ -4,7 +4,7 @@ use super::ast::{Ast, Literal};
 use super::token::{Token, UnknownToken};
 use alloc::{boxed::Box, vec, vec::Vec};
 use logos::Logos;
-use werbolg_core::{span_merge, spans_merge, Ident, Span, Spanned, Variable};
+use werbolg_core::{Ident, Span, Spanned, Variable, span_merge, spans_merge};
 use werbolg_lang_common::hex_decode;
 
 pub struct Lexer<'a>(logos::Lexer<'a, Token>);

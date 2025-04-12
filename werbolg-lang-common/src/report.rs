@@ -1,8 +1,8 @@
 use crate::filemap::Line;
 
+use super::Source;
 use super::filemap::LinesMap;
 use super::span::Span;
-use super::Source;
 
 use alloc::format;
 use alloc::string::String;
@@ -147,7 +147,7 @@ impl Report {
             Err(Some(_)) => return Ok(()),
         };
 
-        let Some(highlight) = self.highlight else {
+        let Some(highlight) = &self.highlight else {
             unreachable!();
         };
         let (start_highlight, end_highlight) = source.lines_map.resolve_span(&highlight.0).unwrap();

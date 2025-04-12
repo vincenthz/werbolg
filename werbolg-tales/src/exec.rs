@@ -4,9 +4,9 @@ use super::environ;
 use super::value::Value;
 use super::{Frontend, TalesParams};
 use hashbrown::HashSet;
-use werbolg_compile::{code_dump, compile, Environment, InstructionAddress};
-use werbolg_core::{id::IdF, AbsPath, Ident, Module, Namespace};
-use werbolg_exec::{ExecutionEnviron, ExecutionMachine, ExecutionParams, WAllocator, NIF};
+use werbolg_compile::{Environment, InstructionAddress, code_dump, compile};
+use werbolg_core::{AbsPath, Ident, Module, Namespace, id::IdF};
+use werbolg_exec::{ExecutionEnviron, ExecutionMachine, ExecutionParams, NIF, WAllocator};
 use werbolg_lang_common::{Report, ReportKind, Source};
 
 pub fn run_frontend(

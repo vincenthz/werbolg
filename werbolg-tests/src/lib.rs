@@ -7,7 +7,7 @@ mod value;
 
 use alloc::vec;
 use value::Value;
-use werbolg_compile::{compile as comp, CallArity, CompilationError, Environment};
+use werbolg_compile::{CallArity, CompilationError, Environment, compile as comp};
 use werbolg_core::Literal;
 use werbolg_core::{AbsPath, Ident, Namespace, Span};
 use werbolg_exec::{

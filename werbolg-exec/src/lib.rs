@@ -26,7 +26,7 @@ pub use valuable::{Valuable, ValueKind};
 
 pub use refcount::WerRefCount;
 
-pub use exec::{exec, exec_continue, initialize, step, NIFCall, NIF};
+pub use exec::{NIF, NIFCall, exec, exec_continue, initialize, step};
 
 /// Execution environment with index Nifs by their NifId, and global variable with their GlobalId
 pub struct ExecutionEnviron<A, L, T, V> {

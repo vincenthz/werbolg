@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use proc_macro::{
-    token_stream::IntoIter, Group, Ident, Literal, Punct, Span, TokenStream, TokenTree,
+    Group, Ident, Literal, Punct, Span, TokenStream, TokenTree, token_stream::IntoIter,
 };
 
 /// A Parser for TokenTree, with an arbitrary sized lookahead

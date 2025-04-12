@@ -5,8 +5,8 @@ extern crate proc_macro;
 mod lang;
 mod parse;
 
-use macro_quote_types::ext::{literal_kind, span_to_range};
 use macro_quote_types::ToTokenTrees;
+use macro_quote_types::ext::{literal_kind, span_to_range};
 use proc_macro::{Ident, TokenStream};
 
 use lang::*;

@@ -11,7 +11,7 @@ use werbolg_lang_common::{FileUnit, ParseError, ParseErrorKind};
 
 use alloc::{boxed::Box, format, string::String, vec::Vec};
 use ast::Ast;
-use werbolg_core::{self as ir, spans_merge, Span, Spanned};
+use werbolg_core::{self as ir, Span, Spanned, spans_merge};
 
 fn partition_map<I, T, E>(it: I) -> (Vec<T>, Vec<E>)
 where

@@ -288,11 +288,7 @@ pub fn step<A: WAllocator<Value = V>, L, T, V: Valuable>(
                     value_is: val.descriptor(),
                 });
             };
-            if b {
-                em.ip_next()
-            } else {
-                em.ip_jump(d)
-            }
+            if b { em.ip_next() } else { em.ip_jump(d) }
         }
         Instruction::Ret => {
             let val = em.stack.pop_value();
