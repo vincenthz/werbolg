@@ -7,6 +7,6 @@ edition = "2024"
 
 [dependencies]
 chumsky = { version = "0.9", features = [] }
-logos = { version = "0.13" }
+logos = { version = "0.15" }
 werbolg-lang-common = { path = "../werbolg-lang-common" }
 werbolg-core = { path = "../werbolg-core" }

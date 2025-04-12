@@ -26,7 +26,7 @@ pub enum Token {
     Colon,
     #[token(",")]
     Comma,
-    #[token(".")]
+    #[token(".", priority = 3)]
     Dot,
     #[token("pub")]
     Pub,
@@ -42,7 +42,7 @@ pub enum Token {
     Let,
     #[token("operator")]
     Op,
-    #[token("=")]
+    #[token("=", priority = 3)]
     Eq,
     #[token("#[")]
     AnnotationStart,
@@ -52,6 +52,6 @@ pub enum Token {
     String(String),
     #[regex(r#"[_a-zA-Z][a-zA-Z0-9]*"#, |lex| lex.slice().to_owned())]
     Ident(String),
-    #[regex(r#"[-!@#$%^&*+=|<>?.]+"#, |lex| lex.slice().to_owned())]
+    #[regex(r#"[-!@#$%^&*+=|<>?.]+"#, priority = 2, callback = |lex| lex.slice().to_owned())]
     Operator(String),
 }
