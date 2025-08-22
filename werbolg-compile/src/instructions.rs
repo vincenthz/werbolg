@@ -26,7 +26,7 @@ pub enum Instruction {
     ///
     /// expecting N+1 value on the value stack
     Call(TailCall, CallArity),
-    /// Call the Nif function on the stack with the N value in arguments.
+    /// Call the Nif function specified in the variant with the N value in arguments.
     ///
     /// expecting N value on the value stack, as the NifId is embedded in the instruction
     CallNif(NifId, CallArity),
